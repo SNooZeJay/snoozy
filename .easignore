@@ -1,0 +1,15 @@
+node_modules/
+.expo/
+dist/
+web-build/
+reference/
+android/.gradle/
+android/app/build/
+android/build/
+android/.cxx/
+android/app/.cxx/
+*.jks
+*.keystore
+keystore.properties
+local.properties
+artifacts/

@@ -1,0 +1,236 @@
+import Feather from '@expo/vector-icons/Feather';
+import { useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import type { Playlist } from '../types/music';
+import { colors, radii, spacing } from '../theme';
+import { AppText } from './AppText';
+
+type AddToPlaylistSheetProps = {
+  visible: boolean;
+  onClose: () => void;
+  trackTitle: string | null;
+  playlists: Playlist[];
+  onSelectPlaylist: (playlistId: string) => void;
+  onCreatePlaylist: (name: string) => string;
+};
+
+export function AddToPlaylistSheet({
+  visible,
+  onClose,
+  trackTitle,
+  playlists,
+  onSelectPlaylist,
+  onCreatePlaylist,
+}: AddToPlaylistSheetProps) {
+  const insets = useSafeAreaInsets();
+  const [name, setName] = useState('');
+  const [addedTo, setAddedTo] = useState<string[]>([]);
+
+  const close = () => {
+    setName('');
+    setAddedTo([]);
+    onClose();
+  };
+
+  const add = (playlist: Playlist) => {
+    onSelectPlaylist(playlist.id);
+    setAddedTo((prev) => [...prev, playlist.id]);
+  };
+
+  const create = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const id = onCreatePlaylist(trimmed);
+    if (id) onSelectPlaylist(id);
+    setName('');
+    if (id) setAddedTo((prev) => [...prev, id]);
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={close}
+    >
+      <KeyboardAvoidingView
+        behavior="padding"
+        style={styles.backdrop}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close add to playlist"
+          onPress={close}
+          style={StyleSheet.absoluteFill}
+        />
+        <View
+          style={[
+            styles.panel,
+            { paddingBottom: insets.bottom + spacing.md },
+          ]}
+        >
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <AppText variant="heading" color={colors.ink} numberOfLines={1}>Add to playlist</AppText>
+              {trackTitle ? (
+                <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>
+                  {'\u201C'}{trackTitle}{'\u201D'}
+                </AppText>
+              ) : null}
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={10}
+              onPress={close}
+            >
+              <Feather name="x" size={22} color={colors.inkMuted} />
+            </Pressable>
+          </View>
+
+          {playlists.length === 0 ? (
+            <AppText variant="body" color={colors.inkMuted}>
+              No playlists yet. Create one below.
+            </AppText>
+          ) : (
+            <ScrollView
+              style={styles.list}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {playlists.map((playlist) => {
+                const isAdded = addedTo.includes(playlist.id);
+                return (
+                  <Pressable
+                    key={playlist.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add to ${playlist.name}`}
+                    onPress={() => add(playlist)}
+                    disabled={isAdded}
+                    style={({ pressed }) => [
+                      styles.playlistRow,
+                      pressed && { opacity: 0.7 },
+                      isAdded && styles.playlistRowDisabled,
+                    ]}
+                  >
+                    <Feather
+                      name={isAdded ? 'check-circle' : 'plus'}
+                      size={20}
+                      color={isAdded ? colors.accentStrong : colors.inkMuted}
+                    />
+                    <View style={styles.playlistRowText}>
+                      <AppText variant="label" color={colors.ink} numberOfLines={1}>
+                        {playlist.name}
+                      </AppText>
+                      <AppText variant="micro" color={colors.inkMuted}>
+                        {isAdded
+                          ? 'Added'
+                          : `${playlist.trackIds.length} ${playlist.trackIds.length === 1 ? 'track' : 'tracks'}`}
+                      </AppText>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          <View style={styles.createRow}>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="New playlist name"
+              placeholderTextColor={colors.inkFaint}
+              style={styles.input}
+              returnKeyType="done"
+              onSubmitEditing={create}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Create playlist"
+              onPress={create}
+              disabled={!name.trim()}
+              style={({ pressed }) => [
+                styles.createButton,
+                { opacity: name.trim() ? (pressed ? 0.75 : 1) : 0.4 },
+              ]}
+            >
+              <Feather name="plus" size={18} color={colors.accentInk} />
+              <AppText variant="label" color={colors.accentInk}>Create</AppText>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  panel: {
+    backgroundColor: colors.surfaceRaised,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    maxHeight: '75%',
+    gap: spacing.md,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  headerText: { flex: 1, gap: 2 },
+  list: { flexGrow: 0 },
+  listContent: { gap: spacing.xs, paddingBottom: spacing.sm },
+  playlistRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    minHeight: 48,
+  },
+  playlistRowDisabled: { opacity: 0.55 },
+  playlistRowText: { flex: 1, gap: 1 },
+  createRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  input: {
+    flex: 1,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    color: colors.ink,
+    fontSize: 14,
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accent,
+  },
+});
