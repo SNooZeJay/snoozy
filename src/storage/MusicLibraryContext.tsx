@@ -16,7 +16,7 @@ import { useFavorites } from './FavoritesContext';
 import { clearPlayHistory } from './playHistory';
 
 import type { Playlist, Track } from '../types/music';
-import { getTrackOverride } from './metadata';
+import { getAllTrackOverrides } from './metadata';
 
 const AUDIO_PERMISSIONS: MediaLibrary.GranularPermission[] = ['audio'];
 
@@ -128,37 +128,43 @@ export function MusicLibraryProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const importFiles = useCallback(async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: 'audio/*',
-      multiple: true,
-      copyToCacheDirectory: true,
-    });
-    if (result.canceled || !result.assets?.length) return;
-    const next = [...importedTracks];
-    for (const asset of result.assets) {
-      let uri = asset.uri;
-      try {
-        if (FileSystem.documentDirectory) {
-          const dir = `${FileSystem.documentDirectory}Music/`;
-          await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-          const target = `${dir}${asset.name}`;
-          await FileSystem.copyAsync({ from: uri, to: target });
-          uri = target;
-        }
-      } catch {
-        // Fall back to the picker URI if copying is unavailable.
-      }
-      next.push({
-        id: `imported-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        title: asset.name.replace(/\.[^.]+$/, '').trim() || 'Imported track',
-        artist: 'Imported',
-        album: 'Imported',
-        uri,
-        duration: 0,
-        artwork: null,
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'audio/*',
+        multiple: true,
+        copyToCacheDirectory: true,
       });
+      if (result.canceled || !result.assets?.length) return;
+      const next = [...importedTracks];
+      for (const asset of result.assets) {
+        let uri = asset.uri;
+        try {
+          if (FileSystem.documentDirectory) {
+            const dir = `${FileSystem.documentDirectory}Music/`;
+            await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+            const target = `${dir}${asset.name}`;
+            await FileSystem.copyAsync({ from: uri, to: target });
+            uri = target;
+          }
+        } catch {
+          // Fall back to the picker URI if copying is unavailable.
+        }
+        next.push({
+          id: `imported-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          title: asset.name.replace(/\.[^.]+$/, '').trim() || 'Imported track',
+          artist: 'Imported',
+          album: 'Imported',
+          uri,
+          duration: 0,
+          artwork: null,
+        });
+      }
+      persistImported(next);
+    } catch (error) {
+      setScanError(
+        error instanceof Error ? error.message : 'Could not import audio files.',
+      );
     }
-    persistImported(next);
   }, [importedTracks, persistImported]);
 
   const scanInternal = useCallback(async () => {
@@ -173,6 +179,8 @@ export function MusicLibraryProvider({ children }: { children: ReactNode }) {
       }
 
       const collected: Track[] = [];
+      // Album titles are shared across pages; resolve each album once per scan.
+      const albumCache = new Map<string, string>();
       let after: string | undefined;
       do {
         const page = await MediaLibrary.getAssetsAsync({
@@ -181,7 +189,6 @@ export function MusicLibraryProvider({ children }: { children: ReactNode }) {
           after,
           sortBy: MediaLibrary.SortBy.default,
         });
-        const albumCache = new Map<string, string>();
         for (const asset of page.assets) {
           let albumTitle = 'Unknown album';
           if (asset.albumId) {
@@ -345,20 +352,33 @@ export function MusicLibraryProvider({ children }: { children: ReactNode }) {
   const [displayVersion, setDisplayVersion] = useState(0);
   const refreshDisplay = useCallback(() => setDisplayVersion((v) => v + 1), []);
   const [displayTracks, setDisplayTracks] = useState<Track[]>([]);
+  const previousTracksRef = useRef<Track[] | null>(null);
   useEffect(() => {
     let cancelled = false;
     const apply = async () => {
       if (tracks.length === 0) {
+        previousTracksRef.current = tracks;
         setDisplayTracks([]);
         return;
       }
-      const next: Track[] = [];
+
+      // Show the raw scan immediately, then layer metadata overrides in one
+      // query. This avoids both a blank library and one SQLite round-trip per
+      // track. Overrides are re-applied after an edit (displayVersion) without
+      // briefly flashing the raw titles.
+      if (previousTracksRef.current !== tracks) {
+        previousTracksRef.current = tracks;
+        setDisplayTracks(tracks);
+      }
+
       try {
-        for (const track of tracks) {
-          const override = await getTrackOverride(track.id);
-          if (cancelled) return;
-          next.push(
-            override
+        const overrides = await getAllTrackOverrides();
+        if (cancelled) return;
+        const byId = new Map(overrides.map((override) => [override.trackId, override]));
+        setDisplayTracks(
+          tracks.map((track) => {
+            const override = byId.get(track.id);
+            return override
               ? {
                   ...track,
                   title: override.title ?? track.title,
@@ -366,16 +386,12 @@ export function MusicLibraryProvider({ children }: { children: ReactNode }) {
                   album: override.album ?? track.album,
                   artwork: override.artworkPath ?? track.artwork ?? null,
                 }
-              : track,
-          );
-        }
+              : track;
+          }),
+        );
       } catch {
-        if (!cancelled) {
-          setDisplayTracks(tracks);
-          return;
-        }
+        // Keep the raw scan if the metadata store is unavailable.
       }
-      if (!cancelled) setDisplayTracks(next);
     };
     void apply();
     return () => {
@@ -395,14 +411,20 @@ export function MusicLibraryProvider({ children }: { children: ReactNode }) {
 
   const filteredTracks = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return tracks;
-    return tracks.filter((track) =>
+    if (!normalized) return displayTracks;
+    return displayTracks.filter((track) =>
       `${track.title} ${track.artist} ${track.album}`.toLowerCase().includes(normalized),
     );
-  }, [query, tracks]);
+  }, [displayTracks, query]);
 
-  const albums = useMemo(() => [...new Set(tracks.map((track) => track.album))].sort(), [tracks]);
-  const artists = useMemo(() => [...new Set(tracks.map((track) => track.artist))].sort(), [tracks]);
+  const albums = useMemo(
+    () => [...new Set(displayTracks.map((track) => track.album))].sort(),
+    [displayTracks],
+  );
+  const artists = useMemo(
+    () => [...new Set(displayTracks.map((track) => track.artist))].sort(),
+    [displayTracks],
+  );
 
   const value = useMemo<MusicLibraryValue>(
     () => ({

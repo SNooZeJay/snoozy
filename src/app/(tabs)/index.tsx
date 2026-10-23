@@ -15,12 +15,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '../../components/AppText';
 import { CreatePlaylistSheet } from '../../components/CreatePlaylistSheet';
+import { GlassButton } from '../../components/glass/GlassButton';
+import { GlassSurface } from '../../components/glass/GlassSurface';
 import { MiniPlayer } from '../../components/MiniPlayer';
 import { DottedNote, NoteTile, Thumb } from '../../components/Thumb';
 import { useMusicLibrary } from '../../storage/MusicLibraryContext';
 import { usePlayer } from '../../playback/PlayerContext';
 import { usePreferences } from '../../storage/PreferencesContext';
-import { colors, layout, radii, spacing, useTheme } from '../../theme';
+import { staggerEnter } from '../../motion/stagger';
+import { colors, glass, layout, radii, spacing, useTheme } from '../../theme';
 
 export default function HomeScreen() {
   const library = useMusicLibrary();
@@ -35,6 +38,9 @@ export default function HomeScreen() {
   const recentTracks = library.recents
     .map((id) => library.displayTracksById.get(id))
     .filter((track): track is NonNullable<typeof track> => Boolean(track));
+
+  const playlistTrackCount = (trackIds: string[]) =>
+    trackIds.filter((id) => library.displayTracksById.has(id)).length;
 
   const confirmClearHistory = () => {
     Alert.alert('Clear recently played?', 'Your play history will be emptied.', [
@@ -52,7 +58,7 @@ export default function HomeScreen() {
 
   const playRecent = (track: NonNullable<(typeof recentTracks)[number]>) => {
     tapFeedback('selection');
-    void player.playTrack(track, library.tracks);
+    void player.playTrack(track, library.displayTracks);
   };
 
   const openLibrary = (tab: 'songs' | 'playlists') => {
@@ -98,17 +104,18 @@ export default function HomeScreen() {
             <AppText variant="overline" color={colors.accent}>Snoozy</AppText>
             <AppText variant="display" color={colors.ink}>Your music</AppText>
           </View>
-          <Pressable
+          <GlassButton
             accessibilityRole="button"
             accessibilityLabel="Import songs"
             onPress={() => {
               tapFeedback('selection');
               void library.importFiles();
             }}
-            style={({ pressed }) => [styles.circleButton, { opacity: pressed ? 0.7 : 1 }]}
+            radius={24}
+            style={styles.circleButton}
           >
             <Feather name="download" size={20} color={colors.ink} />
-          </Pressable>
+          </GlassButton>
         </View>
 
         {player.error ? (
@@ -129,7 +136,14 @@ export default function HomeScreen() {
           </Animated.View>
         ) : null}
 
-        {library.permission !== 'granted' ? (
+        {library.permission === null ? (
+          <Animated.View entering={cardEnter} style={styles.emptyCard}>
+            <AppText variant="title" color={colors.ink}>Checking library…</AppText>
+            <AppText variant="body" color={colors.inkMuted}>
+              Looking for audio files on this device.
+            </AppText>
+          </Animated.View>
+        ) : library.permission !== 'granted' ? (
           <Animated.View entering={cardEnter} style={styles.emptyCard}>
             <AppText variant="title" color={colors.ink}>Permission needed</AppText>
             <AppText variant="body" color={colors.inkMuted}>
@@ -187,7 +201,8 @@ export default function HomeScreen() {
         ) : null}
 
         {library.tracks.length > 0 ? (
-          <Animated.View entering={cardEnter} style={styles.recentCard}>
+          <Animated.View entering={cardEnter}>
+            <GlassSurface variant="card" style={styles.recentCard}>
             <View style={styles.cardHeader}>
               <AppText variant="heading" color={colors.ink}>Recently</AppText>
               {recentTracks.length > 0 ? (
@@ -212,24 +227,29 @@ export default function HomeScreen() {
               </View>
             ) : (
               <View style={styles.recentRows}>
-                {recentTracks.map((track) => (
-                  <Pressable
+                {recentTracks.map((track, index) => (
+                  <Animated.View
                     key={track.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Play ${track.title}`}
-                    onPress={() => playRecent(track)}
-                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                    entering={staggerEnter(index, reducedMotion)}
                   >
-                    <Thumb track={track} size={48} />
-                    <View style={styles.rowText}>
-                      <AppText variant="label" color={colors.ink} numberOfLines={1}>{track.title}</AppText>
-                      <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>{track.artist}</AppText>
-                    </View>
-                    <Feather name="play" size={18} color={colors.inkMuted} />
-                  </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Play ${track.title}`}
+                      onPress={() => playRecent(track)}
+                      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                    >
+                      <Thumb track={track} size={48} />
+                      <View style={styles.rowText}>
+                        <AppText variant="label" color={colors.ink} numberOfLines={1}>{track.title}</AppText>
+                        <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>{track.artist}</AppText>
+                      </View>
+                      <Feather name="play" size={18} color={colors.inkMuted} />
+                    </Pressable>
+                  </Animated.View>
                 ))}
               </View>
             )}
+          </GlassSurface>
           </Animated.View>
         ) : null}
 
@@ -258,31 +278,37 @@ export default function HomeScreen() {
               </View>
             ) : (
               <View style={styles.list}>
-                {library.playlists.map((playlist) => (
-                  <View key={playlist.id} style={styles.rowCard}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Open ${playlist.name} in library`}
-                      onPress={() => openLibrary('playlists')}
-                      style={({ pressed }) => [styles.rowInner, pressed && styles.rowPressed]}
-                    >
-                      <NoteTile size={48} />
-                      <View style={styles.rowText}>
-                        <AppText variant="label" color={colors.ink} numberOfLines={1}>{playlist.name}</AppText>
-                        <AppText variant="micro" color={colors.inkMuted}>
-                          {playlist.trackIds.length} {playlist.trackIds.length === 1 ? 'track' : 'tracks'}
-                        </AppText>
-                      </View>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Manage ${playlist.name}`}
-                      onPress={() => confirmDeletePlaylist(playlist.id, playlist.name)}
-                      style={({ pressed }) => [styles.rowMenu, { opacity: pressed ? 0.6 : 1 }]}
-                    >
-                      <Feather name="more-horizontal" size={20} color={colors.inkMuted} />
-                    </Pressable>
-                  </View>
+                {library.playlists.map((playlist, index) => (
+                  <Animated.View
+                    key={playlist.id}
+                    entering={staggerEnter(index, reducedMotion)}
+                  >
+                    <GlassSurface variant="row" radius={radii.lg} style={styles.rowCard}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open ${playlist.name} in library`}
+                        onPress={() => openLibrary('playlists')}
+                        style={({ pressed }) => [styles.rowInner, pressed && styles.rowPressed]}
+                      >
+                        <NoteTile size={48} />
+                        <View style={styles.rowText}>
+                          <AppText variant="label" color={colors.ink} numberOfLines={1}>{playlist.name}</AppText>
+                          <AppText variant="micro" color={colors.inkMuted}>
+                            {playlistTrackCount(playlist.trackIds)}{' '}
+                            {playlistTrackCount(playlist.trackIds) === 1 ? 'track' : 'tracks'}
+                          </AppText>
+                        </View>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Manage ${playlist.name}`}
+                        onPress={() => confirmDeletePlaylist(playlist.id, playlist.name)}
+                        style={({ pressed }) => [styles.rowMenu, { opacity: pressed ? 0.6 : 1 }]}
+                      >
+                        <Feather name="more-horizontal" size={20} color={colors.inkMuted} />
+                      </Pressable>
+                    </GlassSurface>
+                  </Animated.View>
                 ))}
               </View>
             )}
@@ -303,15 +329,17 @@ export default function HomeScreen() {
                 <AppText variant="label" color={colors.inkMuted}>See all</AppText>
               </Pressable>
             </View>
-            <Pressable
+            <GlassButton
               accessibilityRole="button"
               accessibilityLabel="Browse all songs"
               onPress={() => openLibrary('songs')}
-              style={({ pressed }) => [styles.browseButton, { opacity: pressed ? 0.7 : 1 }]}
+              variant="row"
+              radius={radii.md}
+              style={styles.browseButton}
             >
               <Feather name="grid" size={18} color={colors.accent} />
               <AppText variant="label" color={colors.ink}>Browse all songs</AppText>
-            </Pressable>
+            </GlassButton>
           </Animated.View>
         ) : null}
       </ScrollView>
@@ -342,11 +370,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   circleButtonSmall: {
     width: 48,
@@ -370,9 +393,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.xl,
     borderRadius: radii.xl,
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: glass.tint,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: glass.edge,
     alignItems: 'flex-start',
   },
   primaryButton: {
@@ -387,10 +410,6 @@ const styles = StyleSheet.create({
   recentCard: {
     gap: spacing.sm,
     padding: spacing.lg,
-    borderRadius: radii.xl,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -422,18 +441,14 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     padding: spacing.lg,
     borderRadius: radii.xl,
-    backgroundColor: colors.surface,
+    backgroundColor: glass.tintSoft,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: colors.borderStrong,
+    borderColor: glass.edgeStrong,
   },
   rowCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: radii.lg,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.xs,
   },
   rowInner: {
@@ -465,10 +480,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    borderRadius: radii.md,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
     alignSelf: 'flex-start',
   },
 });

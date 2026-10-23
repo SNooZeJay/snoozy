@@ -1,7 +1,8 @@
-import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs, router, usePathname } from 'expo-router';
 import { useEffect, useState, type ComponentProps } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Easing, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -10,14 +11,15 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { GlassSurface } from '../../components/glass/GlassSurface';
 import { colors, layout, motion, useTheme } from '../../theme';
 
-type FeatherName = ComponentProps<typeof Feather>['name'];
+type IconName = ComponentProps<typeof Ionicons>['name'];
 
-const TABS: { name: string; path: string; icon: FeatherName; label: string }[] = [
+const TABS: { name: string; path: string; icon: IconName; label: string }[] = [
   { name: 'index', path: '/', icon: 'home', label: 'Home' },
   { name: 'search', path: '/search', icon: 'search', label: 'Search' },
-  { name: 'library', path: '/library', icon: 'book-open', label: 'Library' },
+  { name: 'library', path: '/library', icon: 'library', label: 'Library' },
   { name: 'settings', path: '/settings', icon: 'settings', label: 'Settings' },
 ];
 
@@ -67,8 +69,16 @@ function FloatingPillBar() {
       pointerEvents="box-none"
       onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
     >
-      <View style={styles.bar} pointerEvents="box-none">
-        <Animated.View style={[styles.pill, pillStyle]} />
+      <GlassSurface variant="pill" style={styles.bar}>
+        <Animated.View style={[styles.pill, pillStyle]}>
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.02)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFill, { borderRadius: 17 }]}
+          />
+        </Animated.View>
         {TABS.map((tab, index) => {
           const focused = index === activeIndex;
           return (
@@ -83,7 +93,7 @@ function FloatingPillBar() {
               }}
               style={styles.tab}
             >
-              <Feather
+              <Ionicons
                 name={tab.icon}
                 size={24}
                 color={focused ? colors.accentInk : colors.inkMuted}
@@ -91,18 +101,30 @@ function FloatingPillBar() {
             </Pressable>
           );
         })}
-      </View>
+      </GlassSurface>
     </View>
   );
 }
 
 export default function TabsLayout() {
+  const { reducedMotion } = useTheme();
+
   return (
     <View style={styles.root}>
       <Tabs
         screenOptions={{
           headerShown: false,
           tabBarStyle: { display: 'none' },
+          animation: reducedMotion ? 'none' : 'fade',
+          transitionSpec: reducedMotion
+            ? { animation: 'timing', config: { duration: 0 } }
+            : {
+                animation: 'timing',
+                config: {
+                  duration: motion.durations.screen,
+                  easing: Easing.out(Easing.cubic),
+                },
+              },
         }}
       >
         <Tabs.Screen name="index" options={{ title: 'Home' }} />
@@ -127,11 +149,9 @@ const styles = StyleSheet.create({
   bar: {
     height: layout.tabBarHeight,
     borderRadius: layout.tabBarHeight / 2,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
+    borderColor: 'rgba(232, 242, 224, 0.20)',
   },
   pill: {
     position: 'absolute',
@@ -140,6 +160,7 @@ const styles = StyleSheet.create({
     top: (layout.tabBarHeight - PILL_HEIGHT) / 2,
     borderRadius: 17,
     backgroundColor: colors.accent,
+    overflow: 'hidden',
   },
   tab: {
     flex: 1,

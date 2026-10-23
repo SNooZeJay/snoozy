@@ -1,25 +1,56 @@
 import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePlayer } from '../playback/PlayerContext';
-import { colors, layout, radii, spacing } from '../theme';
+import { colors, layout, motion, radii, spacing, useTheme } from '../theme';
 import { AppText } from './AppText';
+import { CrossfadeArtwork } from './CrossfadeArtwork';
+import { GlassSurface } from './glass/GlassSurface';
+import { ScalePressable } from './ScalePressable';
 
-export function MiniPlayer() {
+type MiniPlayerProps = {
+  /** Stack screens have no tab bar, so the player sits at the safe-area edge. */
+  standalone?: boolean;
+};
+
+export function MiniPlayer({ standalone = false }: MiniPlayerProps) {
   const { activeTrack, isPlaying, togglePlayback, palette } = usePlayer();
+  const { reducedMotion } = useTheme();
+  const insets = useSafeAreaInsets();
 
   if (!activeTrack) return null;
 
+  const enter = reducedMotion
+    ? FadeIn.duration(motion.durations.short)
+    : FadeInDown.duration(motion.durations.long);
+
   return (
-    <View style={styles.shell}>
-      <View style={[styles.card, { borderColor: palette.glow }]}>
+    <Animated.View
+      entering={enter}
+      exiting={FadeOut.duration(motion.durations.short)}
+      style={[
+        styles.shell,
+        {
+          bottom: standalone
+            ? insets.bottom + spacing.md
+            : insets.bottom + layout.tabBarInset + layout.tabBarHeight + layout.pillGap,
+        },
+      ]}
+    >
+      <GlassSurface
+        variant="card"
+        radius={radii.lg}
+        borderColor={palette.glow}
+        glowColor={palette.glow}
+        style={styles.card}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Open player for ${activeTrack.title}`}
@@ -27,30 +58,32 @@ export function MiniPlayer() {
           onPress={() => router.push('/player')}
           style={({ pressed }) => [styles.info, { opacity: pressed ? 0.75 : 1 }]}
         >
-          <Animated.View sharedTransitionTag="now-playing-artwork" style={styles.artwork}>
-            {activeTrack.artwork ? (
-              <Image source={{ uri: activeTrack.artwork }} style={styles.artworkImage} />
-            ) : (
-              <View style={[styles.artworkFallback, { backgroundColor: palette.accent }]}>
-                <AppText variant="title" color={palette.accentInk}>{activeTrack.title.slice(0, 1).toUpperCase()}</AppText>
-              </View>
-            )}
-          </Animated.View>
+          <CrossfadeArtwork
+            uri={activeTrack.artwork}
+            fallbackText={activeTrack.title.slice(0, 1).toUpperCase()}
+            fallbackColor={palette.accent}
+            fallbackInk={palette.accentInk}
+            fallbackSize={18}
+            style={styles.artwork}
+            sharedTransitionTag="now-playing-artwork"
+            reducedMotion={reducedMotion}
+          />
           <View style={styles.text}>
             <AppText variant="label" color={colors.ink} numberOfLines={1}>{activeTrack.title}</AppText>
             <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>{activeTrack.artist}</AppText>
           </View>
         </Pressable>
-        <Pressable
+        <ScalePressable
           accessibilityRole="button"
           accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
           onPress={() => void togglePlayback()}
-          style={({ pressed }) => [styles.playButton, { opacity: pressed ? 0.7 : 1 }]}
+          reducedMotion={reducedMotion}
+          style={styles.playButton}
         >
           <Feather name={isPlaying ? 'pause' : 'play'} size={20} color={colors.ink} />
-        </Pressable>
-      </View>
-    </View>
+        </ScalePressable>
+      </GlassSurface>
+    </Animated.View>
   );
 }
 
@@ -59,8 +92,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: spacing.md,
     right: spacing.md,
-    // Floats above the pill bottom bar (inset + bar height + gap).
-    bottom: layout.tabBarInset + layout.tabBarHeight + layout.pillGap,
   },
   card: {
     flexDirection: 'row',
@@ -68,21 +99,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.sm,
     borderRadius: radii.lg,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   info: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   artwork: { width: 44, height: 44, borderRadius: radii.md, overflow: 'hidden' },
-  artworkImage: { width: 44, height: 44 },
-  artworkFallback: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceMuted,
-  },
   text: { flex: 1, gap: 2 },
   playButton: {
     width: 48,
@@ -90,6 +109,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(7, 17, 13, 0.48)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(232, 242, 224, 0.16)',
   },
 });

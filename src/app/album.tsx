@@ -1,5 +1,6 @@
 import { useLocalSearchParams, router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '../components/AppText';
@@ -8,8 +9,9 @@ import { MiniPlayer } from '../components/MiniPlayer';
 import { useMusicLibrary } from '../storage/MusicLibraryContext';
 import { usePlayer } from '../playback/PlayerContext';
 import { usePreferences } from '../storage/PreferencesContext';
+import { staggerEnter } from '../motion/stagger';
 import type { Track } from '../types/music';
-import { colors, radii, spacing } from '../theme';
+import { colors, glass, radii, spacing, useTheme } from '../theme';
 
 export default function AlbumScreen() {
   const params = useLocalSearchParams<{ album?: string }>();
@@ -17,6 +19,7 @@ export default function AlbumScreen() {
   const library = useMusicLibrary();
   const player = usePlayer();
   const { tapFeedback } = usePreferences();
+  const { reducedMotion } = useTheme();
 
   const tracks = library.displayTracks.filter((t) => t.album === albumName);
   const totalMinutes = Math.round(tracks.reduce((s, t) => s + (t.duration || 0), 0) / 60);
@@ -33,7 +36,9 @@ export default function AlbumScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.topRow}>
           <IconButton name="chevron-left" label="Back" onPress={() => router.back()} />
-          <AppText variant="title" color={colors.ink} numberOfLines={1}>{albumName || 'Unknown album'}</AppText>
+          <AppText variant="title" color={colors.ink} numberOfLines={1} style={styles.topTitle}>
+            {albumName || 'Unknown album'}
+          </AppText>
         </View>
         {tracks.length === 0 ? (
           <View style={styles.emptyCard}>
@@ -64,29 +69,33 @@ export default function AlbumScreen() {
                 <AppText variant="label" color={colors.ink}>Shuffle</AppText>
               </Pressable>
             </View>
-            {tracks.map((track) => (
-              <Pressable
+            {tracks.map((track, index) => (
+              <Animated.View
                 key={track.id}
-                accessibilityRole="button"
-                onPress={() => {
-                  tapFeedback('selection');
-                  void player.playTrack(track, tracks);
-                }}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                entering={staggerEnter(index, reducedMotion)}
               >
-                <View style={styles.artworkFallback}>
-                  <AppText variant="label" color={colors.accentInk}>{track.title.slice(0, 1).toUpperCase()}</AppText>
-                </View>
-                <View style={styles.rowText}>
-                  <AppText variant="label" color={colors.ink} numberOfLines={1}>{track.title}</AppText>
-                  <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>{track.artist}</AppText>
-                </View>
-              </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    tapFeedback('selection');
+                    void player.playTrack(track, tracks);
+                  }}
+                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                >
+                  <View style={styles.artworkFallback}>
+                    <AppText variant="label" color={colors.accentInk}>{track.title.slice(0, 1).toUpperCase()}</AppText>
+                  </View>
+                  <View style={styles.rowText}>
+                    <AppText variant="label" color={colors.ink} numberOfLines={1}>{track.title}</AppText>
+                    <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>{track.artist}</AppText>
+                  </View>
+                </Pressable>
+              </Animated.View>
             ))}
           </>
         )}
       </ScrollView>
-      <MiniPlayer />
+      <MiniPlayer standalone />
     </SafeAreaView>
   );
 }
@@ -99,24 +108,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
+  topTitle: { flex: 1 },
   emptyCard: {
     gap: spacing.md,
     padding: spacing.lg,
     borderRadius: radii.lg,
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: glass.tint,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: glass.edge,
   },
   actions: { flexDirection: 'row', gap: spacing.sm },
   button: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.pill, backgroundColor: colors.accent },
-  buttonSecondary: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.pill, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border },
+  buttonSecondary: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.pill, backgroundColor: glass.tintSoft, borderWidth: 1, borderColor: glass.edgeSoft },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     padding: spacing.sm,
     borderRadius: radii.md,
-    backgroundColor: colors.surface,
+    backgroundColor: glass.tintSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeSoft,
   },
   rowPressed: { opacity: 0.7, transform: [{ scale: 0.99 }] },
   artworkFallback: {
@@ -125,7 +137,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: glass.tintAccent,
   },
   rowText: { flex: 1, gap: 2 },
 });

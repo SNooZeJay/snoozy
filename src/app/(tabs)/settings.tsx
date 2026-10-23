@@ -8,10 +8,11 @@ import { router } from 'expo-router';
 import Constants from 'expo-constants';
 
 import { AppText } from '../../components/AppText';
+import { GlassSurface } from '../../components/glass/GlassSurface';
 import { MiniPlayer } from '../../components/MiniPlayer';
 import { useMusicLibrary } from '../../storage/MusicLibraryContext';
 import { usePreferences } from '../../storage/PreferencesContext';
-import { colors, layout, radii, spacing, useTheme, PRESET_SWATCHES } from '../../theme';
+import { colors, glass, layout, radii, spacing, useTheme, PRESET_SWATCHES } from '../../theme';
 
 const MODES: { value: 'light' | 'dark' | 'auto'; label: string }[] = [
   { value: 'light', label: 'Light' },
@@ -38,7 +39,7 @@ const MOTION: { value: 'system' | 'reduced' | 'full'; label: string }[] = [
 const OSS_NOTICES: string[] = [
   'App font Atkinson Hyperlegible — SIL Open Font License',
   'App font Bricolage Grotesque — SIL Open Font License',
-  'Tab & transport icon set Feather — MIT (Cole Bemis)',
+  'Tab icons Ionicons, transport icons Feather — MIT',
   'Palette engine @material/material-color-utilities — Apache-2.0',
   'Playback engine @rntp/player — Apache-2.0',
   'Visuals @shopify/react-native-skia — MIT',
@@ -157,7 +158,7 @@ export default function SettingsScreen() {
           </View>
         </Animated.View>
 
-        <View style={styles.card}>
+        <GlassSurface variant="card" style={styles.card}>
           <View style={styles.row}>
             <View style={styles.rowIcon}>
               <Feather name="folder" size={20} color={colors.accent} />
@@ -205,9 +206,9 @@ export default function SettingsScreen() {
               setHaptics(value);
             }}
           />
-        </View>
+        </GlassSurface>
 
-        <View style={styles.card}>
+        <GlassSurface variant="card" style={styles.card}>
           <AppText variant="label" color={colors.ink}>Appearance</AppText>
           <ChipRow
             items={MODES}
@@ -254,9 +255,9 @@ export default function SettingsScreen() {
               </Pressable>
             ))}
           </View>
-        </View>
+        </GlassSurface>
 
-        <View style={styles.card}>
+        <GlassSurface variant="card" style={styles.card}>
           <AppText variant="label" color={colors.ink}>Motion</AppText>
           <ChipRow
             items={MOTION}
@@ -266,9 +267,9 @@ export default function SettingsScreen() {
           <AppText variant="micro" color={colors.inkFaint}>
             Reduced keeps fades and drops slide-springs across tabs and cards.
           </AppText>
-        </View>
+        </GlassSurface>
 
-        <View style={styles.card}>
+        <GlassSurface variant="card" style={styles.card}>
           <View style={styles.aboutRow}>
             <View style={styles.mark}>
               <AppText variant="display" color={colors.accentInk}>S</AppText>
@@ -281,7 +282,7 @@ export default function SettingsScreen() {
             </View>
           </View>
           <AppText variant="micro" color={colors.inkFaint}>
-            Version {Constants.expoConfig?.version ?? '1.8.0'}
+            Version {Constants.expoConfig?.version ?? '2.1.0'}
             {Constants.expoConfig?.android?.versionCode ? ` (${Constants.expoConfig.android.versionCode})` : ''}
             {' '}· {osVersion} · arm64
           </AppText>
@@ -300,7 +301,7 @@ export default function SettingsScreen() {
               </AppText>
             ))}
           </View>
-        </View>
+        </GlassSurface>
       </ScrollView>
       <MiniPlayer />
     </SafeAreaView>
@@ -314,10 +315,6 @@ const styles = StyleSheet.create({
   card: {
     gap: spacing.md,
     padding: spacing.md,
-    borderRadius: radii.xl,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   row: {
     flexDirection: 'row',
@@ -333,9 +330,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: glass.tintSoft,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: glass.edgeSoft,
   },
   rowText: { flex: 1, gap: 2 },
   divider: { height: 1, backgroundColor: colors.border },
@@ -353,9 +350,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
     borderRadius: radii.pill,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: glass.tintSoft,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: glass.edgeSoft,
   },
   chipActive: {
     backgroundColor: colors.accent,

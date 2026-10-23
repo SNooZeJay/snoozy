@@ -149,16 +149,28 @@ export const layout = {
 
 export const motion = {
   durations: {
+    instant: 0,
     short: 120,
     medium: 240,
     long: 400,
     extraLong: 700,
+    screen: 280,
+    splash: 450,
   },
   springs: {
     gentle: { damping: 20, stiffness: 180, mass: 1 },
     standard: { damping: 18, stiffness: 260, mass: 1 },
     bouncy: { damping: 12, stiffness: 320, mass: 1 },
     snappy: { damping: 22, stiffness: 400, mass: 0.8 },
+  },
+  easings: {
+    standard: [0.2, 0, 0, 1] as const,
+    decelerate: [0, 0, 0, 1] as const,
+    accelerate: [0.3, 0, 1, 1] as const,
+  },
+  stagger: {
+    step: 38,
+    maxItems: 8,
   },
   reduced: { damping: 40, stiffness: 600, mass: 1 },
 } as const;

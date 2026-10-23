@@ -12,8 +12,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Playlist } from '../types/music';
-import { colors, radii, spacing } from '../theme';
+import { colors, glass, radii, spacing } from '../theme';
 import { AppText } from './AppText';
+import { SheetPanel } from './SheetPanel';
 
 type AddToPlaylistSheetProps = {
   visible: boolean;
@@ -74,7 +75,7 @@ export function AddToPlaylistSheet({
           onPress={close}
           style={StyleSheet.absoluteFill}
         />
-        <View
+        <SheetPanel
           style={[
             styles.panel,
             { paddingBottom: insets.bottom + spacing.md },
@@ -108,6 +109,7 @@ export function AddToPlaylistSheet({
               style={styles.list}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
               {playlists.map((playlist) => {
                 const isAdded = addedTo.includes(playlist.id);
@@ -169,7 +171,7 @@ export function AddToPlaylistSheet({
               <AppText variant="label" color={colors.accentInk}>Create</AppText>
             </Pressable>
           </View>
-        </View>
+        </SheetPanel>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -182,9 +184,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   panel: {
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: glass.tintStrong,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeStrong,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     maxHeight: '75%',
@@ -205,7 +209,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.sm,
     borderRadius: radii.md,
-    backgroundColor: colors.surface,
+    backgroundColor: glass.tintSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeSoft,
     minHeight: 48,
   },
   playlistRowDisabled: { opacity: 0.55 },
@@ -220,7 +226,9 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: spacing.md,
     borderRadius: radii.md,
-    backgroundColor: colors.surface,
+    backgroundColor: glass.fieldTint,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeSoft,
     color: colors.ink,
     fontSize: 14,
   },

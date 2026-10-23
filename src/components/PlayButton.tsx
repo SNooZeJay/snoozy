@@ -1,11 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
-  Pressable,
   StyleSheet,
   View,
 } from 'react-native';
 
-import { colors, shadows } from '../theme';
+import { colors, glass, shadows, useTheme } from '../theme';
+import { ScalePressable } from './ScalePressable';
 
 type PlayButtonProps = {
   playing: boolean;
@@ -26,6 +27,7 @@ export function PlayButton({
   accentColor = colors.accent,
   accentInk = colors.accentInk,
 }: PlayButtonProps) {
+  const { reducedMotion } = useTheme();
   const backgroundColor =
     tone === 'accent'
       ? accentColor
@@ -35,13 +37,15 @@ export function PlayButton({
   const iconColor = tone === 'glass' ? colors.ink : accentInk;
 
   return (
-    <Pressable
+    <ScalePressable
       accessibilityRole="button"
       accessibilityLabel={label ?? (playing ? 'Pause' : 'Play')}
       accessibilityState={{ selected: playing }}
       onPress={onPress}
       hitSlop={8}
-      style={({ pressed }) => [
+      reducedMotion={reducedMotion}
+      scaleTo={0.96}
+      style={[
         styles.button,
         shadows.floating,
         {
@@ -49,12 +53,18 @@ export function PlayButton({
           height: size,
           borderRadius: size / 2,
           backgroundColor,
-          opacity: pressed ? 0.82 : 1,
-          transform: [{ scale: pressed ? 0.96 : 1 }],
         },
         tone === 'glass' && styles.glass,
       ]}
     >
+      <LinearGradient
+        pointerEvents="none"
+        colors={[glass.highlight, glass.highlightSoft, 'transparent', glass.highlightEdge]}
+        locations={[0, 0.34, 0.74, 1]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[StyleSheet.absoluteFill, { borderRadius: size / 2 }]}
+      />
       <View pointerEvents="none" style={playing ? styles.pauseIcon : styles.playIcon}>
         <Feather
           name={playing ? 'pause' : 'play'}
@@ -62,7 +72,7 @@ export function PlayButton({
           color={iconColor}
         />
       </View>
-    </Pressable>
+    </ScalePressable>
   );
 }
 
@@ -70,6 +80,9 @@ const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    overflow: 'hidden',
   },
   glass: {
     borderWidth: StyleSheet.hairlineWidth,

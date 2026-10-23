@@ -16,7 +16,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
 import { useMusicLibrary } from '../storage/MusicLibraryContext';
-import { colors, radii, spacing } from '../theme';
+import { colors, glass, radii, spacing } from '../theme';
 import { getTrackOverride, upsertTrackOverride, deleteTrackOverride } from '../storage/metadata';
 
 type Props = {
@@ -49,20 +49,27 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
     let cancelled = false;
     const handle = setTimeout(() => {
       setLoading(true);
-      void getTrackOverride(trackId).then((o) => {
-        if (cancelled) return;
-        setTitle(o?.title ?? '');
-        setArtist(o?.artist ?? '');
-        setAlbum(o?.album ?? '');
-        setAlbumArtist(o?.albumArtist ?? '');
-        setGenre(o?.genre ?? '');
-        setYear(o?.year ?? '');
-        setTrackNumber(o?.trackNumber ?? '');
-        setDescription(o?.description ?? '');
-        setArtworkPath(o?.artworkPath ?? null);
-        setOriginalArtwork(o?.artworkPath ?? null);
-        setLoading(false);
-      });
+      setError(null);
+      void getTrackOverride(trackId)
+        .then((o) => {
+          if (cancelled) return;
+          setTitle(o?.title ?? '');
+          setArtist(o?.artist ?? '');
+          setAlbum(o?.album ?? '');
+          setAlbumArtist(o?.albumArtist ?? '');
+          setGenre(o?.genre ?? '');
+          setYear(o?.year ?? '');
+          setTrackNumber(o?.trackNumber ?? '');
+          setDescription(o?.description ?? '');
+          setArtworkPath(o?.artworkPath ?? null);
+          setOriginalArtwork(o?.artworkPath ?? null);
+          setLoading(false);
+        })
+        .catch((loadError) => {
+          if (cancelled) return;
+          setError(loadError instanceof Error ? loadError.message : 'Could not load song details');
+          setLoading(false);
+        });
     }, 0);
     return () => {
       cancelled = true;
@@ -72,7 +79,6 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
 
   const validate = (): string | null => {
     if (title.trim() === '' && original.title.trim() === '') return 'Title cannot be empty';
-    if (title.trim() !== '' && title.trim().length === 0) return 'Title cannot be empty';
     if (year.trim() !== '' && !/^\d{4}$/.test(year.trim())) return 'Year must be 4 digits';
     if (trackNumber.trim() !== '' && !/^\d+$/.test(trackNumber.trim())) return 'Track number must be a positive integer';
     if (trackNumber.trim() !== '' && parseInt(trackNumber.trim(), 10) <= 0) return 'Track number must be a positive integer';
@@ -97,9 +103,22 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
       setError('Image is larger than 20 MB');
       return;
     }
-    const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
-    if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+    const allowed = ['jpg', 'jpeg', 'png', 'webp'];
+    const nameExt = asset.fileName?.split('.').pop()?.toLowerCase();
+    const mimeExt = asset.mimeType?.split('/').pop()?.toLowerCase();
+    const candidate =
+      nameExt && allowed.includes(nameExt)
+        ? nameExt
+        : mimeExt === 'jpeg'
+          ? 'jpg'
+          : mimeExt;
+    if (!candidate || !allowed.includes(candidate)) {
       setError('Unsupported image type');
+      return;
+    }
+    const ext = candidate;
+    if (!FileSystem.documentDirectory) {
+      setError('App storage is unavailable');
       return;
     }
     try {
@@ -121,10 +140,6 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
     setSaving(true);
     setError(null);
     try {
-      // remove old artwork file if replaced
-      if (originalArtwork && originalArtwork !== artworkPath) {
-        try { await FileSystem.deleteAsync(originalArtwork, { idempotent: true }); } catch { /* ignore */ }
-      }
       await upsertTrackOverride({
         trackId,
         title: title.trim() === '' ? null : title.trim(),
@@ -138,6 +153,11 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
         artworkPath,
         updatedAt: Date.now(),
       });
+      // Delete the replaced file only after the new row is committed; otherwise
+      // a failed save would leave the database pointing at a deleted image.
+      if (originalArtwork && originalArtwork !== artworkPath) {
+        try { await FileSystem.deleteAsync(originalArtwork, { idempotent: true }); } catch { /* ignore */ }
+      }
       library.refreshDisplay();
       onClose();
     } catch (e) {
@@ -153,12 +173,17 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Reset', style: 'destructive', onPress: async () => {
-          if (artworkPath) {
-            try { await FileSystem.deleteAsync(artworkPath, { idempotent: true }); } catch { /* ignore */ }
+          try {
+            await deleteTrackOverride(trackId);
+            for (const file of [artworkPath, originalArtwork]) {
+              if (!file) continue;
+              try { await FileSystem.deleteAsync(file, { idempotent: true }); } catch { /* ignore */ }
+            }
+            library.refreshDisplay();
+            onClose();
+          } catch (resetError) {
+            setError(resetError instanceof Error ? resetError.message : 'Reset failed');
           }
-          await deleteTrackOverride(trackId);
-          library.refreshDisplay();
-          onClose();
         },
       },
     ]);
@@ -168,7 +193,11 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          <ScrollView contentContainerStyle={styles.content}>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.header}>
               <AppText variant="heading" color={colors.ink}>Edit song</AppText>
               <IconButton name="x" label="Close edit sheet" iconSize={20} size={48} onPress={onClose} />
@@ -248,9 +277,11 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: glass.tintStrong,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeStrong,
     padding: spacing.lg,
     maxHeight: '90%',
   },
@@ -258,13 +289,13 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   field: { gap: 4 },
   input: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: glass.fieldTint,
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     color: colors.ink,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeSoft,
   },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
   artworkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -282,9 +313,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: radii.pill,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: glass.tintSoft,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: glass.edgeSoft,
   },
   actions: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginTop: spacing.sm },
 });

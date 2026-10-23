@@ -38,14 +38,14 @@ export function formatShortDate(timestamp: number): string {
 }
 
 export function formatClock(totalSeconds: number): string {
-  const safe = Math.max(0, Math.floor(totalSeconds));
+  const safe = Number.isFinite(totalSeconds) ? Math.max(0, Math.floor(totalSeconds)) : 0;
   const minutes = Math.floor(safe / 60);
   const seconds = safe % 60;
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
 export function formatDuration(totalSeconds: number): string {
-  const safe = Math.max(0, Math.round(totalSeconds));
+  const safe = Number.isFinite(totalSeconds) ? Math.max(0, Math.round(totalSeconds)) : 0;
   if (safe < 60) return `${safe}s`;
   const minutes = Math.round(safe / 60);
   if (minutes < 60) return `${minutes} min`;
@@ -55,7 +55,7 @@ export function formatDuration(totalSeconds: number): string {
 }
 
 export function formatCountdown(remainingSeconds: number): string {
-  const safe = Math.max(0, Math.floor(remainingSeconds));
+  const safe = Number.isFinite(remainingSeconds) ? Math.max(0, Math.floor(remainingSeconds)) : 0;
   const minutes = Math.floor(safe / 60);
   const seconds = safe % 60;
   if (minutes >= 60) {

@@ -6,7 +6,7 @@ import {
   type GestureResponderEvent,
 } from 'react-native';
 
-import { colors, fonts } from '../theme';
+import { colors, fonts, glass } from '../theme';
 import { formatClock } from '../utils/format';
 import { AppText } from './AppText';
 
@@ -60,6 +60,7 @@ export function SeekBar({
         style={styles.hitArea}
       >
         <View style={styles.track}>
+          <View style={styles.trackHighlight} pointerEvents="none" />
           <View style={[styles.fill, { width: `${ratio * 100}%`, backgroundColor: accentColor }]} />
         </View>
         <View
@@ -90,23 +91,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   track: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(243, 240, 228, 0.15)',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: glass.tintSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeSoft,
     overflow: 'hidden',
+  },
+  trackHighlight: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
   fill: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 3,
     backgroundColor: colors.accent,
   },
   thumb: {
     position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: colors.accent,
-    top: 9,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.46)',
+    top: 8,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   times: {
     flexDirection: 'row',

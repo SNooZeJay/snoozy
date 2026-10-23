@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -11,14 +11,39 @@ import { BricolageGrotesque_600SemiBold } from '@expo-google-fonts/bricolage-gro
 import { AtkinsonHyperlegible_400Regular } from '@expo-google-fonts/atkinson-hyperlegible/400Regular';
 import { AtkinsonHyperlegible_700Bold } from '@expo-google-fonts/atkinson-hyperlegible/700Bold';
 
+import { SplashIntro } from '../components/SplashIntro';
 import { FavoritesProvider } from '../storage/FavoritesContext';
 import { MusicLibraryProvider } from '../storage/MusicLibraryContext';
 import { PlayerProvider } from '../playback/PlayerContext';
 import { PreferencesProvider } from '../storage/PreferencesContext';
-import { ThemeProvider, colors } from '../theme';
+import { ThemeProvider, colors, useTheme } from '../theme';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 SplashScreen.setOptions({ duration: 450, fade: true });
+
+function AppStack() {
+  const { reducedMotion } = useTheme();
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+        animation: reducedMotion ? 'fade' : 'slide_from_right',
+      }}
+    >
+      <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
+      <Stack.Screen
+        name="player"
+        options={{
+          presentation: 'modal',
+          animation: reducedMotion ? 'fade' : 'slide_from_bottom',
+          contentStyle: { backgroundColor: colors.backgroundDeep },
+        }}
+      />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -27,6 +52,8 @@ export default function RootLayout() {
     AtkinsonHyperlegible_400Regular,
     AtkinsonHyperlegible_700Bold,
   });
+  const [introVisible, setIntroVisible] = useState(true);
+  const hideIntro = useCallback(() => setIntroVisible(false), []);
 
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(colors.background).catch(() => undefined);
@@ -54,23 +81,8 @@ export default function RootLayout() {
         <FavoritesProvider>
         <MusicLibraryProvider>
           <PlayerProvider>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
-              animation: 'fade',
-            }}
-          >
-            <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
-            <Stack.Screen
-              name="player"
-              options={{
-                presentation: 'modal',
-                animation: 'slide_from_bottom',
-                contentStyle: { backgroundColor: colors.backgroundDeep },
-              }}
-            />
-          </Stack>
+          <AppStack />
+          {introVisible ? <SplashIntro onDone={hideIntro} /> : null}
           <StatusBar style="light" />
         </PlayerProvider>
         </MusicLibraryProvider>

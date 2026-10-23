@@ -23,11 +23,15 @@ async function getDb(): Promise<SQLite.SQLiteDatabase> {
 
 export async function recordPlay(trackId: string, durationListenedMs: number): Promise<void> {
   if (durationListenedMs < 0) return;
-  const d = await getDb();
-  await d.runAsync(
-    'INSERT INTO play_history (track_id, played_at, duration_listened_ms) VALUES (?, ?, ?)',
-    trackId, Date.now(), Math.round(durationListenedMs),
-  );
+  try {
+    const d = await getDb();
+    await d.runAsync(
+      'INSERT INTO play_history (track_id, played_at, duration_listened_ms) VALUES (?, ?, ?)',
+      trackId, Date.now(), Math.round(durationListenedMs),
+    );
+  } catch {
+    // Play history is diagnostic; never surface a storage failure as playback.
+  }
 }
 
 export async function getRecentDistinct(limit = 20): Promise<PlayHistoryEntry[]> {

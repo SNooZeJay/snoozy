@@ -1,14 +1,15 @@
 import Feather from '@expo/vector-icons/Feather';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ComponentProps } from 'react';
 import {
-  Pressable,
   StyleSheet,
   View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 
-import { colors, radii } from '../theme';
+import { colors, glass, radii, useTheme } from '../theme';
+import { ScalePressable } from './ScalePressable';
 
 type IconName = ComponentProps<typeof Feather>['name'];
 
@@ -32,20 +33,23 @@ export function IconButton({
   size = 48,
   iconSize = 20,
   color = colors.ink,
-  backgroundColor = colors.surfaceRaised,
-  borderColor = colors.border,
+  backgroundColor = glass.buttonTint,
+  borderColor = glass.edge,
   style,
   disabled = false,
 }: IconButtonProps) {
+  const { reducedMotion } = useTheme();
+
   return (
-    <Pressable
+    <ScalePressable
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
       hitSlop={6}
-      style={({ pressed }) => [
+      reducedMotion={reducedMotion}
+      style={[
         styles.button,
         {
           width: size,
@@ -53,15 +57,22 @@ export function IconButton({
           borderRadius: size / 2,
           backgroundColor,
           borderColor,
-          opacity: disabled ? 0.35 : pressed ? 0.68 : 1,
+          opacity: disabled ? 0.35 : 1,
         },
         style,
       ]}
     >
+      <LinearGradient
+        pointerEvents="none"
+        colors={[glass.highlight, 'transparent', glass.highlightEdge]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[StyleSheet.absoluteFill, { borderRadius: size / 2 }]}
+      />
       <View pointerEvents="none">
         <Feather name={name} size={iconSize} color={color} />
       </View>
-    </Pressable>
+    </ScalePressable>
   );
 }
 
@@ -71,5 +82,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.pill,
+    overflow: 'hidden',
   },
 });

@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -9,55 +9,183 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '../../components/AppText';
 import { AddToPlaylistSheet } from '../../components/AddToPlaylistSheet';
 import { AddSongsSheet } from '../../components/AddSongsSheet';
 import { CreatePlaylistSheet } from '../../components/CreatePlaylistSheet';
+import { GlassButton } from '../../components/glass/GlassButton';
+import { GlassSurface } from '../../components/glass/GlassSurface';
 import { MiniPlayer } from '../../components/MiniPlayer';
+import { SwipeableRow, type SwipeAction } from '../../components/SwipeableRow';
 import { DottedNote, Thumb } from '../../components/Thumb';
 import { useMusicLibrary } from '../../storage/MusicLibraryContext';
 import { usePlayer } from '../../playback/PlayerContext';
 import { usePreferences } from '../../storage/PreferencesContext';
+import { staggerEnter } from '../../motion/stagger';
 import type { Track } from '../../types/music';
-import { colors, layout, radii, spacing, useTheme } from '../../theme';
+import { colors, glass, layout, motion, radii, spacing, useTheme } from '../../theme';
 
 const SEGMENTS = ['songs', 'albums', 'artists', 'playlists', 'favorites'] as const;
+type Segment = (typeof SEGMENTS)[number];
+
+type SegmentControlProps = {
+  active: Segment;
+  reducedMotion: boolean;
+  onSelect: (segment: Segment) => void;
+};
+
+function SegmentControl({ active, reducedMotion, onSelect }: SegmentControlProps) {
+  const thumbX = useSharedValue(0);
+  const thumbWidth = useSharedValue(0);
+  const measurements = useRef<{ x: number; width: number }[]>([]);
+  const activeIndex = SEGMENTS.indexOf(active);
+
+  useEffect(() => {
+    const layoutInfo = measurements.current[activeIndex];
+    if (!layoutInfo) return;
+    thumbX.value = reducedMotion
+      ? layoutInfo.x
+      : withSpring(layoutInfo.x, motion.springs.standard);
+    thumbWidth.value = reducedMotion
+      ? layoutInfo.width
+      : withSpring(layoutInfo.width, motion.springs.standard);
+  }, [activeIndex, reducedMotion, thumbWidth, thumbX]);
+
+  const thumbStyle = useAnimatedStyle(() => ({
+    opacity: thumbWidth.value > 0 ? 1 : 0,
+    width: thumbWidth.value,
+    transform: [{ translateX: thumbX.value }],
+  }));
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.segmentRow}
+    >
+      <View style={styles.segmentTrack}>
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.segmentThumb, thumbStyle]}
+        />
+        {SEGMENTS.map((segment, index) => {
+          const selected = active === segment;
+          return (
+            <Pressable
+              key={segment}
+              accessibilityRole="button"
+              accessibilityLabel={`Show ${segment}`}
+              accessibilityState={{ selected }}
+              onPress={() => onSelect(segment)}
+              onLayout={(event) => {
+                const { x, width } = event.nativeEvent.layout;
+                measurements.current[index] = { x, width };
+                if (index !== activeIndex) return;
+                thumbX.value = reducedMotion
+                  ? x
+                  : withSpring(x, motion.springs.standard);
+                thumbWidth.value = reducedMotion
+                  ? width
+                  : withSpring(width, motion.springs.standard);
+              }}
+              style={({ pressed }) => [
+                styles.segmentTap,
+                pressed && styles.segmentPressed,
+              ]}
+            >
+              <View style={[styles.segment, selected && styles.segmentActive]}>
+                <AppText
+                  variant="label"
+                  color={selected ? colors.accentInk : colors.inkMuted}
+                >
+                  {segment[0].toUpperCase() + segment.slice(1)}
+                </AppText>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    </ScrollView>
+  );
+}
 
 type SongRowProps = {
   track: Track;
   queue?: Track[];
+  favorite?: boolean;
   onPlay: (track: Track, queue?: Track[]) => void;
   onMenu: (track: Track, queue?: Track[]) => void;
+  onFavorite?: (track: Track) => void;
+  onAddToPlaylist?: (track: Track) => void;
 };
 
-function SongRow({ track, queue, onPlay, onMenu }: SongRowProps) {
+function SongRow({
+  track,
+  queue,
+  favorite = false,
+  onPlay,
+  onMenu,
+  onFavorite,
+  onAddToPlaylist,
+}: SongRowProps) {
+  const actions: SwipeAction[] = [];
+  if (onFavorite) {
+    actions.push({
+      key: 'favorite',
+      label: favorite ? 'Unfavorite' : 'Favorite',
+      icon: 'heart',
+      iconColor: favorite ? colors.accent : colors.ink,
+      backgroundColor: 'rgba(216, 242, 198, 0.14)',
+      onPress: () => onFavorite(track),
+    });
+  }
+  if (onAddToPlaylist) {
+    actions.push({
+      key: 'playlist',
+      label: 'Playlist',
+      icon: 'plus',
+      iconColor: colors.ink,
+      backgroundColor: 'rgba(243, 240, 228, 0.07)',
+      onPress: () => onAddToPlaylist(track),
+    });
+  }
+
   return (
-    <View style={styles.rowCard}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Play ${track.title}`}
-        onPress={() => onPlay(track, queue)}
-        style={({ pressed }) => [styles.rowInner, pressed && styles.rowPressed]}
-      >
-        <Thumb track={track} size={48} />
-        <View style={styles.rowText}>
-          <AppText variant="label" color={colors.ink} numberOfLines={1}>{track.title}</AppText>
-          <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>{track.artist} · {track.album}</AppText>
-        </View>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Manage ${track.title}`}
-        onPress={() => onMenu(track, queue)}
-        style={({ pressed }) => [styles.rowMenu, { opacity: pressed ? 0.6 : 1 }]}
-        hitSlop={4}
-      >
-        <Feather name="more-horizontal" size={20} color={colors.inkMuted} />
-      </Pressable>
-    </View>
+    <SwipeableRow actions={actions} enabled={actions.length > 0}>
+      <GlassSurface variant="row" radius={radii.lg} style={styles.rowCard}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Play ${track.title}`}
+          accessibilityHint="Swipe left for favorite and playlist actions"
+          onPress={() => onPlay(track, queue)}
+          style={({ pressed }) => [styles.rowInner, pressed && styles.rowPressed]}
+        >
+          <Thumb track={track} size={48} />
+          <View style={styles.rowText}>
+            <AppText variant="label" color={colors.ink} numberOfLines={1}>{track.title}</AppText>
+            <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>{track.artist} · {track.album}</AppText>
+          </View>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Manage ${track.title}`}
+          onPress={() => onMenu(track, queue)}
+          style={({ pressed }) => [styles.rowMenu, { opacity: pressed ? 0.6 : 1 }]}
+          hitSlop={4}
+        >
+          <Feather name="more-horizontal" size={20} color={colors.inkMuted} />
+        </Pressable>
+      </GlassSurface>
+    </SwipeableRow>
   );
 }
 
@@ -80,11 +208,13 @@ export default function LibraryScreen() {
     void player.playTrack(track, queue ?? library.displayTracks);
   };
 
-  const statusLine = library.scanning
-    ? 'Scanning…'
-    : library.permission !== 'granted'
-      ? 'Music access needed'
-      : library.lastScanAt
+  const statusLine = library.permission === null
+    ? 'Checking music access…'
+    : library.scanning
+      ? 'Scanning…'
+      : library.permission !== 'granted'
+        ? 'Music access needed'
+        : library.lastScanAt
         ? `${library.tracks.length} ${library.tracks.length === 1 ? 'song' : 'songs'} · Updated ${new Date(library.lastScanAt).toLocaleTimeString()}`
         : `${library.tracks.length} ${library.tracks.length === 1 ? 'song' : 'songs'} indexed`;
 
@@ -127,6 +257,11 @@ export default function LibraryScreen() {
 
   const favoriteTracks = library.displayTracks.filter((track) => library.favorites.has(track.id));
   const addSongsPlaylist = library.playlists.find((playlist) => playlist.id === addSongsPlaylistId) ?? null;
+  const addSongsPlaylistTracks = addSongsPlaylist
+    ? addSongsPlaylist.trackIds
+        .map((id) => library.displayTracksById.get(id))
+        .filter((track): track is Track => Boolean(track))
+    : [];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -137,47 +272,28 @@ export default function LibraryScreen() {
             {statusLine}
           </AppText>
         </View>
-        <Pressable
+        <GlassButton
           accessibilityRole="button"
           accessibilityLabel="Import songs"
           onPress={() => {
             tapFeedback('selection');
             void library.importFiles();
           }}
-          style={({ pressed }) => [styles.scanButton, { opacity: pressed ? 0.7 : 1 }]}
+          radius={24}
+          style={styles.scanButton}
         >
           <Feather name="download" size={20} color={colors.ink} />
-        </Pressable>
+        </GlassButton>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.segmentRow}
-      >
-        {SEGMENTS.map((segment) => (
-          <Pressable
-            key={segment}
-            accessibilityRole="button"
-            accessibilityLabel={`Show ${segment}`}
-            accessibilityState={{ selected: library.tab === segment }}
-            onPress={() => {
-              tapFeedback('selection');
-              library.setTab(segment);
-            }}
-            style={({ pressed }) => [styles.segmentTap, { opacity: pressed ? 0.75 : 1 }]}
-          >
-            <View style={[styles.segment, library.tab === segment && styles.segmentActive]}>
-              <AppText
-                variant="label"
-                color={library.tab === segment ? colors.accentInk : colors.inkMuted}
-              >
-                {segment[0].toUpperCase() + segment.slice(1)}
-              </AppText>
-            </View>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <SegmentControl
+        active={library.tab}
+        reducedMotion={reducedMotion}
+        onSelect={(segment) => {
+          tapFeedback('selection');
+          library.setTab(segment);
+        }}
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -246,8 +362,26 @@ export default function LibraryScreen() {
               </Pressable>
             </Animated.View>
           ) : (
-            library.displayTracks.map((track) => (
-              <SongRow key={track.id} track={track} onPlay={play} onMenu={openSongMenu} />
+            library.displayTracks.map((track, index) => (
+              <Animated.View
+                key={track.id}
+                entering={staggerEnter(index, reducedMotion)}
+              >
+                <SongRow
+                  track={track}
+                  favorite={library.favorites.has(track.id)}
+                  onPlay={play}
+                  onMenu={openSongMenu}
+                  onFavorite={(selected) => {
+                    tapFeedback('light');
+                    library.toggleFavorite(selected.id);
+                  }}
+                  onAddToPlaylist={(selected) => {
+                    tapFeedback('selection');
+                    setAddToSheetTrack(selected);
+                  }}
+                />
+              </Animated.View>
             ))
           )
         ) : null}
@@ -256,28 +390,34 @@ export default function LibraryScreen() {
           library.albums.length === 0 ? (
             <AppText variant="body" color={colors.inkFaint}>No albums found.</AppText>
           ) : (
-            library.albums.map((album) => (
-              <Pressable
+            library.albums.map((album, index) => (
+              <Animated.View
                 key={album}
-                accessibilityRole="button"
-                accessibilityLabel={`Open album ${album}`}
-                onPress={() => {
-                  tapFeedback('selection');
-                  router.push({ pathname: '/album', params: { album } });
-                }}
-                style={({ pressed }) => [styles.rowCard, styles.rowPlain, pressed && styles.rowPressed]}
+                entering={staggerEnter(index, reducedMotion)}
               >
-                <View style={[styles.albumTile, { width: 48, height: 48 }]}>
-                  <Feather name="disc" size={22} color={colors.accentInk} />
-                </View>
-                <View style={styles.rowText}>
-                  <AppText variant="label" color={colors.ink}>{album}</AppText>
-                  <AppText variant="micro" color={colors.inkMuted}>
-                    {library.displayTracks.filter((track) => track.album === album).length} tracks
-                  </AppText>
-                </View>
-                <Feather name="chevron-right" size={18} color={colors.inkFaint} />
-              </Pressable>
+                <GlassSurface variant="row" radius={radii.lg} style={styles.rowCard}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open album ${album}`}
+                    onPress={() => {
+                      tapFeedback('selection');
+                      router.push({ pathname: '/album', params: { album } });
+                    }}
+                    style={({ pressed }) => [styles.rowPlain, pressed && styles.rowPressed]}
+                  >
+                    <View style={[styles.albumTile, { width: 48, height: 48 }]}>
+                      <Feather name="disc" size={22} color={colors.accentInk} />
+                    </View>
+                    <View style={styles.rowText}>
+                      <AppText variant="label" color={colors.ink}>{album}</AppText>
+                      <AppText variant="micro" color={colors.inkMuted}>
+                        {library.displayTracks.filter((track) => track.album === album).length} tracks
+                      </AppText>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={colors.inkFaint} />
+                  </Pressable>
+                </GlassSurface>
+              </Animated.View>
             ))
           )
         ) : null}
@@ -286,28 +426,34 @@ export default function LibraryScreen() {
           library.artists.length === 0 ? (
             <AppText variant="body" color={colors.inkFaint}>No artists found.</AppText>
           ) : (
-            library.artists.map((artist) => (
-              <Pressable
+            library.artists.map((artist, index) => (
+              <Animated.View
                 key={artist}
-                accessibilityRole="button"
-                accessibilityLabel={`Open artist ${artist}`}
-                onPress={() => {
-                  tapFeedback('selection');
-                  router.push({ pathname: '/artist', params: { artist } });
-                }}
-                style={({ pressed }) => [styles.rowCard, styles.rowPlain, pressed && styles.rowPressed]}
+                entering={staggerEnter(index, reducedMotion)}
               >
-                <View style={[styles.albumTile, { width: 48, height: 48 }]}>
-                  <Feather name="user" size={22} color={colors.accentInk} />
-                </View>
-                <View style={styles.rowText}>
-                  <AppText variant="label" color={colors.ink}>{artist}</AppText>
-                  <AppText variant="micro" color={colors.inkMuted}>
-                    {library.displayTracks.filter((track) => track.artist === artist).length} tracks
-                  </AppText>
-                </View>
-                <Feather name="chevron-right" size={18} color={colors.inkFaint} />
-              </Pressable>
+                <GlassSurface variant="row" radius={radii.lg} style={styles.rowCard}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open artist ${artist}`}
+                    onPress={() => {
+                      tapFeedback('selection');
+                      router.push({ pathname: '/artist', params: { artist } });
+                    }}
+                    style={({ pressed }) => [styles.rowPlain, pressed && styles.rowPressed]}
+                  >
+                    <View style={[styles.albumTile, { width: 48, height: 48 }]}>
+                      <Feather name="user" size={22} color={colors.accentInk} />
+                    </View>
+                    <View style={styles.rowText}>
+                      <AppText variant="label" color={colors.ink}>{artist}</AppText>
+                      <AppText variant="micro" color={colors.inkMuted}>
+                        {library.displayTracks.filter((track) => track.artist === artist).length} tracks
+                      </AppText>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={colors.inkFaint} />
+                  </Pressable>
+                </GlassSurface>
+              </Animated.View>
             ))
           )
         ) : null}
@@ -337,18 +483,22 @@ export default function LibraryScreen() {
                 </AppText>
               </View>
             ) : (
-              library.playlists.map((playlist) => {
+              library.playlists.map((playlist, index) => {
                 const playlistTracks = playlist.trackIds
                   .map((id) => library.displayTracksById.get(id))
                   .filter((track): track is Track => Boolean(track));
                 return (
-                  <View key={playlist.id} style={styles.playlistCard}>
+                  <Animated.View
+                    key={playlist.id}
+                    entering={staggerEnter(index, reducedMotion)}
+                  >
+                    <GlassSurface variant="card" style={styles.playlistCard}>
                     <View style={styles.playlistHeader}>
                       <View style={styles.playlistTitle}>
                         <AppText variant="heading" color={colors.ink}>{playlist.name}</AppText>
                         <AppText variant="micro" color={colors.inkMuted}>
-                          {playlist.trackIds.length} {playlist.trackIds.length === 1 ? 'track' : 'tracks'}
-                          {playlist.trackIds.length === 0 ? ' · Empty playlist' : ''}
+                          {playlistTracks.length} {playlistTracks.length === 1 ? 'track' : 'tracks'}
+                          {playlistTracks.length === 0 ? ' · Empty playlist' : ''}
                         </AppText>
                       </View>
                       <Pressable
@@ -372,13 +522,17 @@ export default function LibraryScreen() {
                         <Feather name="more-horizontal" size={20} color={colors.inkMuted} />
                       </Pressable>
                     </View>
-                    {playlist.trackIds.length === 0 ? (
+                    {playlistTracks.length === 0 ? (
                       <AppText variant="micro" color={colors.inkFaint}>
                         No songs in this playlist yet.
                       </AppText>
                     ) : (
-                      playlistTracks.map((track) => (
-                        <View key={track.id} style={styles.playlistTrack}>
+                      playlistTracks.map((track, trackIndex) => (
+                        <Animated.View
+                          key={track.id}
+                          entering={staggerEnter(trackIndex, reducedMotion)}
+                          style={styles.playlistTrack}
+                        >
                           <Pressable
                             accessibilityRole="button"
                             accessibilityLabel={`Play ${track.title}`}
@@ -402,10 +556,11 @@ export default function LibraryScreen() {
                           >
                             <Feather name="x" size={18} color={colors.inkFaint} />
                           </Pressable>
-                        </View>
+                        </Animated.View>
                       ))
                     )}
-                  </View>
+                    </GlassSurface>
+                  </Animated.View>
                 );
               })
             )}
@@ -422,14 +577,27 @@ export default function LibraryScreen() {
               </AppText>
             </View>
           ) : (
-            favoriteTracks.map((track) => (
-              <SongRow
+            favoriteTracks.map((track, index) => (
+              <Animated.View
                 key={track.id}
-                track={track}
-                queue={favoriteTracks}
-                onPlay={play}
-                onMenu={openSongMenu}
-              />
+                entering={staggerEnter(index, reducedMotion)}
+              >
+                <SongRow
+                  track={track}
+                  queue={favoriteTracks}
+                  favorite
+                  onPlay={play}
+                  onMenu={openSongMenu}
+                  onFavorite={(selected) => {
+                    tapFeedback('light');
+                    library.toggleFavorite(selected.id);
+                  }}
+                  onAddToPlaylist={(selected) => {
+                    tapFeedback('selection');
+                    setAddToSheetTrack(selected);
+                  }}
+                />
+              </Animated.View>
             ))
           )
         ) : null}
@@ -459,7 +627,7 @@ export default function LibraryScreen() {
         visible={addSongsPlaylist !== null}
         onClose={() => setAddSongsPlaylistId(null)}
         playlistName={addSongsPlaylist?.name ?? null}
-        playlistTrackIds={addSongsPlaylist?.trackIds ?? []}
+        playlistTrackIds={addSongsPlaylistTracks.map((track) => track.id)}
         tracks={library.displayTracks}
         onAdd={(trackId) => {
           if (addSongsPlaylist) library.addToPlaylist(addSongsPlaylist.id, trackId);
@@ -489,33 +657,46 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   segmentRow: {
     flexDirection: 'row',
-    gap: spacing.xs,
     paddingHorizontal: spacing.lg,
+  },
+  segmentTrack: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    position: 'relative',
+  },
+  segmentThumb: {
+    position: 'absolute',
+    left: 0,
+    top: 7,
+    height: 34,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accent,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    elevation: 2,
   },
   segmentTap: {
     height: 48,
     justifyContent: 'center',
+  },
+  segmentPressed: {
+    opacity: 0.82,
   },
   segment: {
     height: 34,
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
     borderRadius: radii.pill,
-    backgroundColor: colors.surface,
+    backgroundColor: glass.tintSoft,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: glass.edgeSoft,
   },
   segmentActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
   },
   content: {
     paddingHorizontal: spacing.lg,
@@ -539,9 +720,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.lg,
     borderRadius: radii.lg,
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: glass.tint,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: glass.edge,
     alignItems: 'flex-start',
   },
   primaryButton: {
@@ -556,10 +737,6 @@ const styles = StyleSheet.create({
   rowCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: radii.lg,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.xs,
   },
   rowPlain: {
@@ -605,19 +782,15 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.lg,
     borderRadius: radii.lg,
-    backgroundColor: colors.surface,
+    backgroundColor: glass.tintSoft,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: colors.borderStrong,
+    borderColor: glass.edgeStrong,
     alignItems: 'flex-start',
   },
   playlistCard: {
     gap: spacing.sm,
     padding: spacing.md,
-    borderRadius: radii.lg,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   playlistHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   playlistTitle: { flex: 1, gap: 2 },

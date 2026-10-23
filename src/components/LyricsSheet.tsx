@@ -10,8 +10,8 @@ import { createMMKV } from 'react-native-mmkv';
 
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
-import { usePlayer } from '../playback/PlayerContext';
-import { colors, radii, spacing } from '../theme';
+import { usePlayer, usePlayerProgress } from '../playback/PlayerContext';
+import { colors, glass, radii, spacing } from '../theme';
 import { resolveLyrics, type LyricsResult } from '../lyrics';
 
 const store = createMMKV({ id: 'snoozy.lyrics.v1' });
@@ -25,6 +25,7 @@ type Props = {
 
 export function LyricsSheet({ visible, onClose, trackUri, trackTitle }: Props) {
   const player = usePlayer();
+  const playback = usePlayerProgress();
   const [result, setResult] = useState<LyricsResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [offset, setOffset] = useState(0);
@@ -34,6 +35,8 @@ export function LyricsSheet({ visible, onClose, trackUri, trackTitle }: Props) {
     if (!visible || !trackUri) return;
     let cancelled = false;
     const handle = setTimeout(() => {
+      // Clear the previous track's lyrics before resolving the new file.
+      setResult(null);
       setLoading(true);
       const key = `offset:${trackUri}`;
       const saved = store.getNumber(key);
@@ -55,7 +58,7 @@ export function LyricsSheet({ visible, onClose, trackUri, trackTitle }: Props) {
   }, [visible, trackUri]);
 
   const synced = result?.synced ?? false;
-  const progressMs = player.progress * 1000;
+  const progressMs = playback.progress * 1000;
 
   const activeIndex = useMemo(() => {
     if (!result || !synced) return -1;
@@ -150,9 +153,11 @@ export function LyricsSheet({ visible, onClose, trackUri, trackTitle }: Props) {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: glass.tintStrong,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeStrong,
     padding: spacing.lg,
     maxHeight: '80%',
     gap: spacing.sm,
@@ -162,12 +167,14 @@ const styles = StyleSheet.create({
   scroll: { maxHeight: 320 },
   scrollContent: { gap: spacing.xs, paddingVertical: spacing.sm },
   line: { paddingVertical: 4 },
-  lineActive: { backgroundColor: colors.surfaceMuted, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
+  lineActive: { backgroundColor: glass.tintAccent, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
   offsetRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   offsetBtn: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radii.pill,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: glass.tintSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeSoft,
   },
 });

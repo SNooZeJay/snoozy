@@ -1,35 +1,40 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useState } from 'react';
 
 import {
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '../components/AppText';
+import { CrossfadeArtwork } from '../components/CrossfadeArtwork';
+import { GlassSurface } from '../components/glass/GlassSurface';
 import { IconButton } from '../components/IconButton';
+import { PaletteGlow } from '../components/PaletteGlow';
 import { PlayButton } from '../components/PlayButton';
 import { LyricsSheet } from '../components/LyricsSheet';
 import { SongEditSheet } from '../components/SongEditSheet';
 import { SeekBar } from '../components/SeekBar';
 import { useMusicLibrary } from '../storage/MusicLibraryContext';
-import { usePlayer } from '../playback/PlayerContext';
+import { usePlayer, usePlayerProgress } from '../playback/PlayerContext';
 import { usePreferences } from '../storage/PreferencesContext';
-import { colors, radii, spacing } from '../theme';
+import { colors, glass, radii, spacing, useTheme } from '../theme';
 
 export default function PlayerScreen() {
   const library = useMusicLibrary();
   const player = usePlayer();
+  const playback = usePlayerProgress();
   const { tapFeedback } = usePreferences();
+  const { backdropEnabled, backdropIntensity, reducedMotion } = useTheme();
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const track = player.activeTrack;
+  const glowOpacity = backdropEnabled
+    ? Math.max(0, Math.min(1, backdropIntensity / 100))
+    : 0;
 
   if (!track) {
     return (
@@ -48,11 +53,11 @@ export default function PlayerScreen() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        pointerEvents="none"
-        colors={[player.palette.glow, colors.backgroundDeep, colors.backgroundDeep]}
-        locations={[0, 0.45, 1]}
-        style={StyleSheet.absoluteFill}
+      <PaletteGlow
+        color={player.palette.glow}
+        intensity={glowOpacity}
+        background={colors.backgroundDeep}
+        reducedMotion={reducedMotion}
       />
       <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
         <View style={styles.topbar}>
@@ -62,8 +67,8 @@ export default function PlayerScreen() {
             iconSize={22}
             size={48}
             onPress={() => router.back()}
-            backgroundColor="rgba(7, 17, 13, 0.4)"
-            borderColor="rgba(243, 240, 228, 0.14)"
+            backgroundColor={glass.tintDeep}
+            borderColor={glass.edge}
           />
           <View style={styles.topbarTitle}>
             <AppText variant="overline" color={colors.inkMuted}>Now playing</AppText>
@@ -74,8 +79,8 @@ export default function PlayerScreen() {
             iconSize={20}
             size={48}
             color={isFavorite ? player.palette.accent : colors.ink}
-            backgroundColor="rgba(7, 17, 13, 0.4)"
-            borderColor="rgba(243, 240, 228, 0.14)"
+            backgroundColor={glass.tintDeep}
+            borderColor={glass.edge}
             onPress={() => {
               tapFeedback('light');
               library.toggleFavorite(track.id);
@@ -85,15 +90,24 @@ export default function PlayerScreen() {
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.artworkShell}>
-            <Animated.View sharedTransitionTag="now-playing-artwork" style={styles.artwork}>
-              {track.artwork ? (
-                <Image source={{ uri: track.artwork }} style={styles.artworkImage} />
-              ) : (
-                <View style={[styles.artworkFallback, { backgroundColor: player.palette.accent }]}>
-                  <AppText variant="display" color={player.palette.accentInk}>{track.title.slice(0, 1).toUpperCase()}</AppText>
-                </View>
-              )}
-            </Animated.View>
+            <GlassSurface
+              variant="card"
+              radius={radii.xl + 8}
+              borderColor={player.palette.glow}
+              glowColor={player.palette.glow}
+              style={styles.artworkFrame}
+            >
+              <CrossfadeArtwork
+                uri={track.artwork}
+                fallbackText={track.title.slice(0, 1).toUpperCase()}
+                fallbackColor={player.palette.accent}
+                fallbackInk={player.palette.accentInk}
+                fallbackSize={86}
+                style={styles.artwork}
+                sharedTransitionTag="now-playing-artwork"
+                reducedMotion={reducedMotion}
+              />
+            </GlassSurface>
           </View>
 
           <View style={styles.trackInfo}>
@@ -103,8 +117,8 @@ export default function PlayerScreen() {
           </View>
 
           <SeekBar
-            progress={player.progress}
-            duration={player.duration}
+            progress={playback.progress}
+            duration={playback.duration}
             onSeek={player.seekTo}
             accentColor={player.palette.accent}
           />
@@ -162,20 +176,17 @@ const styles = StyleSheet.create({
   topbarTitle: { alignItems: 'center' },
   content: { padding: spacing.lg, gap: spacing.xl, paddingBottom: 40 },
   artworkShell: { alignItems: 'center' },
+  artworkFrame: {
+    width: '100%',
+    maxWidth: 312,
+    padding: 6,
+  },
   artwork: {
-    width: 300,
-    height: 300,
+    width: '100%',
+    aspectRatio: 1,
     borderRadius: radii.xl,
     overflow: 'hidden',
     backgroundColor: colors.surfaceRaised,
-  },
-  artworkImage: { width: 300, height: 300 },
-  artworkFallback: {
-    width: 300,
-    height: 300,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceMuted,
   },
   trackInfo: { gap: spacing.xs, alignItems: 'center' },
   controls: {

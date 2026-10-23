@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   Alert,
@@ -10,9 +11,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '../components/AppText';
+import { IconButton } from '../components/IconButton';
 import { MiniPlayer } from '../components/MiniPlayer';
 import { getErrorLog, clearErrorLog, type ErrorLogEntry } from '../storage/errorLog';
-import { colors, radii, spacing } from '../theme';
+import { colors, glass, radii, spacing } from '../theme';
 
 export default function ErrorLogScreen() {
   const [entries, setEntries] = useState<ErrorLogEntry[]>([]);
@@ -20,13 +22,34 @@ export default function ErrorLogScreen() {
 
   const load = async () => {
     setLoading(true);
-    setEntries(await getErrorLog());
-    setLoading(false);
+    try {
+      setEntries(await getErrorLog());
+    } catch {
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    const h = setTimeout(() => { void load(); }, 0);
-    return () => clearTimeout(h);
+    let cancelled = false;
+    const h = setTimeout(() => {
+      void (async () => {
+        setLoading(true);
+        try {
+          const next = await getErrorLog();
+          if (!cancelled) setEntries(next);
+        } catch {
+          if (!cancelled) setEntries([]);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      })();
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(h);
+    };
   }, []);
 
   const handleShare = async () => {
@@ -44,7 +67,20 @@ export default function ErrorLogScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <AppText variant="display" color={colors.ink}>Error log</AppText>
+        <View style={styles.header}>
+          <IconButton
+            name="chevron-left"
+            label="Back"
+            iconSize={22}
+            size={44}
+            onPress={() => router.back()}
+            backgroundColor={glass.tintDeep}
+            borderColor={glass.edgeSoft}
+          />
+          <AppText variant="display" color={colors.ink} style={styles.headerTitle}>
+            Error log
+          </AppText>
+        </View>
         <View style={styles.row}>
           <Pressable accessibilityRole="button" onPress={handleShare} style={styles.button}>
             <AppText variant="label" color={colors.accentInk}>Share log</AppText>
@@ -67,7 +103,7 @@ export default function ErrorLogScreen() {
           ))
         )}
       </ScrollView>
-      <MiniPlayer />
+      <MiniPlayer standalone />
     </SafeAreaView>
   );
 }
@@ -75,8 +111,10 @@ export default function ErrorLogScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: 150 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  headerTitle: { flex: 1 },
   row: { flexDirection: 'row', gap: spacing.sm },
   button: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.pill, backgroundColor: colors.accent },
-  buttonSecondary: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.pill, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border },
-  entry: { gap: 2, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  buttonSecondary: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.pill, backgroundColor: glass.tintSoft, borderWidth: 1, borderColor: glass.edgeSoft },
+  entry: { gap: 2, padding: spacing.md, borderRadius: radii.md, backgroundColor: glass.tintSoft, borderWidth: 1, borderColor: glass.edgeSoft },
 });

@@ -19,6 +19,7 @@ import {
   useProgress,
 } from '@rntp/player';
 import { getColors } from 'react-native-image-colors';
+import { createMMKV } from 'react-native-mmkv';
 
 import type { Track } from '../types/music';
 import {
@@ -41,8 +42,6 @@ import {
   RepeatMode,
 } from './player';
 
-import { createMMKV } from 'react-native-mmkv';
-
 type Session = {
   id: number | null;
   trackId: string;
@@ -56,8 +55,6 @@ type PlayerContextValue = {
   activeTrack: Track | null;
   palette: ArtworkPalette;
   isPlaying: boolean;
-  progress: number;
-  duration: number;
   playTrack: (track: Track, queue?: Track[]) => Promise<void>;
   togglePlayback: () => Promise<void>;
   pausePlayback: () => void;
@@ -79,20 +76,66 @@ type PlayerContextValue = {
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
 
+type PlaybackProgressValue = {
+  progress: number;
+  duration: number;
+};
+
+const PlaybackProgressContext = createContext<PlaybackProgressValue | null>(null);
+
+// MMKV instances hold native handles. Create this once per process rather than
+// once per provider render.
+const settingsStore = createMMKV({ id: 'snoozy.playback.v1' });
+
+/**
+ * Progress is intentionally separate from PlayerContext. Polling every second
+ * would otherwise invalidate the whole player context and re-render every
+ * consumer (home, library, search, mini-player) once per second.
+ */
+function PlaybackProgressProvider({
+  children,
+  fallbackDuration,
+}: {
+  children: ReactNode;
+  fallbackDuration: number;
+}) {
+  const nativeProgress = useProgress(1);
+  const value = useMemo<PlaybackProgressValue>(
+    () => ({
+      progress: nativeProgress.position,
+      duration: nativeProgress.duration || fallbackDuration,
+    }),
+    [fallbackDuration, nativeProgress.duration, nativeProgress.position],
+  );
+  return (
+    <PlaybackProgressContext.Provider value={value}>
+      {children}
+    </PlaybackProgressContext.Provider>
+  );
+}
+
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const library = useMusicLibrary();
+  const {
+    displayTracks,
+    displayTracksById,
+    recents,
+    recordRecent,
+    tracks: libraryTracks,
+    tracksById,
+  } = library;
   const activeItem = useActiveMediaItem();
   const playing = useIsPlaying();
-  const nativeProgress = useProgress(1);
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(library.recents[0] ?? library.tracks[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    recents[0] ?? libraryTracks[0]?.id ?? null,
+  );
   const [extractedPalette, setExtractedPalette] = useState<{
     key: string;
     palette: ArtworkPalette;
   } | null>(null);
-  const settingsStore = createMMKV({ id: 'snoozy.playback.v1' });
   const [repeatMode, setRepeatModeState] = useState<RepeatMode>(() => (settingsStore.getString('repeatMode') as any) || RepeatMode.Off);
   const [shuffle, setShuffleState] = useState<boolean>(() => settingsStore.getBoolean('shuffle') ?? false);
   const [sleepMinutes, setSleepMinutes] = useState<number | null>(null);
@@ -107,8 +150,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const id = activeItem?.mediaId ?? selectedId;
     if (!id) return null;
     // Display map carries metadata edits; fall back to raw while it loads.
-    return library.displayTracksById.get(id) ?? library.tracksById.get(id) ?? null;
-  }, [activeItem?.mediaId, library.displayTracksById, library.tracksById, selectedId]);
+    return displayTracksById.get(id) ?? tracksById.get(id) ?? null;
+  }, [activeItem?.mediaId, displayTracksById, selectedId, tracksById]);
 
   useEffect(() => {
     activeTrackIdRef.current = activeTrack?.id ?? null;
@@ -174,15 +217,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [activeTrack]);
 
   useEffect(() => {
-    if (!playing || !listenRef.current) return;
+    if (!playing) return;
     const interval = setInterval(() => {
-      if (listenRef.current) {
-        const pos = nativeProgress.position * 1000;
-        if (pos > listenRef.current.maxPosition) listenRef.current.maxPosition = pos;
+      const current = listenRef.current;
+      if (!current) return;
+      try {
+        const pos = TrackPlayer.getProgress().position * 1000;
+        if (pos > current.maxPosition) current.maxPosition = pos;
+      } catch {
+        // The player can be between tracks; skip this sample.
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [playing, nativeProgress.position]);
+  }, [playing]);
 
   const messageFor = (value: unknown) =>
     value instanceof Error ? value.message : String(value ?? 'Playback failed');
@@ -203,7 +250,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (sessionRef.current?.trackId === track.id) return;
     const previous = sessionRef.current;
     if (previous?.id) {
-      await finishListeningSession(previous.id, Date.now());
+      const elapsedSeconds = Math.max(0, (Date.now() - previous.startedAt) / 1000);
+      await finishListeningSession(previous.id, elapsedSeconds);
     }
     const id = await startListeningSession(track.id);
     sessionRef.current = { id, trackId: track.id, startedAt: Date.now() };
@@ -215,14 +263,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       sessionRef.current = null;
       return;
     }
-    await finishListeningSession(current.id, Date.now());
+    const elapsedSeconds = Math.max(0, (Date.now() - current.startedAt) / 1000);
+    await finishListeningSession(current.id, elapsedSeconds);
     sessionRef.current = null;
   }, []);
 
   const playTrack = useCallback(
-    async (track: Track, queue: Track[] = library.tracks) => {
+    async (track: Track, queue: Track[] = displayTracks) => {
       setError(null);
-      library.recordRecent(track.id);
+      recordRecent(track.id);
       setSelectedId(track.id);
       try {
         await ensurePlayer();
@@ -245,7 +294,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setError(messageFor(playError));
       }
     },
-    [askForNotifications, library],
+    [askForNotifications, displayTracks, recordRecent, repeatMode],
   );
 
   const togglePlayback = useCallback(async () => {
@@ -282,7 +331,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const previous = useCallback(async () => {
     try {
       await ensurePlayer();
-      if (nativeProgress.position > 3) {
+      let position = 0;
+      try {
+        position = TrackPlayer.getProgress().position;
+      } catch {
+        // Fall back to the previous-track behavior if progress is unavailable.
+      }
+      if (position > 3) {
         TrackPlayer.seekTo(0);
       } else {
         TrackPlayer.skipToPrevious();
@@ -291,7 +346,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     } catch (playError) {
       setError(messageFor(playError));
     }
-  }, [nativeProgress.position]);
+  }, []);
 
   const seekTo = useCallback((seconds: number) => {
     try {
@@ -398,8 +453,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       activeTrack,
       palette,
       isPlaying: playing,
-      progress: nativeProgress.position,
-      duration: nativeProgress.duration || activeTrack?.duration || 0,
       playTrack,
       togglePlayback,
       pausePlayback,
@@ -424,8 +477,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       activeTrack,
       palette,
       playing,
-      nativeProgress.position,
-      nativeProgress.duration,
       playTrack,
       togglePlayback,
       pausePlayback,
@@ -446,11 +497,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
+  return (
+    <PlayerContext.Provider value={value}>
+      <PlaybackProgressProvider fallbackDuration={activeTrack?.duration ?? 0}>
+        {children}
+      </PlaybackProgressProvider>
+    </PlayerContext.Provider>
+  );
 }
 
 export function usePlayer() {
   const context = useContext(PlayerContext);
   if (!context) throw new Error('usePlayer must be used within PlayerProvider');
+  return context;
+}
+
+export function usePlayerProgress() {
+  const context = useContext(PlaybackProgressContext);
+  if (!context) throw new Error('usePlayerProgress must be used within PlayerProvider');
   return context;
 }

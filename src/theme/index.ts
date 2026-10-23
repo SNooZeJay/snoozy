@@ -10,6 +10,12 @@ export {
   type,
 } from './tokens';
 export {
+  glass,
+  glassShadow,
+  glassVariants,
+  type GlassVariant,
+} from './glass';
+export {
   defaultPalette,
   paletteFromArtworkColor,
   type ArtworkPalette,

@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, fonts, radii, spacing } from '../theme';
+import { colors, fonts, glass, radii, spacing } from '../theme';
 import { AppText } from './AppText';
+import { SheetPanel } from './SheetPanel';
 
 type CreatePlaylistSheetProps = {
   visible: boolean;
@@ -58,7 +59,7 @@ export function CreatePlaylistSheet({
           onPress={close}
           style={StyleSheet.absoluteFill}
         />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
+        <SheetPanel style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
           <View style={styles.handle} />
           <View style={styles.headingRow}>
             <View style={styles.headingCopy}>
@@ -104,7 +105,7 @@ export function CreatePlaylistSheet({
               <AppText variant="label" color={colors.accentInk}>Create</AppText>
             </Pressable>
           </View>
-        </View>
+        </SheetPanel>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -117,11 +118,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: colors.backgroundRaised,
+    backgroundColor: glass.tintStrong,
     borderTopLeftRadius: radii.xxl,
     borderTopRightRadius: radii.xxl,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderStrong,
+    borderColor: glass.edgeStrong,
     paddingHorizontal: spacing.xxl,
     paddingTop: spacing.sm,
   },
@@ -155,9 +156,9 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontFamily: fonts.body,
     fontSize: 16,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: glass.fieldTint,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeSoft,
   },
   actions: {
     flexDirection: 'row',

@@ -12,8 +12,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Track } from '../types/music';
-import { colors, radii, spacing } from '../theme';
+import { colors, glass, radii, spacing } from '../theme';
 import { AppText } from './AppText';
+import { SheetPanel } from './SheetPanel';
 
 type AddSongsSheetProps = {
   visible: boolean;
@@ -37,6 +38,11 @@ export function AddSongsSheet({
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState('');
 
+  const close = () => {
+    setFilter('');
+    onClose();
+  };
+
   const inPlaylist = useMemo(() => new Set(playlistTrackIds), [playlistTrackIds]);
 
   const visibleTracks = useMemo(() => {
@@ -50,15 +56,15 @@ export function AddSongsSheet({
   if (!visible || !playlistName) return null;
 
   return (
-    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={close}>
       <KeyboardAvoidingView behavior="padding" style={styles.backdrop}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Close add songs"
-          onPress={onClose}
+          onPress={close}
           style={StyleSheet.absoluteFill}
         />
-        <View
+        <SheetPanel
           style={[
             styles.panel,
             { paddingBottom: insets.bottom + spacing.md },
@@ -75,7 +81,7 @@ export function AddSongsSheet({
               accessibilityRole="button"
               accessibilityLabel="Close"
               hitSlop={4}
-              onPress={onClose}
+              onPress={close}
               style={styles.closeButton}
             >
               <Feather name="x" size={22} color={colors.inkMuted} />
@@ -100,6 +106,7 @@ export function AddSongsSheet({
               style={styles.list}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
               {visibleTracks.map((track) => {
                 const added = inPlaylist.has(track.id);
@@ -136,7 +143,7 @@ export function AddSongsSheet({
               ) : null}
             </ScrollView>
           )}
-        </View>
+        </SheetPanel>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -149,9 +156,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   panel: {
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: glass.tintStrong,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeStrong,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     maxHeight: '80%',
@@ -168,7 +177,9 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: spacing.md,
     borderRadius: radii.md,
-    backgroundColor: colors.surface,
+    backgroundColor: glass.fieldTint,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeSoft,
     color: colors.ink,
     fontSize: 14,
   },
@@ -180,7 +191,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.sm,
     borderRadius: radii.md,
-    backgroundColor: colors.surface,
+    backgroundColor: glass.tintSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeSoft,
     minHeight: 52,
   },
   trackInfo: { flex: 1, gap: 1 },

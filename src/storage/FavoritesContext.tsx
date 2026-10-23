@@ -116,13 +116,19 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
   }, [load]);
 
   const toggleFavorite = useCallback(async (track: Track): Promise<boolean> => {
-    if (rows.some((r) => r.identity === track.uri)) {
-      await removeFavorite(track.uri);
-      return false;
+    try {
+      if (rows.some((r) => r.identity === track.uri)) {
+        await removeFavorite(track.uri);
+        return false;
+      }
+      await addFavorite(track);
+      return true;
+    } catch {
+      // A failed favorites write must not escape into the UI event handler.
+      await load();
+      return rows.some((r) => r.identity === track.uri);
     }
-    await addFavorite(track);
-    return true;
-  }, [rows, addFavorite, removeFavorite]);
+  }, [addFavorite, load, removeFavorite, rows]);
 
   const sorted = useMemo(() => {
     const copy = [...rows];

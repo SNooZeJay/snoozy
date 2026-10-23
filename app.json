@@ -3,7 +3,7 @@
     "name": "Snoozy",
     "slug": "snoozy",
     "scheme": "snoozy",
-    "version": "1.8.0",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "backgroundColor": "#07110D",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.snoozy.app",
-      "versionCode": 8,
+      "versionCode": 11,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.READ_MEDIA_AUDIO",

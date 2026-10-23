@@ -13,11 +13,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { createMMKV } from 'react-native-mmkv';
 
 import { AppText } from '../../components/AppText';
+import { GlassButton } from '../../components/glass/GlassButton';
+import { GlassSurface } from '../../components/glass/GlassSurface';
 import { MiniPlayer } from '../../components/MiniPlayer';
 import { DottedNote, Thumb } from '../../components/Thumb';
 import { useMusicLibrary } from '../../storage/MusicLibraryContext';
 import { usePlayer } from '../../playback/PlayerContext';
 import { usePreferences } from '../../storage/PreferencesContext';
+import { staggerEnter } from '../../motion/stagger';
 import { colors, layout, radii, spacing, useTheme } from '../../theme';
 
 const recentsStore = createMMKV({ id: 'snoozy.search.v1' });
@@ -39,7 +42,7 @@ export default function SearchScreen() {
   const player = usePlayer();
   const { tapFeedback } = usePreferences();
   const { reducedMotion } = useTheme();
-  const [query, setQuery] = useState(library.query);
+  const [query, setQuery] = useState('');
   const [recents, setRecents] = useState<string[]>(() => readRecents());
 
   // Card entrances: fades stay under reduced motion, the drop-in does not.
@@ -96,14 +99,11 @@ export default function SearchScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.searchBar}>
+      <GlassSurface variant="field" style={styles.searchBar}>
         <Feather name="search" size={20} color={colors.inkMuted} />
         <TextInput
           value={query}
-          onChangeText={(value) => {
-            setQuery(value);
-            library.setQuery(value);
-          }}
+          onChangeText={setQuery}
           onSubmitEditing={submit}
           placeholder="Search songs, artists, albums"
           placeholderTextColor={colors.inkFaint}
@@ -119,7 +119,6 @@ export default function SearchScreen() {
             onPress={() => {
               tapFeedback('light');
               setQuery('');
-              library.setQuery('');
             }}
             style={styles.fieldAction}
           >
@@ -132,7 +131,7 @@ export default function SearchScreen() {
             <Feather name="sliders" size={20} color={colors.inkFaint} />
           </View>
         )}
-      </View>
+      </GlassSurface>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {player.error ? (
           <View style={styles.errorBanner}>
@@ -171,7 +170,7 @@ export default function SearchScreen() {
                   <Feather name="x" size={14} color={colors.inkMuted} />
                 </Pressable>
               </View>
-              <View style={styles.recentCard}>
+              <GlassSurface variant="card" style={styles.recentCard}>
                 {recents.map((recent) => (
                   <Pressable
                     key={recent}
@@ -180,15 +179,16 @@ export default function SearchScreen() {
                     onPress={() => {
                       tapFeedback('selection');
                       setQuery(recent);
-                      library.setQuery(recent);
                     }}
                     style={({ pressed }) => [styles.rowInner, pressed && styles.rowPressed]}
                   >
                     <Feather name="clock" size={18} color={colors.inkMuted} />
-                    <AppText variant="body" color={colors.ink} numberOfLines={1}>{recent}</AppText>
+                    <AppText variant="body" color={colors.ink} numberOfLines={1} style={styles.rowText}>
+                      {recent}
+                    </AppText>
                   </Pressable>
                 ))}
-              </View>
+              </GlassSurface>
             </Animated.View>
           ) : (
             <Animated.View entering={cardEnter} style={styles.emptyPrompt}>
@@ -222,26 +222,33 @@ export default function SearchScreen() {
                 {results.length} {results.length === 1 ? 'result' : 'results'}
               </AppText>
             </View>
-            {results.map((track) => (
-              <Pressable
+            {results.map((track, index) => (
+              <Animated.View
                 key={track.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Play ${track.title}`}
-                onPress={() => {
-                  tapFeedback('selection');
-                  void player.playTrack(track, results);
-                }}
-                style={({ pressed }) => [styles.rowCard, pressed && styles.rowPressed]}
+                entering={staggerEnter(index, reducedMotion)}
               >
-                <Thumb track={track} size={48} />
-                <View style={styles.rowText}>
-                  <AppText variant="label" color={colors.ink} numberOfLines={1}>{track.title}</AppText>
-                  <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>
-                    {track.artist} · {track.album}
-                  </AppText>
-                </View>
-                <Feather name="play" size={18} color={colors.inkMuted} />
-              </Pressable>
+                <GlassButton
+                  accessibilityRole="button"
+                  accessibilityLabel={`Play ${track.title}`}
+                  onPress={() => {
+                    tapFeedback('selection');
+                    rememberQuery(trimmed);
+                    void player.playTrack(track, results);
+                  }}
+                  variant="row"
+                  radius={radii.lg}
+                  style={styles.rowCard}
+                >
+                  <Thumb track={track} size={48} />
+                  <View style={styles.rowText}>
+                    <AppText variant="label" color={colors.ink} numberOfLines={1}>{track.title}</AppText>
+                    <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>
+                      {track.artist} · {track.album}
+                    </AppText>
+                  </View>
+                  <Feather name="play" size={18} color={colors.inkMuted} />
+                </GlassButton>
+              </Animated.View>
             ))}
           </View>
         )}
@@ -261,9 +268,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     height: 52,
     borderRadius: radii.pill,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   input: { flex: 1, height: '100%', color: colors.ink, fontSize: 16, paddingVertical: 0 },
   fieldAction: {
@@ -311,10 +315,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   recentCard: {
-    borderRadius: radii.lg,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.xs,
     alignSelf: 'stretch',
     gap: 2,
@@ -330,14 +330,11 @@ const styles = StyleSheet.create({
   rowCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-start',
     gap: spacing.md,
     padding: spacing.xs,
     paddingLeft: spacing.sm,
     paddingRight: spacing.md,
-    borderRadius: radii.lg,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   primaryButton: {
     alignSelf: 'flex-start',
