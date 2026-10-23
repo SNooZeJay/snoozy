@@ -10,30 +10,26 @@ import { AppText } from './AppText';
 
 type SectionHeaderProps = {
   label: string;
-  title?: string;
   actionLabel?: string;
   onAction?: () => void;
 };
 
+/**
+ * A small overline label for a run of rows. The action is deliberately quiet;
+ * page-level actions belong in ScreenHeader.
+ */
 export function SectionHeader({
   label,
-  title,
   actionLabel,
   onAction,
 }: SectionHeaderProps) {
   const { palette } = useTheme();
+
   return (
     <View style={styles.row}>
-      <View style={styles.copy}>
-        <AppText variant="micro" color={palette.inkFaint}>
-          {label}
-        </AppText>
-        {title ? (
-          <AppText variant="heading" style={styles.title}>
-            {title}
-          </AppText>
-        ) : null}
-      </View>
+      <AppText variant="overline" color={palette.inkFaint} style={styles.label}>
+        {label}
+      </AppText>
       {actionLabel && onAction ? (
         <Pressable
           accessibilityRole="button"
@@ -55,16 +51,14 @@ export function SectionHeader({
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
+    paddingHorizontal: spacing.screen,
+    minHeight: 24,
   },
-  copy: {
+  label: {
     flex: 1,
-    gap: spacing.xs,
-  },
-  title: {
-    marginTop: 2,
   },
   action: {
     flexDirection: 'row',
