@@ -9,7 +9,6 @@ import Constants from 'expo-constants';
 
 import { AppText } from '../../components/AppText';
 import { GlassSurface } from '../../components/glass/GlassSurface';
-import { MiniPlayer } from '../../components/MiniPlayer';
 import { useMusicLibrary } from '../../storage/MusicLibraryContext';
 import { usePreferences } from '../../storage/PreferencesContext';
 import { colors, glass, layout, radii, spacing, useTheme, PRESET_SWATCHES } from '../../theme';
@@ -303,7 +302,6 @@ export default function SettingsScreen() {
           </View>
         </GlassSurface>
       </ScrollView>
-      <MiniPlayer />
     </SafeAreaView>
   );
 }

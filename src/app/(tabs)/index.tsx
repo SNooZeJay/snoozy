@@ -17,7 +17,6 @@ import { AppText } from '../../components/AppText';
 import { CreatePlaylistSheet } from '../../components/CreatePlaylistSheet';
 import { GlassButton } from '../../components/glass/GlassButton';
 import { GlassSurface } from '../../components/glass/GlassSurface';
-import { MiniPlayer } from '../../components/MiniPlayer';
 import { DottedNote, NoteTile, Thumb } from '../../components/Thumb';
 import { useMusicLibrary } from '../../storage/MusicLibraryContext';
 import { usePlayer } from '../../playback/PlayerContext';
@@ -343,7 +342,6 @@ export default function HomeScreen() {
           </Animated.View>
         ) : null}
       </ScrollView>
-      <MiniPlayer />
       <CreatePlaylistSheet
         visible={playlistSheetOpen}
         onClose={() => setPlaylistSheetOpen(false)}

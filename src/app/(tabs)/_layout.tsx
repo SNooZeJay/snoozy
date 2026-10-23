@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs, router, usePathname } from 'expo-router';
 import { useEffect, useState, type ComponentProps } from 'react';
-import { Easing, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -12,7 +12,8 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GlassSurface } from '../../components/glass/GlassSurface';
-import { colors, layout, motion, useTheme } from '../../theme';
+import { MiniPlayer } from '../../components/MiniPlayer';
+import { layout, motion, useTheme } from '../../theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -35,7 +36,7 @@ const PILL_HEIGHT = 46;
 function FloatingPillBar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const { reducedMotion } = useTheme();
+  const { palette, reducedMotion } = useTheme();
   const activeIndex = Math.max(
     TABS.findIndex((tab) => tab.path === pathname),
     0,
@@ -69,8 +70,8 @@ function FloatingPillBar() {
       pointerEvents="box-none"
       onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
     >
-      <GlassSurface variant="pill" style={styles.bar}>
-        <Animated.View style={[styles.pill, pillStyle]}>
+      <GlassSurface variant="pill" style={[styles.bar, { borderColor: palette.borderStrong }]}>
+        <Animated.View style={[styles.pill, { backgroundColor: palette.accent }, pillStyle]}>
           <LinearGradient
             pointerEvents="none"
             colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.02)']}
@@ -96,7 +97,7 @@ function FloatingPillBar() {
               <Ionicons
                 name={tab.icon}
                 size={24}
-                color={focused ? colors.accentInk : colors.inkMuted}
+                color={focused ? palette.accentInk : palette.inkMuted}
               />
             </Pressable>
           );
@@ -107,24 +108,17 @@ function FloatingPillBar() {
 }
 
 export default function TabsLayout() {
-  const { reducedMotion } = useTheme();
+  const { palette } = useTheme();
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: palette.background }]}>
       <Tabs
         screenOptions={{
           headerShown: false,
           tabBarStyle: { display: 'none' },
-          animation: reducedMotion ? 'none' : 'fade',
-          transitionSpec: reducedMotion
-            ? { animation: 'timing', config: { duration: 0 } }
-            : {
-                animation: 'timing',
-                config: {
-                  duration: motion.durations.screen,
-                  easing: Easing.out(Easing.cubic),
-                },
-              },
+          animation: 'none',
+          lazy: false,
+          sceneStyle: { backgroundColor: palette.background },
         }}
       >
         <Tabs.Screen name="index" options={{ title: 'Home' }} />
@@ -132,13 +126,14 @@ export default function TabsLayout() {
         <Tabs.Screen name="library" options={{ title: 'Library' }} />
         <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
       </Tabs>
+      <MiniPlayer />
       <FloatingPillBar />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  root: { flex: 1 },
   shell: {
     position: 'absolute',
     left: layout.screenPadding,
@@ -151,7 +146,6 @@ const styles = StyleSheet.create({
     borderRadius: layout.tabBarHeight / 2,
     flexDirection: 'row',
     alignItems: 'center',
-    borderColor: 'rgba(232, 242, 224, 0.20)',
   },
   pill: {
     position: 'absolute',
@@ -159,7 +153,6 @@ const styles = StyleSheet.create({
     height: PILL_HEIGHT,
     top: (layout.tabBarHeight - PILL_HEIGHT) / 2,
     borderRadius: 17,
-    backgroundColor: colors.accent,
     overflow: 'hidden',
   },
   tab: {

@@ -24,7 +24,6 @@ import { AddSongsSheet } from '../../components/AddSongsSheet';
 import { CreatePlaylistSheet } from '../../components/CreatePlaylistSheet';
 import { GlassButton } from '../../components/glass/GlassButton';
 import { GlassSurface } from '../../components/glass/GlassSurface';
-import { MiniPlayer } from '../../components/MiniPlayer';
 import { SwipeableRow, type SwipeAction } from '../../components/SwipeableRow';
 import { DottedNote, Thumb } from '../../components/Thumb';
 import { useMusicLibrary } from '../../storage/MusicLibraryContext';
@@ -602,7 +601,6 @@ export default function LibraryScreen() {
           )
         ) : null}
       </ScrollView>
-      <MiniPlayer />
       <CreatePlaylistSheet
         visible={createSheetOpen}
         onClose={() => setCreateSheetOpen(false)}
