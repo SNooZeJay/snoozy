@@ -22,13 +22,13 @@ void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 SplashScreen.setOptions({ duration: 450, fade: true });
 
 function AppStack() {
-  const { reducedMotion } = useTheme();
+  const { reducedMotion, palette } = useTheme();
 
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.background },
+        contentStyle: { backgroundColor: palette.background },
         animation: reducedMotion ? 'fade' : 'slide_from_right',
       }}
     >
@@ -38,10 +38,38 @@ function AppStack() {
         options={{
           presentation: 'modal',
           animation: reducedMotion ? 'fade' : 'slide_from_bottom',
-          contentStyle: { backgroundColor: colors.backgroundDeep },
+          contentStyle: { backgroundColor: palette.backgroundDeep },
         }}
       />
     </Stack>
+  );
+}
+
+function ThemedShell({
+  introVisible,
+  onIntroDone,
+}: {
+  introVisible: boolean;
+  onIntroDone: () => void;
+}) {
+  const { palette, dark } = useTheme();
+
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(palette.background).catch(() => undefined);
+  }, [palette.background]);
+
+  return (
+    <PreferencesProvider>
+      <FavoritesProvider>
+        <MusicLibraryProvider>
+          <PlayerProvider>
+            <AppStack />
+            {introVisible ? <SplashIntro onDone={onIntroDone} /> : null}
+            <StatusBar style={dark ? 'light' : 'dark'} />
+          </PlayerProvider>
+        </MusicLibraryProvider>
+      </FavoritesProvider>
+    </PreferencesProvider>
   );
 }
 
@@ -54,10 +82,6 @@ export default function RootLayout() {
   });
   const [introVisible, setIntroVisible] = useState(true);
   const hideIntro = useCallback(() => setIntroVisible(false), []);
-
-  useEffect(() => {
-    void SystemUI.setBackgroundColorAsync(colors.background).catch(() => undefined);
-  }, []);
 
   useEffect(() => {
     if (!fontsLoaded && !fontError) return;
@@ -77,17 +101,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-      <PreferencesProvider>
-        <FavoritesProvider>
-        <MusicLibraryProvider>
-          <PlayerProvider>
-          <AppStack />
-          {introVisible ? <SplashIntro onDone={hideIntro} /> : null}
-          <StatusBar style="light" />
-        </PlayerProvider>
-        </MusicLibraryProvider>
-        </FavoritesProvider>
-      </PreferencesProvider>
+        <ThemedShell introVisible={introVisible} onIntroDone={hideIntro} />
       </ThemeProvider>
     </SafeAreaProvider>
   );

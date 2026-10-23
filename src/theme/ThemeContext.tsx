@@ -10,12 +10,18 @@ import {
 import { AccessibilityInfo, useColorScheme } from 'react-native';
 import { createMMKV } from 'react-native-mmkv';
 
+import {
+  buildAppGlass,
+  buildAppPalette,
+  type AppGlass,
+  type AppPalette,
+} from './appearance';
 import { generateColorTokens, type ColorTokens, type PaletteStyle, type ThemeMode } from './color';
 import { DEFAULT_SEED } from './color';
 
 type MotionMode = 'system' | 'reduced' | 'full';
 
-type ThemeContextValue = {
+export type ThemeContextValue = {
   mode: ThemeMode;
   setMode: (mode: ThemeMode) => void;
   paletteStyle: PaletteStyle;
@@ -24,6 +30,8 @@ type ThemeContextValue = {
   setSeed: (seed: string) => void;
   dark: boolean;
   tokens: ColorTokens;
+  palette: AppPalette;
+  glass: AppGlass;
   backdropEnabled: boolean;
   setBackdropEnabled: (value: boolean) => void;
   backdropIntensity: number;
@@ -33,6 +41,8 @@ type ThemeContextValue = {
   reducedMotion: boolean;
   systemReduceMotion: boolean;
 };
+
+export type AppTheme = ThemeContextValue;
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
@@ -93,7 +103,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const dark =
     mode === 'dark' || (mode === 'auto' && systemScheme === 'dark');
 
-  const tokens = useMemo(() => generateColorTokens(seed, paletteStyle, dark), [seed, paletteStyle, dark]);
+  const tokens = useMemo(
+    () => generateColorTokens(seed, paletteStyle, dark),
+    [seed, paletteStyle, dark],
+  );
+  const palette = useMemo(
+    () => buildAppPalette(tokens, dark, seed, paletteStyle),
+    [tokens, dark, seed, paletteStyle],
+  );
+  const glass = useMemo(() => buildAppGlass(palette, dark), [palette, dark]);
 
   const reducedMotion =
     motionMode === 'reduced' || (motionMode === 'system' && systemReduceMotion);
@@ -133,6 +151,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setSeed,
       dark,
       tokens,
+      palette,
+      glass,
       backdropEnabled,
       setBackdropEnabled,
       backdropIntensity,
@@ -144,6 +164,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }),
     [
       mode, setMode, paletteStyle, setPaletteStyle, seed, setSeed, dark, tokens,
+      palette, glass,
       backdropEnabled, setBackdropEnabled, backdropIntensity, setBackdropIntensity,
       motionMode, setMotionMode, reducedMotion, systemReduceMotion,
     ],

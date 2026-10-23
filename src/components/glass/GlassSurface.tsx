@@ -4,11 +4,12 @@ import {
   StyleSheet,
   View,
   type StyleProp,
-  type ViewProps,
   type ViewStyle,
+  type ViewProps,
 } from 'react-native';
 
-import { glass, glassVariants, type GlassVariant } from '../../theme/glass';
+import { useTheme } from '../../theme';
+import type { GlassVariant } from '../../theme/glass';
 
 type GlassSurfaceProps = ViewProps & {
   variant?: GlassVariant;
@@ -36,7 +37,8 @@ export function GlassSurface({
   children,
   ...rest
 }: GlassSurfaceProps) {
-  const config = glassVariants[variant];
+  const { glass } = useTheme();
+  const config = glass.variants[variant];
   const resolvedRadius = radius ?? config.radius;
   const showHighlight = highlight ?? config.highlight;
 

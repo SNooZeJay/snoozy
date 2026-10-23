@@ -16,6 +16,13 @@ export {
   type GlassVariant,
 } from './glass';
 export {
+  buildAppGlass,
+  buildAppPalette,
+  type AppGlass,
+  type AppGlassVariant,
+  type AppPalette,
+} from './appearance';
+export {
   defaultPalette,
   paletteFromArtworkColor,
   type ArtworkPalette,
@@ -28,4 +35,11 @@ export {
   type PaletteStyle,
   type ThemeMode,
 } from './color';
-export { ThemeProvider, useTheme, PRESET_SWATCHES } from './ThemeContext';
+export {
+  ThemeProvider,
+  useTheme,
+  PRESET_SWATCHES,
+  type AppTheme,
+  type ThemeContextValue,
+} from './ThemeContext';
+export { useThemedStyles } from './useThemedStyles';

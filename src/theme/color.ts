@@ -122,3 +122,43 @@ function enforceContrast(tokens: ColorTokens): ColorTokens {
 export function hexToArgb(hex: string): number {
   return argbFromHex(hex);
 }
+
+function parseHexRgb(hex: string): [number, number, number] | null {
+  const match = hex.trim().match(/^#?([0-9a-f]{6})$/i);
+  if (!match) return null;
+  return [
+    parseInt(match[1].slice(0, 2), 16),
+    parseInt(match[1].slice(2, 4), 16),
+    parseInt(match[1].slice(4, 6), 16),
+  ];
+}
+
+export function withAlpha(hex: string, alpha: number): string {
+  const rgb = parseHexRgb(hex);
+  if (!rgb) return hex;
+  const clamped = Math.min(1, Math.max(0, alpha));
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${Number(clamped.toFixed(3))})`;
+}
+
+export function mixHex(a: string, b: string, amount: number): string {
+  const first = parseHexRgb(a);
+  const second = parseHexRgb(b);
+  if (!first) return a;
+  if (!second) return a;
+  const clamped = Math.min(1, Math.max(0, amount));
+  return `#${first
+    .map((value, index) =>
+      Math.round(value + (second[index] - value) * clamped)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
+}
+
+export function readableInk(background: string): '#000000' | '#FFFFFF' {
+  const bg = parseHexRgb(background);
+  if (!bg) return '#000000';
+  const light = contrastRatio('#FFFFFF', background);
+  const dark = contrastRatio('#000000', background);
+  return light >= dark ? '#FFFFFF' : '#000000';
+}
