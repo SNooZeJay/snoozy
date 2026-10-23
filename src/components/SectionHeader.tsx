@@ -5,7 +5,7 @@ import {
   View,
 } from 'react-native';
 
-import { colors, spacing } from '../theme';
+import { spacing, useTheme } from '../theme';
 import { AppText } from './AppText';
 
 type SectionHeaderProps = {
@@ -21,10 +21,11 @@ export function SectionHeader({
   actionLabel,
   onAction,
 }: SectionHeaderProps) {
+  const { palette } = useTheme();
   return (
     <View style={styles.row}>
       <View style={styles.copy}>
-        <AppText variant="micro" color={colors.inkFaint}>
+        <AppText variant="micro" color={palette.inkFaint}>
           {label}
         </AppText>
         {title ? (
@@ -41,10 +42,10 @@ export function SectionHeader({
           hitSlop={8}
           style={({ pressed }) => [styles.action, { opacity: pressed ? 0.62 : 1 }]}
         >
-          <AppText variant="label" color={colors.inkMuted}>
+          <AppText variant="label" color={palette.inkMuted}>
             {actionLabel}
           </AppText>
-          <Feather name="arrow-right" size={14} color={colors.inkMuted} />
+          <Feather name="arrow-right" size={14} color={palette.inkMuted} />
         </Pressable>
       ) : null}
     </View>

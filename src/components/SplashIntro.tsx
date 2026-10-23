@@ -7,7 +7,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { colors, motion, useTheme } from '../theme';
+import { motion, useTheme } from '../theme';
 
 type SplashIntroProps = {
   onDone: () => void;
@@ -20,7 +20,7 @@ type SplashIntroProps = {
  * frame or a second, differently-sized logo.
  */
 export function SplashIntro({ onDone }: SplashIntroProps) {
-  const { reducedMotion } = useTheme();
+  const { palette, reducedMotion } = useTheme();
   const opacity = useSharedValue(1);
 
   useEffect(() => {
@@ -37,7 +37,10 @@ export function SplashIntro({ onDone }: SplashIntroProps) {
   const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
   return (
-    <Animated.View pointerEvents="auto" style={[styles.overlay, fadeStyle]}>
+    <Animated.View
+      pointerEvents="auto"
+      style={[styles.overlay, { backgroundColor: palette.background }, fadeStyle]}
+    >
       <Image
         source={require('../../assets/splash-icon.png')}
         style={styles.logo}
@@ -59,7 +62,6 @@ const styles = StyleSheet.create({
     elevation: 200,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
   },
   logo: {
     width: 180,

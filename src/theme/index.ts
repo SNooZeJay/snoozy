@@ -30,6 +30,9 @@ export {
 export {
   DEFAULT_SEED,
   generateColorTokens,
+  mixHex,
+  readableInk,
+  withAlpha,
   type ColorRole,
   type ColorTokens,
   type PaletteStyle,

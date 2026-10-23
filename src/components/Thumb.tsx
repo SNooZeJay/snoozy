@@ -1,8 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image, View } from 'react-native';
 
+import {
+  useTheme,
+  useThemedStyles,
+  type AppTheme,
+} from '../theme';
 import { AppText } from './AppText';
-import { colors } from '../theme';
 
 export type ThumbTrack = {
   title: string;
@@ -21,6 +25,9 @@ type ThumbProps = {
  * DottedNote below.
  */
 export function Thumb({ track, size = 48, opacity = 1 }: ThumbProps) {
+  const { palette } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   if (track?.artwork) {
     return (
       <Image
@@ -38,11 +45,11 @@ export function Thumb({ track, size = 48, opacity = 1 }: ThumbProps) {
       ]}
     >
       {track ? (
-        <AppText variant="heading" color={colors.accent}>
+        <AppText variant="heading" color={palette.accent}>
           {track.title.slice(0, 1).toUpperCase()}
         </AppText>
       ) : (
-        <Feather name="music" size={Math.round(size * 0.36)} color={colors.inkFaint} />
+        <Feather name="music" size={Math.round(size * 0.36)} color={palette.inkFaint} />
       )}
     </View>
   );
@@ -57,6 +64,8 @@ type NoteTileProps = {
  * rows. Used where the row is a playlist rather than a track.
  */
 export function NoteTile({ size = 48 }: NoteTileProps) {
+  const { palette } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View
       style={[
@@ -64,7 +73,7 @@ export function NoteTile({ size = 48 }: NoteTileProps) {
         { width: size, height: size, borderRadius: Math.round(size * 0.3) },
       ]}
     >
-      <Feather name="music" size={Math.round(size * 0.42)} color={colors.accent} />
+      <Feather name="music" size={Math.round(size * 0.42)} color={palette.accent} />
     </View>
   );
 }
@@ -79,6 +88,8 @@ type DottedNoteProps = {
  * search/library empty states.
  */
 export function DottedNote({ size = 96 }: DottedNoteProps) {
+  const { palette } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View
       style={[
@@ -86,32 +97,32 @@ export function DottedNote({ size = 96 }: DottedNoteProps) {
         { width: size, height: size, borderRadius: size / 2 },
       ]}
     >
-      <Feather name="music" size={Math.round(size * 0.38)} color={colors.accent} />
+      <Feather name="music" size={Math.round(size * 0.38)} color={palette.accent} />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  image: { backgroundColor: colors.surfaceMuted },
+const createStyles = ({ palette }: AppTheme) => ({
+  image: { backgroundColor: palette.surfaceMuted },
   fallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: palette.surfaceMuted,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
   },
   noteTile: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: palette.surfaceMuted,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
   },
   note: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.borderStrong,
+    borderStyle: 'dashed' as const,
+    borderColor: palette.borderStrong,
   },
 });

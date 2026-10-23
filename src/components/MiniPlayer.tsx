@@ -9,7 +9,13 @@ import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePlayer } from '../playback/PlayerContext';
-import { colors, layout, motion, radii, spacing, useTheme } from '../theme';
+import {
+  layout,
+  motion,
+  radii,
+  spacing,
+  useTheme,
+} from '../theme';
 import { AppText } from './AppText';
 import { CrossfadeArtwork } from './CrossfadeArtwork';
 import { GlassSurface } from './glass/GlassSurface';
@@ -21,8 +27,8 @@ type MiniPlayerProps = {
 };
 
 export function MiniPlayer({ standalone = false }: MiniPlayerProps) {
-  const { activeTrack, isPlaying, togglePlayback, palette } = usePlayer();
-  const { reducedMotion } = useTheme();
+  const { activeTrack, isPlaying, togglePlayback, palette: artworkPalette } = usePlayer();
+  const { palette, glass, reducedMotion } = useTheme();
   const insets = useSafeAreaInsets();
 
   if (!activeTrack) return null;
@@ -47,8 +53,8 @@ export function MiniPlayer({ standalone = false }: MiniPlayerProps) {
       <GlassSurface
         variant="card"
         radius={radii.lg}
-        borderColor={palette.glow}
-        glowColor={palette.glow}
+        borderColor={artworkPalette.glow}
+        glowColor={artworkPalette.glow}
         style={styles.card}
       >
         <Pressable
@@ -61,16 +67,16 @@ export function MiniPlayer({ standalone = false }: MiniPlayerProps) {
           <CrossfadeArtwork
             uri={activeTrack.artwork}
             fallbackText={activeTrack.title.slice(0, 1).toUpperCase()}
-            fallbackColor={palette.accent}
-            fallbackInk={palette.accentInk}
+            fallbackColor={artworkPalette.accent}
+            fallbackInk={artworkPalette.accentInk}
             fallbackSize={18}
             style={styles.artwork}
             sharedTransitionTag="now-playing-artwork"
             reducedMotion={reducedMotion}
           />
           <View style={styles.text}>
-            <AppText variant="label" color={colors.ink} numberOfLines={1}>{activeTrack.title}</AppText>
-            <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>{activeTrack.artist}</AppText>
+            <AppText variant="label" color={palette.ink} numberOfLines={1}>{activeTrack.title}</AppText>
+            <AppText variant="micro" color={palette.inkMuted} numberOfLines={1}>{activeTrack.artist}</AppText>
           </View>
         </Pressable>
         <ScalePressable
@@ -78,9 +84,15 @@ export function MiniPlayer({ standalone = false }: MiniPlayerProps) {
           accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
           onPress={() => void togglePlayback()}
           reducedMotion={reducedMotion}
-          style={styles.playButton}
+          style={[
+            styles.playButton,
+            {
+              backgroundColor: glass.buttonTint,
+              borderColor: glass.edge,
+            },
+          ]}
         >
-          <Feather name={isPlaying ? 'pause' : 'play'} size={20} color={colors.ink} />
+          <Feather name={isPlaying ? 'pause' : 'play'} size={20} color={palette.ink} />
         </ScalePressable>
       </GlassSurface>
     </Animated.View>
@@ -100,17 +112,28 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: radii.lg,
   },
-  info: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  artwork: { width: 44, height: 44, borderRadius: radii.md, overflow: 'hidden' },
-  text: { flex: 1, gap: 2 },
+  info: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  artwork: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.md,
+    overflow: 'hidden',
+  },
+  text: {
+    flex: 1,
+    gap: 2,
+  },
   playButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(7, 17, 13, 0.48)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(232, 242, 224, 0.16)',
   },
 });

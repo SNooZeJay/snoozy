@@ -5,7 +5,7 @@ import {
   View,
 } from 'react-native';
 
-import { colors, glass, shadows, useTheme } from '../theme';
+import { shadows, useTheme, withAlpha } from '../theme';
 import { ScalePressable } from './ScalePressable';
 
 type PlayButtonProps = {
@@ -24,17 +24,25 @@ export function PlayButton({
   size = 64,
   label,
   tone = 'accent',
-  accentColor = colors.accent,
-  accentInk = colors.accentInk,
+  accentColor,
+  accentInk,
 }: PlayButtonProps) {
-  const { reducedMotion } = useTheme();
+  const { palette, glass, reducedMotion } = useTheme();
+  const resolvedAccent = accentColor ?? palette.accent;
+  const resolvedInk = accentInk ?? palette.accentInk;
   const backgroundColor =
     tone === 'accent'
-      ? accentColor
+      ? resolvedAccent
       : tone === 'ink'
-        ? colors.ink
-        : 'rgba(7, 17, 13, 0.56)';
-  const iconColor = tone === 'glass' ? colors.ink : accentInk;
+        ? palette.ink
+        : glass.buttonTint;
+  const iconColor = tone === 'glass' ? palette.ink : resolvedInk;
+  const borderColor =
+    tone === 'accent'
+      ? withAlpha(palette.white, 0.28)
+      : tone === 'ink'
+        ? palette.borderStrong
+        : glass.edgeStrong;
 
   return (
     <ScalePressable
@@ -53,6 +61,7 @@ export function PlayButton({
           height: size,
           borderRadius: size / 2,
           backgroundColor,
+          borderColor,
         },
         tone === 'glass' && styles.glass,
       ]}
@@ -81,12 +90,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
     overflow: 'hidden',
   },
   glass: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(243, 240, 228, 0.28)',
   },
   playIcon: {
     marginLeft: 3,

@@ -12,7 +12,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { colors } from '../theme';
+import { useTheme } from '../theme';
 
 type SoundWaveProps = {
   active: boolean;
@@ -71,11 +71,13 @@ function Bar({
 
 export function SoundWave({
   active,
-  color = colors.accent,
+  color,
   bars = 18,
   height = 32,
   seed = 1,
 }: SoundWaveProps) {
+  const { palette } = useTheme();
+  const resolvedColor = color ?? palette.accent;
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -108,7 +110,7 @@ export function SoundWave({
           active={active}
           index={index}
           progress={progress}
-          color={color}
+          color={resolvedColor}
           height={height}
           seed={seed}
         />

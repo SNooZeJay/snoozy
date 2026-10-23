@@ -10,7 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { colors, glass, motion, radii, spacing } from '../theme';
+import { motion, radii, spacing } from '../theme';
 import { AppText } from './AppText';
 
 type FeatherName = ComponentProps<typeof Feather>['name'];
@@ -32,6 +32,8 @@ type SwipeableRowProps = {
   enabled?: boolean;
   radius?: number;
   style?: StyleProp<ViewStyle>;
+  actionBackgroundColor?: string;
+  defaultIconColor?: string;
 };
 
 /**
@@ -96,11 +98,21 @@ export class SwipeableRow extends Component<SwipeableRowProps> {
       children,
       radius = radii.lg,
       style,
+      actionBackgroundColor = 'rgba(9, 22, 16, 0.72)',
+      defaultIconColor,
     } = this.props;
 
     return (
       <View style={[styles.wrap, { borderRadius: radius }, style]}>
-        <View style={[styles.actions, { width: ACTION_WIDTH * actions.length }]}>
+        <View
+          style={[
+            styles.actions,
+            {
+              width: ACTION_WIDTH * actions.length,
+              backgroundColor: actionBackgroundColor,
+            },
+          ]}
+        >
           {actions.map((action) => (
             <Pressable
               key={action.key}
@@ -113,7 +125,7 @@ export class SwipeableRow extends Component<SwipeableRowProps> {
               style={({ pressed }) => [
                 styles.action,
                 {
-                  backgroundColor: action.backgroundColor ?? glass.tintSoft,
+                  backgroundColor: action.backgroundColor ?? actionBackgroundColor,
                   opacity: pressed ? 0.7 : 1,
                 },
               ]}
@@ -121,11 +133,11 @@ export class SwipeableRow extends Component<SwipeableRowProps> {
               <Feather
                 name={action.icon}
                 size={20}
-                color={action.iconColor ?? colors.ink}
+                color={action.iconColor ?? defaultIconColor ?? '#F3F0E4'}
               />
               <AppText
                 variant="micro"
-                color={action.iconColor ?? colors.ink}
+                color={action.iconColor ?? defaultIconColor}
                 numberOfLines={1}
               >
                 {action.label}
@@ -155,7 +167,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    backgroundColor: glass.tintDeep,
   },
   action: {
     width: ACTION_WIDTH,

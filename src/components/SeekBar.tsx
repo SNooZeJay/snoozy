@@ -6,7 +6,13 @@ import {
   type GestureResponderEvent,
 } from 'react-native';
 
-import { colors, fonts, glass } from '../theme';
+import {
+  fonts,
+  useTheme,
+  useThemedStyles,
+  withAlpha,
+  type AppTheme,
+} from '../theme';
 import { formatClock } from '../utils/format';
 import { AppText } from './AppText';
 
@@ -21,9 +27,12 @@ export function SeekBar({
   progress,
   duration,
   onSeek,
-  accentColor = colors.accent,
+  accentColor,
 }: SeekBarProps) {
+  const { palette } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [width, setWidth] = useState(0);
+  const resolvedAccent = accentColor ?? palette.accent;
   const ratio = width > 0 ? Math.min(1, Math.max(0, progress / Math.max(1, duration))) : 0;
 
   const seekFromEvent = (event: GestureResponderEvent) => {
@@ -61,7 +70,7 @@ export function SeekBar({
       >
         <View style={styles.track}>
           <View style={styles.trackHighlight} pointerEvents="none" />
-          <View style={[styles.fill, { width: `${ratio * 100}%`, backgroundColor: accentColor }]} />
+          <View style={[styles.fill, { width: `${ratio * 100}%`, backgroundColor: resolvedAccent }]} />
         </View>
         <View
           pointerEvents="none"
@@ -69,7 +78,7 @@ export function SeekBar({
             styles.thumb,
             {
               left: Math.max(0, Math.min(width - 12, width * ratio - 6)),
-              backgroundColor: accentColor,
+              backgroundColor: resolvedAccent,
             },
           ]}
         />
@@ -82,13 +91,13 @@ export function SeekBar({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ palette, glass }: AppTheme) => ({
   wrap: {
-    width: '100%',
+    width: '100%' as const,
   },
   hitArea: {
     height: 30,
-    justifyContent: 'center',
+    justifyContent: 'center' as const,
   },
   track: {
     height: 6,
@@ -96,46 +105,46 @@ const styles = StyleSheet.create({
     backgroundColor: glass.tintSoft,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: glass.edgeSoft,
-    overflow: 'hidden',
+    overflow: 'hidden' as const,
   },
   trackHighlight: {
-    position: 'absolute',
+    position: 'absolute' as const,
     left: 0,
     right: 0,
     top: 0,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: withAlpha(palette.white, 0.16),
   },
   fill: {
-    height: '100%',
+    height: '100%' as const,
     borderRadius: 3,
-    backgroundColor: colors.accent,
+    backgroundColor: palette.accent,
   },
   thumb: {
-    position: 'absolute',
+    position: 'absolute' as const,
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: colors.accent,
+    backgroundColor: palette.accent,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.46)',
+    borderColor: withAlpha(palette.white, 0.46),
     top: 8,
-    shadowColor: colors.black,
+    shadowColor: palette.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
   times: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
     marginTop: 2,
   },
   time: {
     fontFamily: fonts.body,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.inkFaint,
-    fontVariant: ['tabular-nums'],
+    color: palette.inkFaint,
+    fontVariant: ['tabular-nums'] as const,
   },
 });

@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { colors, glass, radii, useTheme } from '../theme';
+import { radii, useTheme } from '../theme';
 import { ScalePressable } from './ScalePressable';
 
 type IconName = ComponentProps<typeof Feather>['name'];
@@ -32,13 +32,13 @@ export function IconButton({
   onPress,
   size = 48,
   iconSize = 20,
-  color = colors.ink,
-  backgroundColor = glass.buttonTint,
-  borderColor = glass.edge,
+  color,
+  backgroundColor,
+  borderColor,
   style,
   disabled = false,
 }: IconButtonProps) {
-  const { reducedMotion } = useTheme();
+  const { palette, glass, reducedMotion } = useTheme();
 
   return (
     <ScalePressable
@@ -55,8 +55,8 @@ export function IconButton({
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor,
-          borderColor,
+          backgroundColor: backgroundColor ?? glass.buttonTint,
+          borderColor: borderColor ?? glass.edge,
           opacity: disabled ? 0.35 : 1,
         },
         style,
@@ -70,7 +70,7 @@ export function IconButton({
         style={[StyleSheet.absoluteFill, { borderRadius: size / 2 }]}
       />
       <View pointerEvents="none">
-        <Feather name={name} size={iconSize} color={color} />
+        <Feather name={name} size={iconSize} color={color ?? palette.ink} />
       </View>
     </ScalePressable>
   );
