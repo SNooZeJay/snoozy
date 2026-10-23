@@ -4,7 +4,6 @@ import { useState } from 'react';
 import {
   Pressable,
   ScrollView,
-  StyleSheet,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,14 +20,27 @@ import { SeekBar } from '../components/SeekBar';
 import { useMusicLibrary } from '../storage/MusicLibraryContext';
 import { usePlayer, usePlayerProgress } from '../playback/PlayerContext';
 import { usePreferences } from '../storage/PreferencesContext';
-import { colors, glass, radii, spacing, useTheme } from '../theme';
+import {
+  radii,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type AppTheme,
+} from '../theme';
 
 export default function PlayerScreen() {
   const library = useMusicLibrary();
   const player = usePlayer();
   const playback = usePlayerProgress();
   const { tapFeedback } = usePreferences();
-  const { backdropEnabled, backdropIntensity, reducedMotion } = useTheme();
+  const {
+    backdropEnabled,
+    backdropIntensity,
+    reducedMotion,
+    palette,
+    glass,
+  } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const track = player.activeTrack;
@@ -38,11 +50,15 @@ export default function PlayerScreen() {
 
   if (!track) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]}>
         <View style={styles.empty}>
-          <AppText variant="title" color={colors.ink}>No track selected</AppText>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
-            <AppText variant="label" color={colors.accentInk}>Close</AppText>
+          <AppText variant="title" color={palette.ink}>No track selected</AppText>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.75 : 1 }]}
+          >
+            <AppText variant="label" color={palette.accentInk}>Close</AppText>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -52,11 +68,11 @@ export default function PlayerScreen() {
   const isFavorite = library.favorites.has(track.id);
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: palette.backgroundDeep }]}>
       <PaletteGlow
         color={player.palette.glow}
         intensity={glowOpacity}
-        background={colors.backgroundDeep}
+        background={palette.backgroundDeep}
         reducedMotion={reducedMotion}
       />
       <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
@@ -71,14 +87,14 @@ export default function PlayerScreen() {
             borderColor={glass.edge}
           />
           <View style={styles.topbarTitle}>
-            <AppText variant="overline" color={colors.inkMuted}>Now playing</AppText>
+            <AppText variant="overline" color={palette.inkMuted}>Now playing</AppText>
           </View>
           <IconButton
             name="heart"
             label={isFavorite ? 'Remove favorite' : 'Add favorite'}
             iconSize={20}
             size={48}
-            color={isFavorite ? player.palette.accent : colors.ink}
+            color={isFavorite ? player.palette.accent : palette.ink}
             backgroundColor={glass.tintDeep}
             borderColor={glass.edge}
             onPress={() => {
@@ -111,9 +127,9 @@ export default function PlayerScreen() {
           </View>
 
           <View style={styles.trackInfo}>
-            <AppText variant="title" color={colors.ink} numberOfLines={2}>{track.title}</AppText>
-            <AppText variant="body" color={colors.inkMuted} numberOfLines={1}>{track.artist}</AppText>
-            <AppText variant="micro" color={colors.inkFaint} numberOfLines={1}>{track.album}</AppText>
+            <AppText variant="title" color={palette.ink} numberOfLines={2}>{track.title}</AppText>
+            <AppText variant="body" color={palette.inkMuted} numberOfLines={1}>{track.artist}</AppText>
+            <AppText variant="micro" color={palette.inkFaint} numberOfLines={1}>{track.album}</AppText>
           </View>
 
           <SeekBar
@@ -140,72 +156,98 @@ export default function PlayerScreen() {
               name="music"
               label="Lyrics"
               size={48}
-              onPress={() => { tapFeedback('selection'); setLyricsOpen(true); }}
+              onPress={() => {
+                tapFeedback('selection');
+                setLyricsOpen(true);
+              }}
             />
             <IconButton
               name="edit-3"
               label="Edit song"
               size={48}
-              onPress={() => { tapFeedback('selection'); setEditOpen(true); }}
+              onPress={() => {
+                tapFeedback('selection');
+                setEditOpen(true);
+              }}
             />
           </View>
 
           {player.error ? (
             <View style={styles.error}>
-              <AppText variant="micro" color={colors.danger}>{player.error}</AppText>
+              <AppText variant="micro" color={palette.danger}>{player.error}</AppText>
             </View>
           ) : null}
         </ScrollView>
       </SafeAreaView>
-      <LyricsSheet visible={lyricsOpen} onClose={() => setLyricsOpen(false)} trackUri={track.uri} trackTitle={track.title} />
-      <SongEditSheet visible={editOpen} onClose={() => setEditOpen(false)} trackId={track.id} original={{ title: track.title, artist: track.artist, album: track.album }} />
+      <LyricsSheet
+        visible={lyricsOpen}
+        onClose={() => setLyricsOpen(false)}
+        trackUri={track.uri}
+        trackTitle={track.title}
+      />
+      <SongEditSheet
+        visible={editOpen}
+        onClose={() => setEditOpen(false)}
+        trackId={track.id}
+        original={{ title: track.title, artist: track.artist, album: track.album }}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.backgroundDeep },
+const createStyles = ({ palette }: AppTheme) => ({
+  root: { flex: 1 },
   safe: { flex: 1 },
   topbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
   },
-  topbarTitle: { alignItems: 'center' },
+  topbarTitle: { alignItems: 'center' as const },
   content: { padding: spacing.lg, gap: spacing.xl, paddingBottom: 40 },
-  artworkShell: { alignItems: 'center' },
+  artworkShell: { alignItems: 'center' as const },
   artworkFrame: {
-    width: '100%',
+    width: '100%' as const,
     maxWidth: 312,
     padding: 6,
   },
   artwork: {
-    width: '100%',
+    width: '100%' as const,
     aspectRatio: 1,
     borderRadius: radii.xl,
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceRaised,
+    overflow: 'hidden' as const,
+    backgroundColor: palette.surfaceRaised,
   },
-  trackInfo: { gap: spacing.xs, alignItems: 'center' },
+  trackInfo: { gap: spacing.xs, alignItems: 'center' as const },
   controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     gap: spacing.xl,
   },
-  secondaryControls: { flexDirection: 'row', justifyContent: 'center', gap: spacing.lg },
+  secondaryControls: {
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
+    gap: spacing.lg,
+  },
   error: {
     padding: spacing.md,
     borderRadius: radii.md,
-    backgroundColor: colors.dangerSoft,
+    backgroundColor: palette.dangerSoft,
   },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+  empty: {
+    flex: 1,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: spacing.md,
+  },
   backButton: {
+    minHeight: 44,
+    justifyContent: 'center' as const,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
     borderRadius: radii.pill,
-    backgroundColor: colors.accent,
+    backgroundColor: palette.accent,
   },
 });

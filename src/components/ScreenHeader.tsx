@@ -11,6 +11,7 @@ type ScreenHeaderProps = {
   title: string;
   subtitle?: string;
   eyebrow?: string;
+  leading?: ReactNode;
   action?: ReactNode;
 };
 
@@ -22,12 +23,14 @@ export function ScreenHeader({
   title,
   subtitle,
   eyebrow,
+  leading,
   action,
 }: ScreenHeaderProps) {
   const { palette } = useTheme();
 
   return (
     <View style={styles.row}>
+      {leading ? <View style={styles.leading}>{leading}</View> : null}
       <View style={styles.copy}>
         {eyebrow ? (
           <AppText variant="overline" color={palette.inkFaint}>
@@ -60,6 +63,12 @@ const styles = StyleSheet.create({
   copy: {
     flex: 1,
     gap: spacing.xs,
+  },
+  leading: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   action: {
     minWidth: 44,

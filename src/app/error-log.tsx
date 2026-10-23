@@ -11,12 +11,24 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '../components/AppText';
+import { EmptyState } from '../components/EmptyState';
 import { IconButton } from '../components/IconButton';
+import { ListGroup } from '../components/ListGroup';
 import { MiniPlayer } from '../components/MiniPlayer';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { getErrorLog, clearErrorLog, type ErrorLogEntry } from '../storage/errorLog';
-import { colors, glass, radii, spacing } from '../theme';
+import {
+  layout,
+  radii,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type AppTheme,
+} from '../theme';
 
 export default function ErrorLogScreen() {
+  const { palette, glass } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [entries, setEntries] = useState<ErrorLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -33,7 +45,7 @@ export default function ErrorLogScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    const h = setTimeout(() => {
+    const handle = setTimeout(() => {
       void (async () => {
         setLoading(true);
         try {
@@ -48,59 +60,98 @@ export default function ErrorLogScreen() {
     }, 0);
     return () => {
       cancelled = true;
-      clearTimeout(h);
+      clearTimeout(handle);
     };
   }, []);
 
   const handleShare = async () => {
-    const text = entries.map((e) => `${new Date(e.timestamp).toISOString()} [${e.category}] ${e.message}`).join('\n');
+    const text = entries
+      .map((entry) => `${new Date(entry.timestamp).toISOString()} [${entry.category}] ${entry.message}`)
+      .join('\n');
     await Share.share({ message: text, title: 'Snoozy error log' });
   };
 
   const handleClear = () => {
     Alert.alert('Clear error log', 'Delete all entries?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: async () => { await clearErrorLog(); await load(); } },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: async () => {
+          await clearErrorLog();
+          await load();
+        },
+      },
     ]);
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <IconButton
-            name="chevron-left"
-            label="Back"
-            iconSize={22}
-            size={44}
-            onPress={() => router.back()}
-            backgroundColor={glass.tintDeep}
-            borderColor={glass.edgeSoft}
-          />
-          <AppText variant="display" color={colors.ink} style={styles.headerTitle}>
-            Error log
-          </AppText>
-        </View>
-        <View style={styles.row}>
-          <Pressable accessibilityRole="button" onPress={handleShare} style={styles.button}>
-            <AppText variant="label" color={colors.accentInk}>Share log</AppText>
+        <ScreenHeader
+          leading={(
+            <IconButton
+              name="chevron-left"
+              label="Back"
+              iconSize={22}
+              size={44}
+              onPress={() => router.back()}
+              backgroundColor={glass.tintDeep}
+              borderColor={glass.edgeSoft}
+            />
+          )}
+          title="Error log"
+          subtitle={loading
+            ? 'Loading diagnostics…'
+            : `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} recorded`}
+        />
+
+        <View style={styles.actions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Share error log"
+            onPress={() => void handleShare()}
+            style={({ pressed }) => [styles.button, { opacity: pressed ? 0.75 : 1 }]}
+          >
+            <AppText variant="label" color={palette.accentInk}>Share log</AppText>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={handleClear} style={styles.buttonSecondary}>
-            <AppText variant="label" color={colors.danger}>Clear log</AppText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Clear error log"
+            onPress={handleClear}
+            style={({ pressed }) => [styles.buttonSecondary, { opacity: pressed ? 0.75 : 1 }]}
+          >
+            <AppText variant="label" color={palette.danger}>Clear log</AppText>
           </Pressable>
         </View>
+
         {loading ? (
-          <AppText variant="body" color={colors.inkMuted}>Loading…</AppText>
+          <AppText variant="body" color={palette.inkMuted} style={styles.status}>Loading…</AppText>
         ) : entries.length === 0 ? (
-          <AppText variant="body" color={colors.inkMuted}>No errors recorded.</AppText>
+          <EmptyState
+            compact
+            title="No errors recorded"
+            message="Anything that goes wrong will appear here."
+          />
         ) : (
-          entries.map((e) => (
-            <View key={e.id} style={styles.entry}>
-              <AppText variant="micro" color={colors.inkFaint}>{new Date(e.timestamp).toLocaleString()} · {e.category}</AppText>
-              <AppText variant="body" color={colors.ink}>{e.message}</AppText>
-              {e.trackId ? <AppText variant="micro" color={colors.inkFaint}>track: {e.trackId}</AppText> : null}
-            </View>
-          ))
+          <ListGroup>
+            {entries.map((entry, index) => (
+              <View
+                key={entry.id}
+                style={[styles.entry, index > 0 && styles.entryDivider]}
+              >
+                <AppText variant="micro" color={palette.inkFaint}>
+                  {new Date(entry.timestamp).toLocaleString()} · {entry.category}
+                </AppText>
+                <AppText variant="body" color={palette.ink}>{entry.message}</AppText>
+                {entry.trackId ? (
+                  <AppText variant="micro" color={palette.inkFaint}>
+                    track: {entry.trackId}
+                  </AppText>
+                ) : null}
+              </View>
+            ))}
+          </ListGroup>
         )}
       </ScrollView>
       <MiniPlayer standalone />
@@ -108,13 +159,42 @@ export default function ErrorLogScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, gap: spacing.md, paddingBottom: 150 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  headerTitle: { flex: 1 },
-  row: { flexDirection: 'row', gap: spacing.sm },
-  button: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.pill, backgroundColor: colors.accent },
-  buttonSecondary: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.pill, backgroundColor: glass.tintSoft, borderWidth: 1, borderColor: glass.edgeSoft },
-  entry: { gap: 2, padding: spacing.md, borderRadius: radii.md, backgroundColor: glass.tintSoft, borderWidth: 1, borderColor: glass.edgeSoft },
+const createStyles = ({ palette, glass }: AppTheme) => ({
+  safe: { flex: 1 },
+  content: {
+    paddingBottom: 150,
+    gap: spacing.md,
+  },
+  actions: {
+    flexDirection: 'row' as const,
+    gap: spacing.sm,
+    marginHorizontal: layout.screenPadding,
+  },
+  button: {
+    minHeight: 44,
+    justifyContent: 'center' as const,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.pill,
+    backgroundColor: palette.accent,
+  },
+  buttonSecondary: {
+    minHeight: 44,
+    justifyContent: 'center' as const,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.pill,
+    backgroundColor: glass.tintSoft,
+    borderWidth: 1,
+    borderColor: glass.edgeSoft,
+  },
+  status: {
+    paddingHorizontal: layout.screenPadding,
+  },
+  entry: {
+    gap: 2,
+    padding: spacing.md,
+  },
+  entryDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.border,
+  },
 });
