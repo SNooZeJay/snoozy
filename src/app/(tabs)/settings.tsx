@@ -1,17 +1,33 @@
 import Feather from '@expo/vector-icons/Feather';
-import { type ComponentProps } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
+import type { ComponentProps, ReactNode } from 'react';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '../../components/AppText';
-import { GlassSurface } from '../../components/glass/GlassSurface';
+import { ListGroup } from '../../components/ListGroup';
+import { ListRow } from '../../components/ListRow';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { SectionHeader } from '../../components/SectionHeader';
 import { useMusicLibrary } from '../../storage/MusicLibraryContext';
 import { usePreferences } from '../../storage/PreferencesContext';
-import { colors, glass, layout, radii, spacing, useTheme, PRESET_SWATCHES } from '../../theme';
+import {
+  PRESET_SWATCHES,
+  layout,
+  radii,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type AppTheme,
+} from '../../theme';
 
 const MODES: { value: 'light' | 'dark' | 'auto'; label: string }[] = [
   { value: 'light', label: 'Light' },
@@ -51,60 +67,94 @@ const OSS_NOTICES: string[] = [
 
 type FeatherName = ComponentProps<typeof Feather>['name'];
 
-type RowProps = {
+function RowIcon({ name }: { name: FeatherName }) {
+  const { palette } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View style={styles.rowIcon}>
+      <Feather name={name} size={20} color={palette.accent} />
+    </View>
+  );
+}
+
+function SwitchRow({
+  icon,
+  label,
+  hint,
+  value,
+  onChange,
+}: {
   icon: FeatherName;
   label: string;
-  hint?: string;
-  control?: 'switch' | 'none';
-  switchValue?: boolean;
-  onSwitchChange?: (v: boolean) => void;
-  onPress?: () => void;
-};
+  hint: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  const { palette } = useTheme();
 
-function SettingRow({ icon: rowIcon, label, hint, control = 'none', switchValue, onSwitchChange, onPress }: RowProps) {
-  const content = (
-    <>
-      <View style={styles.rowIcon}>
-        <Feather name={rowIcon} size={20} color={colors.accent} />
-      </View>
-      <View style={styles.rowText}>
-        <AppText variant="label" color={colors.ink}>{label}</AppText>
-        {hint ? <AppText variant="micro" color={colors.inkMuted}>{hint}</AppText> : null}
-      </View>
-      {control === 'switch' ? (
+  return (
+    <ListRow
+      leading={<RowIcon name={icon} />}
+      title={label}
+      subtitle={hint}
+      trailing={(
         <View
           pointerEvents="none"
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >
           <Switch
-            value={switchValue}
-            onValueChange={onSwitchChange}
-            trackColor={{ false: colors.surfaceMuted, true: colors.accentStrong }}
-            thumbColor={colors.ink}
+            value={value}
+            onValueChange={onChange}
+            trackColor={{ false: palette.surfaceMuted, true: palette.accentStrong }}
+            thumbColor={palette.ink}
+            ios_backgroundColor={palette.surfaceMuted}
           />
         </View>
-      ) : (
-        <Feather name="chevron-right" size={18} color={colors.inkFaint} />
       )}
-    </>
-  );
-  const isSwitch = control === 'switch';
-  const handlePress =
-    onPress ?? (isSwitch && onSwitchChange ? () => onSwitchChange(!switchValue) : undefined);
-  if (!handlePress) {
-    return <View style={styles.row}>{content}</View>;
-  }
-  return (
-    <Pressable
-      accessibilityRole={isSwitch ? 'switch' : 'button'}
+      onPress={() => onChange(!value)}
+      accessibilityRole="switch"
       accessibilityLabel={label}
-      accessibilityState={isSwitch ? { checked: !!switchValue } : undefined}
-      onPress={handlePress}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-    >
-      {content}
-    </Pressable>
+      accessibilityState={{ checked: value }}
+    />
+  );
+}
+
+function LibraryRow() {
+  const library = useMusicLibrary();
+  const { tapFeedback } = usePreferences();
+  const { palette } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const scanning = library.scanning;
+  const scanError = !scanning ? library.scanError : null;
+  const countLabel = `${library.tracks.length} ${library.tracks.length === 1 ? 'track' : 'tracks'} indexed`;
+  const hint = scanning ? 'Scanning your device…' : scanError ?? countLabel;
+  const canGrant = library.permission !== 'granted';
+
+  return (
+    <ListRow
+      leading={<RowIcon name="folder" />}
+      title="Library"
+      subtitle={hint}
+      subtitleColor={scanError ? palette.danger : undefined}
+      trailing={(
+        <View style={styles.pillButton}>
+          <AppText variant="label" color={palette.accentInk}>
+            {canGrant ? 'Grant' : 'Scan'}
+          </AppText>
+        </View>
+      )}
+      onPress={() => {
+        tapFeedback('selection');
+        if (canGrant) {
+          void library.requestAccess();
+        } else {
+          void library.scan();
+        }
+      }}
+      accessibilityLabel={canGrant ? 'Grant library access' : 'Scan library'}
+      accessibilityHint={scanError ?? undefined}
+    />
   );
 }
 
@@ -117,264 +167,334 @@ function ChipRow<T extends string>({
   value: T;
   onSelect: (v: T) => void;
 }) {
+  const { palette } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={styles.chipRowWrap}>
-      {items.map((item) => (
-        <Pressable
-          key={item.value}
-          accessibilityRole="button"
-          accessibilityState={{ selected: item.value === value }}
-          onPress={() => onSelect(item.value)}
-          style={[
-            styles.chip,
-            item.value === value && styles.chipActive,
-          ]}
-        >
-          <AppText variant="label" color={item.value === value ? colors.accentInk : colors.ink}>
-            {item.label}
-          </AppText>
-        </Pressable>
-      ))}
+      {items.map((item) => {
+        const selected = item.value === value;
+        return (
+          <Pressable
+            key={item.value}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            onPress={() => onSelect(item.value)}
+            style={({ pressed }) => [
+              styles.chip,
+              selected && styles.chipActive,
+              pressed && { opacity: 0.72 },
+            ]}
+          >
+            <AppText variant="label" color={selected ? palette.accentInk : palette.ink}>
+              {item.label}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function SettingField({ label, children }: { label: string; children: ReactNode }) {
+  const { palette } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View style={styles.field}>
+      <AppText variant="micro" color={palette.inkFaint}>
+        {label}
+      </AppText>
+      {children}
     </View>
   );
 }
 
 export default function SettingsScreen() {
-  const library = useMusicLibrary();
   const { preferences, setHaptics, tapFeedback } = usePreferences();
   const theme = useTheme();
+  const { palette } = theme;
+  const styles = useThemedStyles(createStyles);
   const androidRelease = (Platform.constants as { Release?: string }).Release;
   const osVersion = `${Platform.OS === 'android' ? 'Android' : Platform.OS} ${
     androidRelease ?? Platform.Version
   }`;
+  const version = Constants.expoConfig?.version ?? '2.2.0';
+  const build = Constants.expoConfig?.android?.versionCode ?? 12;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Animated.View entering={FadeIn.duration(240)}>
-          <View style={styles.headerRow}>
-            <AppText variant="display" color={colors.ink}>Settings</AppText>
-          </View>
-        </Animated.View>
+        <ScreenHeader
+          title="Settings"
+          subtitle="Theme, motion, and library"
+        />
 
-        <GlassSurface variant="card" style={styles.card}>
-          <View style={styles.row}>
-            <View style={styles.rowIcon}>
-              <Feather name="folder" size={20} color={colors.accent} />
-            </View>
-            <View style={styles.rowText}>
-              <AppText variant="label" color={colors.ink}>Library</AppText>
-              <AppText variant="micro" color={colors.inkMuted}>
-                {library.scanning
-                  ? 'Scanning your device…'
-                  : `${library.tracks.length} ${library.tracks.length === 1 ? 'track' : 'tracks'} indexed`}
-              </AppText>
-              {!library.scanning && library.scanError ? (
-                <AppText variant="micro" color={colors.danger} numberOfLines={2}>
-                  {library.scanError}
+        <View style={styles.section}>
+          <SectionHeader label="Library" />
+          <ListGroup>
+            <LibraryRow />
+          </ListGroup>
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeader label="Feedback" />
+          <ListGroup>
+            <SwitchRow
+              icon="radio"
+              label="Haptics"
+              hint="Feedback on taps"
+              value={preferences.haptics}
+              onChange={(value) => {
+                tapFeedback('selection');
+                setHaptics(value);
+              }}
+            />
+          </ListGroup>
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeader label="Appearance" />
+          <ListGroup style={styles.settingsCard}>
+            <SettingField label="Theme">
+              <ChipRow
+                items={MODES}
+                value={theme.mode}
+                onSelect={(mode) => {
+                  tapFeedback('selection');
+                  theme.setMode(mode);
+                }}
+              />
+            </SettingField>
+
+            <SettingField label="Palette style">
+              <ChipRow
+                items={STYLES}
+                value={theme.paletteStyle}
+                onSelect={(style) => {
+                  tapFeedback('selection');
+                  theme.setPaletteStyle(style);
+                }}
+              />
+            </SettingField>
+
+            <SettingField label="Accent swatch">
+              <View style={styles.chipRowWrap}>
+                {PRESET_SWATCHES.map((swatch) => {
+                  const selected = theme.seed.toLowerCase() === swatch.toLowerCase();
+                  return (
+                    <Pressable
+                      key={swatch}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Accent ${swatch}`}
+                      accessibilityState={{ selected }}
+                      onPress={() => {
+                        tapFeedback('selection');
+                        theme.setSeed(swatch);
+                      }}
+                      style={[
+                        styles.swatch,
+                        { backgroundColor: swatch },
+                        selected && styles.swatchActive,
+                      ]}
+                    />
+                  );
+                })}
+              </View>
+            </SettingField>
+
+            <View style={styles.divider} />
+
+            <SwitchRow
+              icon="sliders"
+              label="Backdrop glow"
+              hint={`Artwork color behind playback · ${theme.backdropIntensity}%`}
+              value={theme.backdropEnabled}
+              onChange={(value) => {
+                tapFeedback('selection');
+                theme.setBackdropEnabled(value);
+              }}
+            />
+
+            <SettingField label="Backdrop intensity">
+              <View style={styles.chipRowWrap}>
+                {[0, 25, 50, 60, 75, 100].map((value) => {
+                  const selected = theme.backdropIntensity === value;
+                  return (
+                    <Pressable
+                      key={value}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Backdrop intensity ${value} percent`}
+                      accessibilityState={{ selected }}
+                      onPress={() => {
+                        tapFeedback('selection');
+                        theme.setBackdropIntensity(value);
+                      }}
+                      style={({ pressed }) => [
+                        styles.chip,
+                        selected && styles.chipActive,
+                        pressed && { opacity: 0.72 },
+                      ]}
+                    >
+                      <AppText variant="label" color={selected ? palette.accentInk : palette.ink}>
+                        {value}%
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </SettingField>
+          </ListGroup>
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeader label="Motion" />
+          <ListGroup style={styles.settingsCard}>
+            <ChipRow
+              items={MOTION}
+              value={theme.motionMode}
+              onSelect={(mode) => {
+                tapFeedback('selection');
+                theme.setMotionMode(mode);
+              }}
+            />
+            <AppText variant="micro" color={palette.inkFaint}>
+              Reduced keeps fades and drops slide-springs across tabs and cards.
+            </AppText>
+          </ListGroup>
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeader label="About" />
+          <ListGroup style={styles.settingsCard}>
+            <View style={styles.aboutRow}>
+              <View style={styles.mark}>
+                <AppText variant="display" color={palette.accentInk}>S</AppText>
+              </View>
+              <View style={styles.aboutCopy}>
+                <AppText variant="heading" color={palette.ink}>About Snoozy</AppText>
+                <AppText variant="micro" color={palette.inkMuted}>
+                  A minimal local music player for your library, your way.
                 </AppText>
-              ) : null}
+              </View>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={library.permission === 'granted' ? 'Scan library' : 'Grant library access'}
+
+            <AppText variant="micro" color={palette.inkFaint}>
+              Version {version} ({build}) · {osVersion} · arm64
+            </AppText>
+
+            <View style={styles.divider} />
+
+            <ListRow
+              leading={<RowIcon name="alert-triangle" />}
+              title="Error log"
+              subtitle="Diagnostics for anything that went wrong"
               onPress={() => {
                 tapFeedback('selection');
-                if (library.permission === 'granted') {
-                  void library.scan();
-                } else {
-                  void library.requestAccess();
-                }
+                router.push('/error-log');
               }}
-              style={({ pressed }) => [styles.pillButton, { opacity: pressed ? 0.75 : 1 }]}
-            >
-              <AppText variant="label" color={colors.accentInk}>
-                {library.permission === 'granted' ? 'Scan' : 'Grant'}
-              </AppText>
-            </Pressable>
-          </View>
-          <View style={styles.divider} />
-          <SettingRow
-            icon="radio"
-            label="Haptics"
-            hint="Feedback on taps"
-            control="switch"
-            switchValue={preferences.haptics}
-            onSwitchChange={(value) => {
-              tapFeedback('selection');
-              setHaptics(value);
-            }}
-          />
-        </GlassSurface>
+              accessibilityLabel="Open error log"
+              accessibilityHint="Shows diagnostics from this device"
+              trailing={<Feather name="chevron-right" size={18} color={palette.inkFaint} />}
+            />
 
-        <GlassSurface variant="card" style={styles.card}>
-          <AppText variant="label" color={colors.ink}>Appearance</AppText>
-          <ChipRow
-            items={MODES}
-            value={theme.mode}
-            onSelect={(m) => { tapFeedback('selection'); theme.setMode(m); }}
-          />
-          <AppText variant="micro" color={colors.inkFaint}>Palette style</AppText>
-          <ChipRow
-            items={STYLES}
-            value={theme.paletteStyle}
-            onSelect={(s) => { tapFeedback('selection'); theme.setPaletteStyle(s); }}
-          />
-          <AppText variant="micro" color={colors.inkFaint}>Accent swatch</AppText>
-          <View style={styles.chipRowWrap}>
-            {PRESET_SWATCHES.map((swatch) => (
-              <Pressable
-                key={swatch}
-                accessibilityRole="button"
-                accessibilityLabel={`Accent ${swatch}`}
-                onPress={() => { tapFeedback('selection'); theme.setSeed(swatch); }}
-                style={[styles.swatch, { backgroundColor: swatch }, theme.seed === swatch && styles.swatchActive]}
-              />
-            ))}
-          </View>
-          <View style={styles.divider} />
-          <SettingRow
-            icon="sliders"
-            label="Backdrop"
-            hint={`Show artwork glow · intensity ${theme.backdropIntensity}`}
-            control="switch"
-            switchValue={theme.backdropEnabled}
-            onSwitchChange={(v) => { tapFeedback('selection'); theme.setBackdropEnabled(v); }}
-          />
-          <View style={styles.chipRowWrap}>
-            {[0, 25, 50, 60, 75, 100].map((v) => (
-              <Pressable
-                key={v}
-                accessibilityRole="button"
-                accessibilityLabel={`Backdrop intensity ${v}`}
-                onPress={() => { tapFeedback('selection'); theme.setBackdropIntensity(v); }}
-                style={[styles.chip, theme.backdropIntensity === v && styles.chipActive]}
-              >
-                <AppText variant="label" color={theme.backdropIntensity === v ? colors.accentInk : colors.ink}>{v}</AppText>
-              </Pressable>
-            ))}
-          </View>
-        </GlassSurface>
-
-        <GlassSurface variant="card" style={styles.card}>
-          <AppText variant="label" color={colors.ink}>Motion</AppText>
-          <ChipRow
-            items={MOTION}
-            value={theme.motionMode}
-            onSelect={(m) => { tapFeedback('selection'); theme.setMotionMode(m); }}
-          />
-          <AppText variant="micro" color={colors.inkFaint}>
-            Reduced keeps fades and drops slide-springs across tabs and cards.
-          </AppText>
-        </GlassSurface>
-
-        <GlassSurface variant="card" style={styles.card}>
-          <View style={styles.aboutRow}>
-            <View style={styles.mark}>
-              <AppText variant="display" color={colors.accentInk}>S</AppText>
+            <AppText variant="micro" color={palette.inkFaint}>Open-source components:</AppText>
+            <View style={styles.ossList}>
+              {OSS_NOTICES.map((notice) => (
+                <AppText key={notice} variant="micro" color={palette.inkMuted}>
+                  {notice}
+                </AppText>
+              ))}
             </View>
-            <View style={styles.rowText}>
-              <AppText variant="heading" color={colors.ink}>About Snoozy</AppText>
-              <AppText variant="micro" color={colors.inkMuted} style={styles.aboutCopy}>
-                A minimal local music player for your library, your way.
-              </AppText>
-            </View>
-          </View>
-          <AppText variant="micro" color={colors.inkFaint}>
-            Version {Constants.expoConfig?.version ?? '2.1.0'}
-            {Constants.expoConfig?.android?.versionCode ? ` (${Constants.expoConfig.android.versionCode})` : ''}
-            {' '}· {osVersion} · arm64
-          </AppText>
-          <View style={styles.divider} />
-          <SettingRow
-            icon="alert-triangle"
-            label="Error log"
-            hint="Diagnostics for anything that went wrong"
-            onPress={() => router.push('/error-log')}
-          />
-          <AppText variant="micro" color={colors.inkFaint}>Open-source components:</AppText>
-          <View style={styles.ossList}>
-            {OSS_NOTICES.map((notice) => (
-              <AppText key={notice} variant="micro" color={colors.inkMuted}>
-                {notice}
-              </AppText>
-            ))}
-          </View>
-        </GlassSurface>
+          </ListGroup>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: layout.tabBarSpace },
-  headerRow: { gap: spacing.xs },
-  card: {
-    gap: spacing.md,
+const createStyles = ({ palette, glass }: AppTheme) => ({
+  safe: { flex: 1 },
+  content: {
+    paddingTop: spacing.lg,
+    paddingBottom: layout.tabBarSpace,
+    gap: spacing.xl,
+  },
+  section: {
+    gap: spacing.sm,
+  },
+  settingsCard: {
     padding: spacing.md,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing.md,
-    minHeight: 52,
-    borderRadius: radii.md,
   },
-  rowPressed: { opacity: 0.75, transform: [{ scale: 0.99 }] },
   rowIcon: {
     width: 36,
     height: 36,
     borderRadius: radii.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     backgroundColor: glass.tintSoft,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: glass.edgeSoft,
   },
-  rowText: { flex: 1, gap: 2 },
-  divider: { height: 1, backgroundColor: colors.border },
   pillButton: {
-    minHeight: 48,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
+    minHeight: 36,
+    justifyContent: 'center' as const,
+    paddingHorizontal: spacing.md,
     borderRadius: radii.pill,
-    backgroundColor: colors.accent,
+    backgroundColor: palette.accent,
   },
-  chipRowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  field: {
+    gap: spacing.sm,
+  },
+  chipRowWrap: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: spacing.sm,
+  },
   chip: {
-    minWidth: 48,
-    minHeight: 48,
-    justifyContent: 'center',
+    minHeight: 44,
+    justifyContent: 'center' as const,
     paddingHorizontal: spacing.md,
     borderRadius: radii.pill,
     backgroundColor: glass.tintSoft,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: glass.edgeSoft,
   },
   chipActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
+    backgroundColor: palette.accent,
+    borderColor: palette.accent,
   },
   swatch: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: palette.border,
   },
   swatchActive: {
-    borderColor: colors.ink,
+    borderWidth: 3,
+    borderColor: palette.ink,
   },
-  aboutRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: palette.border,
+  },
+  aboutRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: spacing.md,
+  },
   mark: {
     width: 52,
     height: 52,
     borderRadius: radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: palette.accent,
   },
-  aboutCopy: { flex: 1 },
-  ossList: { gap: spacing.xxs, paddingLeft: spacing.xs },
+  aboutCopy: { flex: 1, gap: 2 },
+  ossList: {
+    gap: spacing.xxs,
+    paddingLeft: spacing.xs,
+  },
 });

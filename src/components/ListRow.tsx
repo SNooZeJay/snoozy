@@ -3,6 +3,8 @@ import {
   Pressable,
   StyleSheet,
   View,
+  type AccessibilityRole,
+  type AccessibilityState,
 } from 'react-native';
 
 import { radii, spacing, useTheme } from '../theme';
@@ -12,10 +14,13 @@ type ListRowProps = {
   leading?: ReactNode;
   title: string;
   subtitle?: string;
+  subtitleColor?: string;
   trailing?: ReactNode;
   onPress?: () => void;
   accessibilityLabel: string;
   accessibilityHint?: string;
+  accessibilityRole?: AccessibilityRole;
+  accessibilityState?: AccessibilityState;
 };
 
 /**
@@ -26,10 +31,13 @@ export function ListRow({
   leading,
   title,
   subtitle,
+  subtitleColor,
   trailing,
   onPress,
   accessibilityLabel,
   accessibilityHint,
+  accessibilityRole,
+  accessibilityState,
 }: ListRowProps) {
   const { palette } = useTheme();
 
@@ -41,7 +49,7 @@ export function ListRow({
           {title}
         </AppText>
         {subtitle ? (
-          <AppText variant="micro" color={palette.inkMuted} numberOfLines={1}>
+          <AppText variant="micro" color={subtitleColor ?? palette.inkMuted} numberOfLines={1}>
             {subtitle}
           </AppText>
         ) : null}
@@ -56,9 +64,10 @@ export function ListRow({
 
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole={accessibilityRole ?? 'button'}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
+      accessibilityState={accessibilityState}
       onPress={onPress}
       style={({ pressed }) => [styles.row, { opacity: pressed ? 0.68 : 1 }]}
     >
