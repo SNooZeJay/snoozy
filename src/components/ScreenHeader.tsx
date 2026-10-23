@@ -55,6 +55,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.md,
     paddingHorizontal: layout.screenPadding,
+    paddingTop: spacing.sm,
   },
   copy: {
     flex: 1,

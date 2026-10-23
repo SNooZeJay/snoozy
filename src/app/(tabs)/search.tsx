@@ -4,23 +4,31 @@ import { useState } from 'react';
 import {
   Pressable,
   ScrollView,
-  StyleSheet,
   TextInput,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createMMKV } from 'react-native-mmkv';
 
 import { AppText } from '../../components/AppText';
-import { GlassButton } from '../../components/glass/GlassButton';
+import { EmptyState } from '../../components/EmptyState';
 import { GlassSurface } from '../../components/glass/GlassSurface';
-import { DottedNote, Thumb } from '../../components/Thumb';
+import { ListGroup } from '../../components/ListGroup';
+import { ListRow } from '../../components/ListRow';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { SectionHeader } from '../../components/SectionHeader';
+import { Thumb } from '../../components/Thumb';
 import { useMusicLibrary } from '../../storage/MusicLibraryContext';
 import { usePlayer } from '../../playback/PlayerContext';
 import { usePreferences } from '../../storage/PreferencesContext';
-import { staggerEnter } from '../../motion/stagger';
-import { colors, layout, radii, spacing, useTheme } from '../../theme';
+import {
+  layout,
+  radii,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type AppTheme,
+} from '../../theme';
 
 const recentsStore = createMMKV({ id: 'snoozy.search.v1' });
 const RECENTS_KEY = 'recentQueries';
@@ -40,14 +48,10 @@ export default function SearchScreen() {
   const library = useMusicLibrary();
   const player = usePlayer();
   const { tapFeedback } = usePreferences();
-  const { reducedMotion } = useTheme();
+  const { palette, dark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [query, setQuery] = useState('');
   const [recents, setRecents] = useState<string[]>(() => readRecents());
-
-  // Card entrances: fades stay under reduced motion, the drop-in does not.
-  const cardEnter = reducedMotion
-    ? FadeIn.duration(240)
-    : FadeInDown.duration(400);
 
   const trimmed = query.trim();
 
@@ -97,15 +101,21 @@ export default function SearchScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
+      <ScreenHeader
+        title="Search"
+        subtitle="Songs, artists, and albums on this device"
+      />
       <GlassSurface variant="field" style={styles.searchBar}>
-        <Feather name="search" size={20} color={colors.inkMuted} />
+        <Feather name="search" size={20} color={palette.inkMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           onSubmitEditing={submit}
           placeholder="Search songs, artists, albums"
-          placeholderTextColor={colors.inkFaint}
+          placeholderTextColor={palette.inkFaint}
+          selectionColor={palette.accent}
+          keyboardAppearance={dark ? 'dark' : 'light'}
           style={styles.input}
           autoCorrect={false}
           returnKeyType="search"
@@ -121,21 +131,22 @@ export default function SearchScreen() {
             }}
             style={styles.fieldAction}
           >
-            <Feather name="x" size={20} color={colors.inkMuted} />
+            <Feather name="x" size={20} color={palette.inkMuted} />
           </Pressable>
         ) : (
           // Decorative filter motif from the reference — not a control, so
           // it is hidden from accessibility and ignores touches.
           <View style={styles.fieldAction} pointerEvents="none" accessibilityElementsHidden>
-            <Feather name="sliders" size={20} color={colors.inkFaint} />
+            <Feather name="sliders" size={20} color={palette.inkFaint} />
           </View>
         )}
       </GlassSurface>
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {player.error ? (
           <View style={styles.errorBanner}>
-            <Feather name="alert-triangle" size={18} color={colors.danger} />
-            <AppText variant="label" color={colors.danger} style={styles.errorText}>
+            <Feather name="alert-triangle" size={18} color={palette.danger} />
+            <AppText variant="label" color={palette.danger} style={styles.errorText}>
               {player.error}
             </AppText>
             <Pressable
@@ -145,203 +156,127 @@ export default function SearchScreen() {
               onPress={player.dismissError}
               style={styles.errorClose}
             >
-              <Feather name="x" size={18} color={colors.danger} />
+              <Feather name="x" size={18} color={palette.danger} />
             </Pressable>
           </View>
         ) : null}
 
         {!trimmed ? (
           recents.length > 0 ? (
-            <Animated.View entering={cardEnter} style={styles.prompt}>
-              <View style={styles.sectionHeader}>
-                <AppText variant="heading" color={colors.ink}>Recent searches</AppText>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear recent searches"
-                  hitSlop={8}
-                  onPress={() => {
-                    tapFeedback('light');
-                    clearRecents();
-                  }}
-                  style={styles.seeAll}
-                >
-                  <AppText variant="label" color={colors.inkMuted}>Clear</AppText>
-                  <Feather name="x" size={14} color={colors.inkMuted} />
-                </Pressable>
-              </View>
-              <GlassSurface variant="card" style={styles.recentCard}>
+            <>
+              <SectionHeader
+                label="Recent searches"
+                actionLabel="Clear"
+                onAction={() => {
+                  tapFeedback('light');
+                  clearRecents();
+                }}
+              />
+              <ListGroup>
                 {recents.map((recent) => (
-                  <Pressable
+                  <ListRow
                     key={recent}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Search for ${recent}`}
+                    leading={<Feather name="clock" size={18} color={palette.inkMuted} />}
+                    title={recent}
                     onPress={() => {
                       tapFeedback('selection');
                       setQuery(recent);
                     }}
-                    style={({ pressed }) => [styles.rowInner, pressed && styles.rowPressed]}
-                  >
-                    <Feather name="clock" size={18} color={colors.inkMuted} />
-                    <AppText variant="body" color={colors.ink} numberOfLines={1} style={styles.rowText}>
-                      {recent}
-                    </AppText>
-                  </Pressable>
+                    accessibilityLabel={`Search for ${recent}`}
+                  />
                 ))}
-              </GlassSurface>
-            </Animated.View>
+              </ListGroup>
+            </>
           ) : (
-            <Animated.View entering={cardEnter} style={styles.emptyPrompt}>
-              <DottedNote size={96} />
-              <AppText variant="title" color={colors.ink}>Search your library</AppText>
-              <AppText variant="body" color={colors.inkMuted} style={styles.emptyCopy}>
-                Find a song, artist, or album from the music on this device.
-              </AppText>
-              <Pressable
-                accessibilityRole="button"
-                onPress={browseLibrary}
-                style={({ pressed }) => [styles.primaryButton, styles.emptyButton, { opacity: pressed ? 0.75 : 1 }]}
-              >
-                <AppText variant="label" color={colors.accentInk}>Browse library</AppText>
-              </Pressable>
-            </Animated.View>
+            <EmptyState
+              title="Search your library"
+              message="Find a song, artist, or album from the music on this device."
+              actionLabel="Browse library"
+              onAction={browseLibrary}
+            />
           )
         ) : results.length === 0 ? (
-          <View style={styles.resultsBlock}>
-            <AppText variant="heading" color={colors.ink}>All songs</AppText>
-            <View style={styles.emptyPrompt}>
-              <DottedNote size={88} />
-              <AppText variant="body" color={colors.inkMuted}>No matching tracks.</AppText>
-            </View>
-          </View>
+          <>
+            <SectionHeader label="All songs" />
+            <EmptyState
+              compact
+              title="No matching tracks"
+              message={`Nothing matches “${trimmed}”.`}
+            />
+          </>
         ) : (
-          <View style={styles.resultsBlock}>
-            <View style={styles.resultsHeader}>
-              <AppText variant="heading" color={colors.ink}>All songs</AppText>
-              <AppText variant="micro" color={colors.inkMuted}>
-                {results.length} {results.length === 1 ? 'result' : 'results'}
-              </AppText>
-            </View>
-            {results.map((track, index) => (
-              <Animated.View
-                key={track.id}
-                entering={staggerEnter(index, reducedMotion)}
-              >
-                <GlassButton
-                  accessibilityRole="button"
-                  accessibilityLabel={`Play ${track.title}`}
+          <>
+            <SectionHeader label={`All songs · ${results.length}`} />
+            <ListGroup>
+              {results.map((track) => (
+                <ListRow
+                  key={track.id}
+                  leading={<Thumb track={track} size={44} />}
+                  title={track.title}
+                  subtitle={`${track.artist} · ${track.album}`}
                   onPress={() => {
                     tapFeedback('selection');
                     rememberQuery(trimmed);
                     void player.playTrack(track, results);
                   }}
-                  variant="row"
-                  radius={radii.lg}
-                  style={styles.rowCard}
-                >
-                  <Thumb track={track} size={48} />
-                  <View style={styles.rowText}>
-                    <AppText variant="label" color={colors.ink} numberOfLines={1}>{track.title}</AppText>
-                    <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>
-                      {track.artist} · {track.album}
-                    </AppText>
-                  </View>
-                  <Feather name="play" size={18} color={colors.inkMuted} />
-                </GlassButton>
-              </Animated.View>
-            ))}
-          </View>
+                  accessibilityLabel={`Play ${track.title}`}
+                  trailing={<Feather name="play" size={18} color={palette.inkMuted} />}
+                />
+              ))}
+            </ListGroup>
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+const createStyles = ({ palette }: AppTheme) => ({
+  safe: { flex: 1 },
   searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: spacing.sm,
-    margin: spacing.lg,
+    marginHorizontal: layout.screenPadding,
+    marginTop: spacing.sm,
     paddingHorizontal: spacing.lg,
     height: 52,
     borderRadius: radii.pill,
   },
-  input: { flex: 1, height: '100%', color: colors.ink, fontSize: 16, paddingVertical: 0 },
+  input: {
+    flex: 1,
+    height: '100%' as const,
+    color: palette.ink,
+    fontSize: 16,
+    paddingVertical: 0,
+  },
   fieldAction: {
     width: 48,
     height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
-  content: { paddingHorizontal: spacing.lg, paddingBottom: layout.tabBarSpace, gap: spacing.md },
+  content: {
+    paddingTop: spacing.md,
+    paddingBottom: layout.tabBarSpace,
+    gap: spacing.lg,
+  },
   errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: spacing.sm,
+    marginHorizontal: layout.screenPadding,
     padding: spacing.md,
     borderRadius: radii.md,
-    backgroundColor: colors.dangerSoft,
+    backgroundColor: palette.dangerSoft,
     borderWidth: 1,
-    borderColor: colors.danger,
+    borderColor: palette.danger,
   },
   errorText: { flex: 1 },
-  errorClose: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  prompt: { gap: spacing.md, paddingTop: spacing.xl, alignItems: 'flex-start' },
-  emptyPrompt: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xxl,
+  errorClose: {
+    width: 48,
+    height: 48,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
-  emptyButton: { alignSelf: 'center' },
-  emptyCopy: { textAlign: 'center' },
-  resultsBlock: { gap: spacing.md },
-  resultsHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-  },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', alignSelf: 'stretch' },
-  seeAll: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    minHeight: 48,
-    paddingLeft: spacing.md,
-    justifyContent: 'center',
-  },
-  recentCard: {
-    padding: spacing.xs,
-    alignSelf: 'stretch',
-    gap: 2,
-  },
-  rowInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.sm,
-    borderRadius: radii.md,
-  },
-  rowPressed: { opacity: 0.7, transform: [{ scale: 0.99 }] },
-  rowCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: spacing.md,
-    padding: spacing.xs,
-    paddingLeft: spacing.sm,
-    paddingRight: spacing.md,
-  },
-  primaryButton: {
-    alignSelf: 'flex-start',
-    minHeight: 48,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.pill,
-    backgroundColor: colors.accent,
-    justifyContent: 'center',
-  },
-  rowText: { flex: 1, gap: 2 },
 });
