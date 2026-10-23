@@ -12,7 +12,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Track } from '../types/music';
-import { colors, glass, radii, spacing } from '../theme';
+import {
+  radii,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type AppTheme,
+} from '../theme';
 import { AppText } from './AppText';
 import { SheetPanel } from './SheetPanel';
 
@@ -35,6 +41,8 @@ export function AddSongsSheet({
   onAdd,
   onRemove,
 }: AddSongsSheetProps) {
+  const { palette, dark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState('');
 
@@ -72,8 +80,8 @@ export function AddSongsSheet({
         >
           <View style={styles.header}>
             <View style={styles.headerText}>
-              <AppText variant="heading" color={colors.ink} numberOfLines={1}>Add songs</AppText>
-              <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>
+              <AppText variant="heading" color={palette.ink} numberOfLines={1}>Add songs</AppText>
+              <AppText variant="micro" color={palette.inkMuted} numberOfLines={1}>
                 {'\u201C'}{playlistName}{'\u201D'} · {playlistTrackIds.length} {playlistTrackIds.length === 1 ? 'track' : 'tracks'}
               </AppText>
             </View>
@@ -84,7 +92,7 @@ export function AddSongsSheet({
               onPress={close}
               style={styles.closeButton}
             >
-              <Feather name="x" size={22} color={colors.inkMuted} />
+              <Feather name="x" size={22} color={palette.inkMuted} />
             </Pressable>
           </View>
 
@@ -92,13 +100,14 @@ export function AddSongsSheet({
             value={filter}
             onChangeText={setFilter}
             placeholder="Filter songs"
-            placeholderTextColor={colors.inkFaint}
+            placeholderTextColor={palette.inkFaint}
+            keyboardAppearance={dark ? 'dark' : 'light'}
             style={styles.input}
             returnKeyType="search"
           />
 
           {tracks.length === 0 ? (
-            <AppText variant="body" color={colors.inkMuted}>
+            <AppText variant="body" color={palette.inkMuted}>
               No songs in the library yet. Scan your Music folder first.
             </AppText>
           ) : (
@@ -113,8 +122,8 @@ export function AddSongsSheet({
                 return (
                   <View key={track.id} style={styles.trackRow}>
                     <View style={styles.trackInfo}>
-                      <AppText variant="label" color={colors.ink} numberOfLines={1}>{track.title}</AppText>
-                      <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>{track.artist}</AppText>
+                      <AppText variant="label" color={palette.ink} numberOfLines={1}>{track.title}</AppText>
+                      <AppText variant="micro" color={palette.inkMuted} numberOfLines={1}>{track.artist}</AppText>
                     </View>
                     <Pressable
                       accessibilityRole="button"
@@ -132,14 +141,14 @@ export function AddSongsSheet({
                       <Feather
                         name={added ? 'check-circle' : 'plus-circle'}
                         size={24}
-                        color={added ? colors.accentStrong : colors.inkMuted}
+                        color={added ? palette.accentStrong : palette.inkMuted}
                       />
                     </Pressable>
                   </View>
                 );
               })}
               {visibleTracks.length === 0 ? (
-                <AppText variant="body" color={colors.inkFaint}>No songs match {'\u201C'}{filter}{'\u201D'}.</AppText>
+                <AppText variant="body" color={palette.inkFaint}>No songs match {'\u201C'}{filter}{'\u201D'}.</AppText>
               ) : null}
             </ScrollView>
           )}
@@ -149,11 +158,11 @@ export function AddSongsSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ palette, glass }: AppTheme) => ({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
+    backgroundColor: palette.scrim,
+    justifyContent: 'flex-end' as const,
   },
   panel: {
     backgroundColor: glass.tintStrong,
@@ -163,13 +172,13 @@ const styles = StyleSheet.create({
     borderColor: glass.edgeStrong,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-    maxHeight: '80%',
+    maxHeight: '80%' as const,
     gap: spacing.md,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    justifyContent: 'space-between' as const,
     gap: spacing.sm,
   },
   headerText: { flex: 1, gap: 2 },
@@ -180,14 +189,14 @@ const styles = StyleSheet.create({
     backgroundColor: glass.fieldTint,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: glass.edgeSoft,
-    color: colors.ink,
+    color: palette.ink,
     fontSize: 14,
   },
   list: { flexGrow: 0 },
   listContent: { gap: spacing.xs, paddingBottom: spacing.lg },
   trackRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: spacing.sm,
     padding: spacing.sm,
     borderRadius: radii.md,
@@ -200,13 +209,13 @@ const styles = StyleSheet.create({
   trackAction: {
     width: 48,
     height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   closeButton: {
     width: 48,
     height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
 });

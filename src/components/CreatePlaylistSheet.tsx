@@ -11,7 +11,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, fonts, glass, radii, spacing } from '../theme';
+import {
+  fonts,
+  radii,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type AppTheme,
+} from '../theme';
 import { AppText } from './AppText';
 import { SheetPanel } from './SheetPanel';
 
@@ -26,6 +33,8 @@ export function CreatePlaylistSheet({
   onClose,
   onCreate,
 }: CreatePlaylistSheetProps) {
+  const { palette, dark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
 
@@ -63,7 +72,7 @@ export function CreatePlaylistSheet({
           <View style={styles.handle} />
           <View style={styles.headingRow}>
             <View style={styles.headingCopy}>
-              <AppText variant="heading" style={styles.title}>New playlist</AppText>
+              <AppText variant="heading" color={palette.ink} style={styles.title}>New playlist</AppText>
             </View>
             <Pressable
               accessibilityRole="button"
@@ -72,14 +81,15 @@ export function CreatePlaylistSheet({
               onPress={close}
               style={styles.close}
             >
-              <Feather name="x" size={24} color={colors.inkMuted} />
+              <Feather name="x" size={24} color={palette.inkMuted} />
             </Pressable>
           </View>
           <TextInput
             value={name}
             onChangeText={setName}
             placeholder="Playlist name"
-            placeholderTextColor={colors.inkFaint}
+            placeholderTextColor={palette.inkFaint}
+            keyboardAppearance={dark ? 'dark' : 'light'}
             style={styles.input}
             autoFocus
             returnKeyType="done"
@@ -91,7 +101,7 @@ export function CreatePlaylistSheet({
               onPress={close}
               style={({ pressed }) => [styles.cancel, { opacity: pressed ? 0.7 : 1 }]}
             >
-              <AppText variant="label" color={colors.inkMuted}>Cancel</AppText>
+              <AppText variant="label" color={palette.inkMuted}>Cancel</AppText>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -102,7 +112,7 @@ export function CreatePlaylistSheet({
                 (!name.trim() || pressed) && { opacity: 0.6 },
               ]}
             >
-              <AppText variant="label" color={colors.accentInk}>Create</AppText>
+              <AppText variant="label" color={palette.accentInk}>Create</AppText>
             </Pressable>
           </View>
         </SheetPanel>
@@ -111,11 +121,11 @@ export function CreatePlaylistSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ palette, glass }: AppTheme) => ({
   backdrop: {
     flex: 1,
-    backgroundColor: colors.scrim,
-    justifyContent: 'flex-end',
+    backgroundColor: palette.scrim,
+    justifyContent: 'flex-end' as const,
   },
   sheet: {
     backgroundColor: glass.tintStrong,
@@ -127,25 +137,25 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   handle: {
-    alignSelf: 'center',
+    alignSelf: 'center' as const,
     width: 38,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: palette.surfaceMuted,
     marginBottom: spacing.xl,
   },
   headingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'flex-start' as const,
   },
   headingCopy: { gap: spacing.xs },
   title: { marginTop: spacing.xs },
   close: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     marginTop: -4,
   },
   input: {
@@ -153,7 +163,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
-    color: colors.ink,
+    color: palette.ink,
     fontFamily: fonts.body,
     fontSize: 16,
     backgroundColor: glass.fieldTint,
@@ -161,22 +171,22 @@ const styles = StyleSheet.create({
     borderColor: glass.edgeSoft,
   },
   actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    justifyContent: 'flex-end' as const,
+    alignItems: 'center' as const,
     gap: spacing.lg,
     marginTop: spacing.xl,
   },
   cancel: {
     minHeight: 48,
-    justifyContent: 'center',
+    justifyContent: 'center' as const,
     paddingHorizontal: spacing.md,
   },
   create: {
     minHeight: 48,
-    justifyContent: 'center',
+    justifyContent: 'center' as const,
     paddingHorizontal: spacing.xl,
     borderRadius: radii.pill,
-    backgroundColor: colors.accent,
+    backgroundColor: palette.accent,
   },
 });

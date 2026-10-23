@@ -12,7 +12,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Playlist } from '../types/music';
-import { colors, glass, radii, spacing } from '../theme';
+import {
+  radii,
+  spacing,
+  useTheme,
+  useThemedStyles,
+  type AppTheme,
+} from '../theme';
 import { AppText } from './AppText';
 import { SheetPanel } from './SheetPanel';
 
@@ -33,6 +39,8 @@ export function AddToPlaylistSheet({
   onSelectPlaylist,
   onCreatePlaylist,
 }: AddToPlaylistSheetProps) {
+  const { palette, dark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [addedTo, setAddedTo] = useState<string[]>([]);
@@ -83,9 +91,9 @@ export function AddToPlaylistSheet({
         >
           <View style={styles.header}>
             <View style={styles.headerText}>
-              <AppText variant="heading" color={colors.ink} numberOfLines={1}>Add to playlist</AppText>
+              <AppText variant="heading" color={palette.ink} numberOfLines={1}>Add to playlist</AppText>
               {trackTitle ? (
-                <AppText variant="micro" color={colors.inkMuted} numberOfLines={1}>
+                <AppText variant="micro" color={palette.inkMuted} numberOfLines={1}>
                   {'\u201C'}{trackTitle}{'\u201D'}
                 </AppText>
               ) : null}
@@ -96,12 +104,12 @@ export function AddToPlaylistSheet({
               hitSlop={10}
               onPress={close}
             >
-              <Feather name="x" size={22} color={colors.inkMuted} />
+              <Feather name="x" size={22} color={palette.inkMuted} />
             </Pressable>
           </View>
 
           {playlists.length === 0 ? (
-            <AppText variant="body" color={colors.inkMuted}>
+            <AppText variant="body" color={palette.inkMuted}>
               No playlists yet. Create one below.
             </AppText>
           ) : (
@@ -129,13 +137,13 @@ export function AddToPlaylistSheet({
                     <Feather
                       name={isAdded ? 'check-circle' : 'plus'}
                       size={20}
-                      color={isAdded ? colors.accentStrong : colors.inkMuted}
+                      color={isAdded ? palette.accentStrong : palette.inkMuted}
                     />
                     <View style={styles.playlistRowText}>
-                      <AppText variant="label" color={colors.ink} numberOfLines={1}>
+                      <AppText variant="label" color={palette.ink} numberOfLines={1}>
                         {playlist.name}
                       </AppText>
-                      <AppText variant="micro" color={colors.inkMuted}>
+                      <AppText variant="micro" color={palette.inkMuted}>
                         {isAdded
                           ? 'Added'
                           : `${playlist.trackIds.length} ${playlist.trackIds.length === 1 ? 'track' : 'tracks'}`}
@@ -152,7 +160,8 @@ export function AddToPlaylistSheet({
               value={name}
               onChangeText={setName}
               placeholder="New playlist name"
-              placeholderTextColor={colors.inkFaint}
+              placeholderTextColor={palette.inkFaint}
+              keyboardAppearance={dark ? 'dark' : 'light'}
               style={styles.input}
               returnKeyType="done"
               onSubmitEditing={create}
@@ -167,8 +176,8 @@ export function AddToPlaylistSheet({
                 { opacity: name.trim() ? (pressed ? 0.75 : 1) : 0.4 },
               ]}
             >
-              <Feather name="plus" size={18} color={colors.accentInk} />
-              <AppText variant="label" color={colors.accentInk}>Create</AppText>
+              <Feather name="plus" size={18} color={palette.accentInk} />
+              <AppText variant="label" color={palette.accentInk}>Create</AppText>
             </Pressable>
           </View>
         </SheetPanel>
@@ -177,11 +186,11 @@ export function AddToPlaylistSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ palette, glass }: AppTheme) => ({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
+    backgroundColor: palette.scrim,
+    justifyContent: 'flex-end' as const,
   },
   panel: {
     backgroundColor: glass.tintStrong,
@@ -191,21 +200,21 @@ const styles = StyleSheet.create({
     borderColor: glass.edgeStrong,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-    maxHeight: '75%',
+    maxHeight: '75%' as const,
     gap: spacing.md,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    justifyContent: 'space-between' as const,
     gap: spacing.sm,
   },
   headerText: { flex: 1, gap: 2 },
   list: { flexGrow: 0 },
   listContent: { gap: spacing.xs, paddingBottom: spacing.sm },
   playlistRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: spacing.sm,
     padding: spacing.sm,
     borderRadius: radii.md,
@@ -217,8 +226,8 @@ const styles = StyleSheet.create({
   playlistRowDisabled: { opacity: 0.55 },
   playlistRowText: { flex: 1, gap: 1 },
   createRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: spacing.sm,
   },
   input: {
@@ -229,16 +238,16 @@ const styles = StyleSheet.create({
     backgroundColor: glass.fieldTint,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: glass.edgeSoft,
-    color: colors.ink,
+    color: palette.ink,
     fontSize: 14,
   },
   createButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 4,
     minHeight: 44,
     paddingHorizontal: spacing.md,
     borderRadius: radii.pill,
-    backgroundColor: colors.accent,
+    backgroundColor: palette.accent,
   },
 });
