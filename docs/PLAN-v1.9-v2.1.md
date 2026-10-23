@@ -3,40 +3,58 @@
 Baseline: `cfb3c0d` (v1.8.0, versionCode 8)
 Branch: `release/v1.9`
 
+Status: v1.9 and v2.0 are complete and checkpointed in `cdc439c`. The v2.1
+device pass found the Library segment clipping and tab-transition flash, so
+the v2.1 APK remained provisional. Those findings are addressed by the
+v2.2 visual-system pass below.
+
 ## v1.9 — Liquid Glass (version 1.9.0, versionCode 9)
 
-- [ ] Add `src/theme/glass.ts` tokens/config (tint, edge, highlight, shadow, blur substitute).
-- [ ] Add `src/components/glass/GlassSurface.tsx` (layered translucent fill + gradient highlight + edge).
-- [ ] Apply glass to floating tab bar, mini-player, headers, cards, search field, player controls, sheets, album/artist rows.
-- [ ] Squircle/continuous corner treatment where supported; rounded fallback on Android.
-- [ ] Switch tab icons to Ionicons only; keep Feather everywhere else.
-- [ ] Add accessible swipe actions on existing library song rows (favorite / add to playlist) with menu fallback.
-- [ ] Keep colors, fonts, four tabs, S mark, wordmark, and all business logic.
-- [ ] Bump version/build to 1.9.0 (9).
-- [ ] Typecheck, lint, expo-doctor, release build, device smoke.
+- [x] Add `src/theme/glass.ts` tokens/config (tint, edge, highlight, shadow, blur substitute).
+- [x] Add `src/components/glass/GlassSurface.tsx` (layered translucent fill + gradient highlight + edge).
+- [x] Apply glass to floating tab bar, mini-player, headers, cards, search field, player controls, sheets, album/artist rows.
+- [x] Squircle/continuous corner treatment where supported; rounded fallback on Android.
+- [x] Switch tab icons to Ionicons only; keep Feather everywhere else.
+- [x] Add accessible swipe actions on existing library song rows (favorite / add to playlist) with menu fallback.
+- [x] Keep colors, fonts, four tabs, S mark, wordmark, and all business logic.
+- [x] Bump version/build to 1.9.0 (9).
+- [x] Typecheck, lint, expo-doctor, release build, device smoke.
 
 ## v2.0 — Unified motion (version 2.0.0, versionCode 10)
 
-- [ ] Add easing/spring/stagger/screen-preset tokens.
-- [ ] Add `useMotion`, reduced-motion helpers, animated pressable, staggered reveal.
-- [ ] Splash-to-home: native splash retained; in-app S/wordmark intro over first frame; no blank/duplicate logo.
-- [ ] Tab transition + focus-driven content reveal; pill choreography.
-- [ ] Stack presets for album/artist/error-log/player; preserve Android back.
-- [ ] Mini-player → player artwork continuity; artwork crossfade; palette interpolation.
-- [ ] Capped list stagger; animated add/remove layout transitions.
-- [ ] Animated segmented thumb; spring press feedback; smooth seek fill.
-- [ ] Sheet content entrance; reduced motion alternatives.
-- [ ] Measure cold/warm startup, tab switches, scroll, artwork changes; release build.
-- [ ] Device regression for playback, library, metadata, lyrics, persistence, accessibility.
+- [x] Add easing/spring/stagger/screen-preset tokens.
+- [x] Add `useMotion`, reduced-motion helpers, animated pressable, staggered reveal.
+- [x] Splash-to-home: native splash retained; in-app S/wordmark intro over first frame; no blank/duplicate logo.
+- [x] Tab transition + focus-driven content reveal; pill choreography.
+- [x] Stack presets for album/artist/error-log/player; preserve Android back.
+- [x] Mini-player → player artwork continuity; artwork crossfade; palette interpolation.
+- [x] Capped list stagger; animated add/remove layout transitions.
+- [x] Animated segmented thumb; spring press feedback; smooth seek fill.
+- [x] Sheet content entrance; reduced motion alternatives.
+- [x] Measure cold/warm startup, tab switches, scroll, artwork changes; release build.
+- [x] Device regression for playback, library, metadata, lyrics, persistence, accessibility.
 
 ## v2.1 — Final audit
 
-- [ ] Baseline checks: `npx tsc --noEmit`, `npx expo lint`, `npx expo-doctor`.
-- [ ] Static audit for crashes, leaks, stale callbacks, persistence, edge cases.
-- [ ] Device smoke of every screen/interaction.
-- [ ] Fix critical issues, re-run affected checks.
-- [ ] Release build and artifact promotion.
-- [ ] Final report with evidence, remaining bugs, unverified items.
+- [x] Baseline checks: `npx tsc --noEmit`, `npx expo lint`, `npx expo-doctor`.
+- [x] Static audit for crashes, leaks, stale callbacks, persistence, edge cases.
+- [x] Device smoke of every screen/interaction.
+- [ ] Fix critical issues, re-run affected checks. The tab crossfade, duplicate
+  mini-players, and five-segment Library clipping moved into the v2.2 pass.
+- [x] Release build and artifact promotion (provisional; superseded by v2.2).
+- [ ] Final report with evidence, remaining bugs, unverified items. The v2.2
+  audit is the release report.
+
+## v2.2 — Visual system follow-up
+
+- [x] Semantic palette/glass context and app-wide Light/Dark/Auto, style, accent, backdrop, motion, and haptics controls.
+- [x] Shared header, section, list-group, row, and empty-state primitives.
+- [x] Immediate tab switches, one hoisted mini-player, and no replaying entrances.
+- [x] Five equal Library segments and compact grouped Library/Home/Search/Settings layouts.
+- [x] Themed detail screens, player, sheets, and shared controls.
+- [ ] Signed release build, device verification, and final audit.
+- Design: [2026-10-23-snoozy-visual-system-v2.2-design.md](superpowers/specs/2026-10-23-snoozy-visual-system-v2.2-design.md)
+- Plan: [2026-10-23-snoozy-visual-system-v2.2.md](superpowers/plans/2026-10-23-snoozy-visual-system-v2.2.md)
 
 ## Known constraints
 

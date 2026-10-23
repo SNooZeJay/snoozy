@@ -1,5 +1,33 @@
 # Snoozy build record
 
+## v2.2 (2.2.0, versionCode 12) — release candidate
+
+- Intent: complete the v2.1 visual reset with a live semantic theme, shared
+  layout primitives, immediate tab switches, one persistent mini-player above
+  the tab bar, five equal Library segments, and compact grouped rows.
+- App version `2.2.0`; Android `versionCode` `12`; package `com.snoozy.app`.
+  `userInterfaceStyle` is `automatic` so Light, Dark, and Auto can all work.
+- Design and execution references:
+  `docs/superpowers/specs/2026-10-23-snoozy-visual-system-v2.2-design.md` and
+  `docs/superpowers/plans/2026-10-23-snoozy-visual-system-v2.2.md`.
+- Build environment: sync the JS tree to `C:\s`, prebuild Android with
+  `npx expo prebuild --platform android --no-install`, use JDK 17
+  (`C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot`), and build
+  `arm64-v8a` only with the existing release keystore.
+- Static gates: `npx tsc --noEmit`, `npx eslint src --no-cache`, and
+  `npx expo-doctor`. At the package bump, typecheck and lint passed;
+  expo-doctor passed 19/20 checks with only the known patch-level mismatches
+  for `expo`, `expo-asset`, `expo-constants`, `expo-linking`, `expo-router`,
+  `expo-splash-screen`, and `expo-status-bar`. Unrelated findings block the
+  build.
+- Release command:
+  `gradlew.bat -p C:\s\android assembleRelease -PreactNativeArchitectures=arm64-v8a`
+  after removing stale `*.bundle` files.
+- Planned artifact: `artifacts/snoozy-arm64-release-v2.2.apk`. Build signature,
+  version, bundle markers, device install, theme matrix, and tab-continuity
+  evidence are appended after the build and device pass.
+- The provisional v2.1 APK is superseded by this release.
+
 ## v1.8 (final, canonical)
 
 - APK: `artifacts/snoozy-arm64-release.apk` (canonical; v1.7 preserved as `snoozy-arm64-release-v1.7.apk`).

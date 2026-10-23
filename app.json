@@ -3,17 +3,17 @@
     "name": "Snoozy",
     "slug": "snoozy",
     "scheme": "snoozy",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "backgroundColor": "#07110D",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false
     },
     "android": {
       "package": "com.snoozy.app",
-      "versionCode": 11,
+      "versionCode": 12,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.READ_MEDIA_AUDIO",
