@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 
 import { useTheme } from '../../theme';
-import { glass, glassVariants, type GlassVariant } from '../../theme/glass';
+import type { GlassVariant } from '../../theme/glass';
 import { ScalePressable } from '../ScalePressable';
 
 type GlassButtonProps = Omit<PressableProps, 'children'> & {
@@ -35,8 +35,8 @@ export function GlassButton({
   children,
   ...rest
 }: GlassButtonProps) {
-  const { reducedMotion } = useTheme();
-  const config = glassVariants[variant];
+  const { glass, reducedMotion } = useTheme();
+  const config = glass.variants[variant];
   const resolvedRadius = radius ?? config.radius;
 
   return (
