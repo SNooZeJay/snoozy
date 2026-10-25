@@ -6,7 +6,8 @@ Branch: `release/v1.9`
 Status: v1.9 and v2.0 are complete and checkpointed in `cdc439c`. The v2.1
 device pass found the Library segment clipping and tab-transition flash, so
 the v2.1 APK remained provisional. Those findings are addressed by the
-v2.2 visual-system pass below.
+v2.2 visual-system pass below. The final audited artifact is `2.2.0` /
+versionCode `12`.
 
 ## v1.9 — Liquid Glass (version 1.9.0, versionCode 9)
 
@@ -39,10 +40,10 @@ v2.2 visual-system pass below.
 - [x] Baseline checks: `npx tsc --noEmit`, `npx expo lint`, `npx expo-doctor`.
 - [x] Static audit for crashes, leaks, stale callbacks, persistence, edge cases.
 - [x] Device smoke of every screen/interaction.
-- [ ] Fix critical issues, re-run affected checks. The tab crossfade, duplicate
-  mini-players, and five-segment Library clipping moved into the v2.2 pass.
-- [x] Release build and artifact promotion (provisional; superseded by v2.2).
-- [ ] Final report with evidence, remaining bugs, unverified items. The v2.2
+- [x] Fix critical issues, re-run affected checks. The tab crossfade, duplicate
+  mini-players, and five-segment Library clipping were fixed in the v2.2 pass.
+- [x] Release build and artifact promotion (v2.1 provisional; superseded by v2.2).
+- [x] Final report with evidence, remaining bugs, unverified items. The v2.2
   audit is the release report.
 
 ## v2.2 — Visual system follow-up
@@ -52,9 +53,12 @@ v2.2 visual-system pass below.
 - [x] Immediate tab switches, one hoisted mini-player, and no replaying entrances.
 - [x] Five equal Library segments and compact grouped Library/Home/Search/Settings layouts.
 - [x] Themed detail screens, player, sheets, and shared controls.
-- [ ] Signed release build, device verification, and final audit.
+- [x] Signed release build, device verification, and final audit.
+- Release: `artifacts/snoozy-arm64-release-v2.2.apk` — 51,870,098 bytes,
+  SHA-256 `AED3C60B…C916D10AE`, installed over the existing release.
 - Design: [2026-10-23-snoozy-visual-system-v2.2-design.md](superpowers/specs/2026-10-23-snoozy-visual-system-v2.2-design.md)
 - Plan: [2026-10-23-snoozy-visual-system-v2.2.md](superpowers/plans/2026-10-23-snoozy-visual-system-v2.2.md)
+- Audit: [AUDIT-v2.2.md](AUDIT-v2.2.md)
 
 ## Known constraints
 

@@ -1,6 +1,6 @@
 # Snoozy build record
 
-## v2.2 (2.2.0, versionCode 12) — release candidate
+## v2.2 (2.2.0, versionCode 12) — released and audited
 
 - Intent: complete the v2.1 visual reset with a live semantic theme, shared
   layout primitives, immediate tab switches, one persistent mini-player above
@@ -10,6 +10,7 @@
 - Design and execution references:
   `docs/superpowers/specs/2026-10-23-snoozy-visual-system-v2.2-design.md` and
   `docs/superpowers/plans/2026-10-23-snoozy-visual-system-v2.2.md`.
+- Runtime audit: `docs/AUDIT-v2.2.md`.
 - Build environment: sync the JS tree to `C:\s`, prebuild Android with
   `npx expo prebuild --platform android --no-install`, use JDK 17
   (`C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot`), and build
@@ -22,10 +23,40 @@
   build.
 - Release command:
   `gradlew.bat -p C:\s\android assembleRelease -PreactNativeArchitectures=arm64-v8a`
-  after removing stale `*.bundle` files.
-- Planned artifact: `artifacts/snoozy-arm64-release-v2.2.apk`. Build signature,
-  version, bundle markers, device install, theme matrix, and tab-continuity
-  evidence are appended after the build and device pass.
+  after removing stale `*.bundle` files. Export the four
+  `SNOOZY_KEYSTORE_*` environment variables from the private
+  `C:\Users\Administrator\.snoozy\keystore.properties` before invoking
+  Gradle; otherwise the generated APK is debug-signed. Stop any existing
+  Gradle daemon or build with `--no-daemon` so the signing environment is
+  inherited.
+- Build result (2026-10-23, final post-verification fixes): JS bundle pass
+  `Android Bundled 34389ms` (1741 modules); signed release pass
+  `BUILD SUCCESSFUL in 2m 1s`, 1017 actionable tasks (32 executed, 985
+  up-to-date). The extra module is `AppDialog`. Final build log:
+  `C:\Users\Administrator\AppData\Local\Temp\opencode\build-v2.2-dialogfix.log`.
+- Artifact: `artifacts/snoozy-arm64-release-v2.2.apk`
+  - Size: `51,870,098` bytes
+  - SHA-256: `AED3C60B539EA609C94DF28CC6B6DD6226EC706F162FF9DB2C06E21C916D10AE`
+  - Manifest: `com.snoozy.app`, version `2.2.0`, versionCode `12`, SDK 24–36,
+    native code `arm64-v8a` only.
+  - Signature: APK Signature Scheme v2 verified; certificate
+    `CN=Snoozy Release, OU=M0, O=Snoozy, L=Local, ST=Local, C=US`; RSA 2048.
+  - `zipalign -c 4`: `Verification successful`.
+  - JS bundle: `3,545,384` chars; contains the post-fix markers
+    `Close dialog` and `no-hide-descendants` as well as the v2.2 markers
+    (`Backdrop glow`, `Palette style`, `Accent swatch`, `Theme, motion, and
+    library`, `2.2.0`).
+- Superseded pre-fix artifact (numbers retained for traceability):
+  `51,866,290` bytes; SHA-256
+  `13F6DA0FE328A56EB643D896989A58F75CC4602E26AA75047FCE44FF8539ACCD`;
+  1740 modules. The final artifact above is promoted over it.
+- Install: `adb install -r` of the signed final APK reported `Success` over
+  the existing release install at `2.2.0` / `12`.
+- Device: Oppo CPH2325, Android 13, 720×1600 at density 320. USB ADB
+  re-enumerated when the screen slept, so wireless ADB at
+  `192.168.1.9:5555` is the primary test transport.
+- Runtime theme matrix, tab-continuity, Library-bounds, playback, dialogs,
+  swipe rails, and frame evidence are recorded in `docs/AUDIT-v2.2.md`.
 - The provisional v2.1 APK is superseded by this release.
 
 ## v1.8 (final, canonical)
