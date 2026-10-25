@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   Share,
@@ -10,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppDialog } from '../components/AppDialog';
 import { AppText } from '../components/AppText';
 import { EmptyState } from '../components/EmptyState';
 import { IconButton } from '../components/IconButton';
@@ -31,6 +31,7 @@ export default function ErrorLogScreen() {
   const styles = useThemedStyles(createStyles);
   const [entries, setEntries] = useState<ErrorLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clearOpen, setClearOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -72,17 +73,7 @@ export default function ErrorLogScreen() {
   };
 
   const handleClear = () => {
-    Alert.alert('Clear error log', 'Delete all entries?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear',
-        style: 'destructive',
-        onPress: async () => {
-          await clearErrorLog();
-          await load();
-        },
-      },
-    ]);
+    setClearOpen(true);
   };
 
   return (
@@ -155,6 +146,25 @@ export default function ErrorLogScreen() {
         )}
       </ScrollView>
       <MiniPlayer standalone />
+      <AppDialog
+        visible={clearOpen}
+        title="Clear error log"
+        message="Delete all entries?"
+        onClose={() => setClearOpen(false)}
+        actions={[
+          {
+            label: 'Clear',
+            tone: 'danger',
+            onPress: () => {
+              void (async () => {
+                await clearErrorLog();
+                await load();
+              })();
+            },
+          },
+          { label: 'Cancel', onPress: () => {} },
+        ]}
+      />
     </SafeAreaView>
   );
 }

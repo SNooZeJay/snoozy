@@ -2,7 +2,6 @@ import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,6 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppDialog } from '../../components/AppDialog';
 import { AppText } from '../../components/AppText';
 import { AddToPlaylistSheet } from '../../components/AddToPlaylistSheet';
 import { AddSongsSheet } from '../../components/AddSongsSheet';
@@ -227,6 +227,8 @@ export default function LibraryScreen() {
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [addToSheetTrack, setAddToSheetTrack] = useState<Track | null>(null);
   const [addSongsPlaylistId, setAddSongsPlaylistId] = useState<string | null>(null);
+  const [songMenu, setSongMenu] = useState<{ track: Track; queue?: Track[] } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const play = (track: Track, queue?: Track[]) => {
     tapFeedback('selection');
@@ -244,41 +246,16 @@ export default function LibraryScreen() {
         : `${library.tracks.length} ${library.tracks.length === 1 ? 'song' : 'songs'} indexed`;
 
   const confirmDeletePlaylist = (id: string, name: string) => {
-    Alert.alert(
-      'Delete playlist?',
-      `"${name}" will be removed. Your songs stay in the library.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            tapFeedback('light');
-            library.deletePlaylist(id);
-          },
-        },
-      ],
-    );
+    setDeleteTarget({ id, name });
   };
 
   const openSongMenu = (track: Track, queue?: Track[]) => {
-    const favorite = library.favorites.has(track.id);
-    Alert.alert(track.title, undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Add to playlist',
-        onPress: () => setAddToSheetTrack(track),
-      },
-      {
-        text: favorite ? 'Remove favorite' : 'Add favorite',
-        onPress: () => library.toggleFavorite(track.id),
-      },
-      {
-        text: 'Play',
-        onPress: () => play(track, queue),
-      },
-    ]);
+    setSongMenu({ track, queue });
   };
+
+  const menuFavorite = songMenu
+    ? library.favorites.has(songMenu.track.id)
+    : false;
 
   const favoriteTracks = library.displayTracks.filter((track) => library.favorites.has(track.id));
   const addSongsPlaylist = library.playlists.find((playlist) => playlist.id === addSongsPlaylistId) ?? null;
@@ -655,6 +632,51 @@ export default function LibraryScreen() {
         onRemove={(trackId) => {
           if (addSongsPlaylist) library.removeFromPlaylist(addSongsPlaylist.id, trackId);
         }}
+      />
+      <AppDialog
+        visible={songMenu !== null}
+        title={songMenu?.track.title ?? ''}
+        onClose={() => setSongMenu(null)}
+        actions={songMenu ? [
+          {
+            label: 'Play',
+            onPress: () => play(songMenu.track, songMenu.queue),
+          },
+          {
+            label: 'Add to playlist',
+            onPress: () => {
+              tapFeedback('selection');
+              setAddToSheetTrack(songMenu.track);
+            },
+          },
+          {
+            label: menuFavorite ? 'Remove favorite' : 'Add favorite',
+            onPress: () => {
+              tapFeedback('selection');
+              library.toggleFavorite(songMenu.track.id);
+            },
+          },
+          { label: 'Cancel', onPress: () => {} },
+        ] : []}
+      />
+      <AppDialog
+        visible={deleteTarget !== null}
+        title="Delete playlist?"
+        message={deleteTarget
+          ? `"${deleteTarget.name}" will be removed. Your songs stay in the library.`
+          : undefined}
+        onClose={() => setDeleteTarget(null)}
+        actions={deleteTarget ? [
+          {
+            label: 'Delete',
+            tone: 'danger',
+            onPress: () => {
+              tapFeedback('light');
+              library.deletePlaylist(deleteTarget.id);
+            },
+          },
+          { label: 'Cancel', onPress: () => {} },
+        ] : []}
       />
     </SafeAreaView>
   );

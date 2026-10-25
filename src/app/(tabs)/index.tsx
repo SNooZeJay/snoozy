@@ -2,7 +2,6 @@ import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   Linking,
   Pressable,
   RefreshControl,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppDialog } from '../../components/AppDialog';
 import { AppText } from '../../components/AppText';
 import { CreatePlaylistSheet } from '../../components/CreatePlaylistSheet';
 import { EmptyState } from '../../components/EmptyState';
@@ -49,6 +49,8 @@ export default function HomeScreen() {
   const { palette } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
+  const [clearHistoryOpen, setClearHistoryOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const recentTracks = library.recents
     .map((id) => library.displayTracksById.get(id))
@@ -58,17 +60,7 @@ export default function HomeScreen() {
     trackIds.filter((id) => library.displayTracksById.has(id)).length;
 
   const confirmClearHistory = () => {
-    Alert.alert('Clear recently played?', 'Your play history will be emptied.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear',
-        style: 'destructive',
-        onPress: () => {
-          tapFeedback('light');
-          library.clearRecentHistory();
-        },
-      },
-    ]);
+    setClearHistoryOpen(true);
   };
 
   const playRecent = (track: NonNullable<(typeof recentTracks)[number]>) => {
@@ -83,17 +75,7 @@ export default function HomeScreen() {
   };
 
   const confirmDeletePlaylist = (id: string, name: string) => {
-    Alert.alert('Delete playlist?', `"${name}" will be removed. Your songs stay in the library.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          tapFeedback('light');
-          library.deletePlaylist(id);
-        },
-      },
-    ]);
+    setDeleteTarget({ id, name });
   };
 
   const statusLine =
@@ -324,6 +306,42 @@ export default function HomeScreen() {
           tapFeedback('success');
           library.createPlaylist(name);
         }}
+      />
+      <AppDialog
+        visible={clearHistoryOpen}
+        title="Clear recently played?"
+        message="Your play history will be emptied."
+        onClose={() => setClearHistoryOpen(false)}
+        actions={[
+          {
+            label: 'Clear',
+            tone: 'danger',
+            onPress: () => {
+              tapFeedback('light');
+              library.clearRecentHistory();
+            },
+          },
+          { label: 'Cancel', onPress: () => {} },
+        ]}
+      />
+      <AppDialog
+        visible={deleteTarget !== null}
+        title="Delete playlist?"
+        message={deleteTarget
+          ? `"${deleteTarget.name}" will be removed. Your songs stay in the library.`
+          : undefined}
+        onClose={() => setDeleteTarget(null)}
+        actions={deleteTarget ? [
+          {
+            label: 'Delete',
+            tone: 'danger',
+            onPress: () => {
+              tapFeedback('light');
+              library.deletePlaylist(deleteTarget.id);
+            },
+          },
+          { label: 'Cancel', onPress: () => {} },
+        ] : []}
       />
     </SafeAreaView>
   );

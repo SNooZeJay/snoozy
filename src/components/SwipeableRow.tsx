@@ -47,8 +47,10 @@ type SwipeableRowProps = {
  */
 export class SwipeableRow extends Component<SwipeableRowProps> {
   private translateX = new Animated.Value(0);
+  private actionsOpacity = new Animated.Value(0);
   private startX = 0;
   private open = false;
+  state = { open: false };
 
   private panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gesture) =>
@@ -58,12 +60,13 @@ export class SwipeableRow extends Component<SwipeableRowProps> {
     onPanResponderGrant: () => {
       this.startX = this.open ? -ACTION_WIDTH * this.props.actions.length : 0;
       this.translateX.setValue(this.startX);
+      if (this.open) this.actionsOpacity.setValue(1);
     },
     onPanResponderMove: (_, gesture) => {
       const max = ACTION_WIDTH * this.props.actions.length;
-      this.translateX.setValue(
-        Math.max(-max, Math.min(0, this.startX + gesture.dx)),
-      );
+      const position = Math.max(-max, Math.min(0, this.startX + gesture.dx));
+      this.translateX.setValue(position);
+      this.actionsOpacity.setValue(max > 0 ? Math.min(1, Math.abs(position) / max) : 0);
     },
     onPanResponderRelease: (_, gesture) => {
       const max = ACTION_WIDTH * this.props.actions.length;
@@ -85,11 +88,19 @@ export class SwipeableRow extends Component<SwipeableRowProps> {
 
   private settle = (shouldOpen: boolean) => {
     this.open = shouldOpen;
-    Animated.timing(this.translateX, {
-      toValue: shouldOpen ? -ACTION_WIDTH * this.props.actions.length : 0,
-      duration: motion.durations.medium,
-      useNativeDriver: true,
-    }).start();
+    this.setState({ open: shouldOpen });
+    Animated.parallel([
+      Animated.timing(this.translateX, {
+        toValue: shouldOpen ? -ACTION_WIDTH * this.props.actions.length : 0,
+        duration: motion.durations.medium,
+        useNativeDriver: true,
+      }),
+      Animated.timing(this.actionsOpacity, {
+        toValue: shouldOpen ? 1 : 0,
+        duration: motion.durations.medium,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   render() {
@@ -104,12 +115,16 @@ export class SwipeableRow extends Component<SwipeableRowProps> {
 
     return (
       <View style={[styles.wrap, { borderRadius: radius }, style]}>
-        <View
+        <Animated.View
+          pointerEvents={this.state.open ? 'auto' : 'none'}
+          accessibilityElementsHidden={!this.state.open}
+          importantForAccessibility={this.state.open ? 'auto' : 'no-hide-descendants'}
           style={[
             styles.actions,
             {
               width: ACTION_WIDTH * actions.length,
               backgroundColor: actionBackgroundColor,
+              opacity: this.actionsOpacity,
             },
           ]}
         >
@@ -144,7 +159,7 @@ export class SwipeableRow extends Component<SwipeableRowProps> {
               </AppText>
             </Pressable>
           ))}
-        </View>
+        </Animated.View>
         <Animated.View
           {...this.panResponder.panHandlers}
           style={{ transform: [{ translateX: this.translateX }] }}

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   Image,
   Modal,
   Pressable,
@@ -13,6 +12,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 
 
+import { AppDialog } from './AppDialog';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
 import { useMusicLibrary } from '../storage/MusicLibraryContext';
@@ -52,6 +52,12 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+
+  const closeSheet = () => {
+    setResetOpen(false);
+    onClose();
+  };
 
   useEffect(() => {
     if (!visible || !trackId) return;
@@ -168,7 +174,7 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
         try { await FileSystem.deleteAsync(originalArtwork, { idempotent: true }); } catch { /* ignore */ }
       }
       library.refreshDisplay();
-      onClose();
+      closeSheet();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -176,30 +182,28 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
     }
   };
 
-  const handleReset = async () => {
+  const handleReset = () => {
     if (!trackId) return;
-    Alert.alert('Reset to original', 'Discard all edits and artwork?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reset', style: 'destructive', onPress: async () => {
-          try {
-            await deleteTrackOverride(trackId);
-            for (const file of [artworkPath, originalArtwork]) {
-              if (!file) continue;
-              try { await FileSystem.deleteAsync(file, { idempotent: true }); } catch { /* ignore */ }
-            }
-            library.refreshDisplay();
-            onClose();
-          } catch (resetError) {
-            setError(resetError instanceof Error ? resetError.message : 'Reset failed');
-          }
-        },
-      },
-    ]);
+    setResetOpen(true);
+  };
+
+  const confirmReset = async () => {
+    if (!trackId) return;
+    try {
+      await deleteTrackOverride(trackId);
+      for (const file of [artworkPath, originalArtwork]) {
+        if (!file) continue;
+        try { await FileSystem.deleteAsync(file, { idempotent: true }); } catch { /* ignore */ }
+      }
+      library.refreshDisplay();
+      closeSheet();
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : 'Reset failed');
+    }
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent>
+    <Modal visible={visible} animationType="slide" onRequestClose={closeSheet} transparent>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <ScrollView
@@ -209,7 +213,7 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
           >
             <View style={styles.header}>
               <AppText variant="heading" color={palette.ink}>Edit song</AppText>
-              <IconButton name="x" label="Close edit sheet" iconSize={20} size={48} onPress={onClose} />
+              <IconButton name="x" label="Close edit sheet" iconSize={20} size={48} onPress={closeSheet} />
             </View>
             {loading ? (
               <AppText variant="body" color={palette.inkMuted}>Loading…</AppText>
@@ -264,6 +268,23 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
             )}
           </ScrollView>
         </View>
+        <AppDialog
+          inline
+          visible={resetOpen}
+          title="Reset to original"
+          message="Discard all edits and artwork?"
+          onClose={() => setResetOpen(false)}
+          actions={[
+            {
+              label: 'Reset',
+              tone: 'danger',
+              onPress: () => {
+                void confirmReset();
+              },
+            },
+            { label: 'Cancel', onPress: () => {} },
+          ]}
+        />
       </View>
     </Modal>
   );
