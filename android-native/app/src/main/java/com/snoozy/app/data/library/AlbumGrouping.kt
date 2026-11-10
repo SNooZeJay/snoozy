@@ -2,7 +2,6 @@ package com.snoozy.app.data.library
 
 import com.snoozy.app.data.model.Album
 import com.snoozy.app.data.model.Track
-import java.net.URLDecoder
 import java.text.Collator
 import java.util.Locale
 
@@ -28,37 +27,50 @@ fun stableHash(value: String): String {
     return hash.toString(36)
 }
 
-private fun decodedPath(uri: String): String {
-    val path = uri.replace(Regex("^file://"), "")
-    return try {
-        URLDecoder.decode(path.replace("+", "%2B"), "UTF-8")
-    } catch (_: IllegalArgumentException) {
-        path
-    }
-}
+private fun decodedPath(uri: String): String = filePathFromUri(uri)
 
 fun folderNameForUri(uri: String): String {
     val parts = decodedPath(uri).split('/').filter { it.isNotEmpty() }
     return if (parts.size > 1) parts[parts.size - 2] else ""
 }
 
-fun albumTitleFor(track: Track): String {
-    val album = clean(track.album)
-    if (album.isNotEmpty() && normalize(album) != UNKNOWN_ALBUM) return album
-    return folderNameForUri(track.uri).ifEmpty { "Unknown album" }
+fun albumTitleFor(track: Track): String = albumTitleFor(track.album, track.uri)
+
+private fun albumTitleFor(album: String?, uri: String): String {
+    val cleaned = clean(album)
+    if (cleaned.isNotEmpty() && normalize(cleaned) != UNKNOWN_ALBUM) return cleaned
+    return folderNameForUri(uri).ifEmpty { "Unknown album" }
 }
 
-private fun artistNameFor(track: Track): String {
-    val albumArtist = clean(track.albumArtist)
-    if (albumArtist.isNotEmpty() && normalize(albumArtist) != UNKNOWN_ARTIST) return albumArtist
+private fun artistNameFor(track: Track): String =
+    artistNameFor(track.albumArtist, track.artist)
 
-    val artist = clean(track.artist)
-    return if (artist.isNotEmpty() && normalize(artist) != UNKNOWN_ARTIST) artist else ""
+private fun artistNameFor(albumArtist: String?, artist: String?): String {
+    val cleanedAlbumArtist = clean(albumArtist)
+    if (cleanedAlbumArtist.isNotEmpty() && normalize(cleanedAlbumArtist) != UNKNOWN_ARTIST) {
+        return cleanedAlbumArtist
+    }
+
+    val cleanedArtist = clean(artist)
+    return if (cleanedArtist.isNotEmpty() && normalize(cleanedArtist) != UNKNOWN_ARTIST) {
+        cleanedArtist
+    } else {
+        ""
+    }
 }
 
-fun albumKeyFor(track: Track): String {
-    val title = normalize(albumTitleFor(track))
-    val artist = normalize(artistNameFor(track)).ifEmpty { normalize(folderNameForUri(track.uri)) }
+fun albumKeyFor(track: Track): String =
+    albumKeyFor(track.album, track.albumArtist, track.artist, track.uri)
+
+fun albumKeyFor(
+    album: String?,
+    albumArtist: String?,
+    artist: String?,
+    uri: String,
+): String {
+    val title = normalize(albumTitleFor(album, uri))
+    val artist = normalize(artistNameFor(albumArtist, artist))
+        .ifEmpty { normalize(folderNameForUri(uri)) }
     return "album-${stableHash("$artist::$title")}"
 }
 
