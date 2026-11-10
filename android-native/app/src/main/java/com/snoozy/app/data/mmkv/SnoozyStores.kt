@@ -6,6 +6,7 @@ import com.snoozy.app.data.model.MetadataCacheEntry
 import com.snoozy.app.data.model.PlaybackSession
 import com.snoozy.app.data.model.Playlist
 import com.snoozy.app.data.model.Track
+import com.snoozy.app.data.playback.parsePlaybackSession
 import com.tencent.mmkv.MMKV
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
@@ -69,12 +70,7 @@ class SnoozyStores(context: Context) {
 
     fun playbackSession(): PlaybackSession? {
         val raw = playback.decodeString(SESSION) ?: return null
-        return try {
-            SnoozyJson.decodeFromString(PlaybackSession.serializer(), raw)
-        } catch (error: Exception) {
-            Log.w(TAG, "Ignoring unreadable session.v1", error)
-            null
-        }
+        return parsePlaybackSession(raw)
     }
 
     fun savePlaybackSession(session: PlaybackSession) =
