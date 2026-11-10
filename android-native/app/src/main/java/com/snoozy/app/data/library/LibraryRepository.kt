@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import com.snoozy.app.data.db.SnoozyDatabases
 import com.snoozy.app.data.mmkv.SnoozyStores
+import com.snoozy.app.data.mmkv.StoreFailureException
 import com.snoozy.app.data.model.Album
 import com.snoozy.app.data.model.MetadataCacheEntry
 import com.snoozy.app.data.model.Playlist
@@ -17,6 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -38,7 +41,8 @@ class LibraryRepository(
         val error: String? = null,
     )
 
-    private val _state = MutableStateFlow(initialState())
+    private val mutationMutex = Mutex()
+    private val _state = MutableStateFlow(State(hasPermission = hasAudioPermission()))
     val state: StateFlow<State> = _state.asStateFlow()
 
     fun hasAudioPermission(): Boolean =
@@ -46,98 +50,95 @@ class LibraryRepository(
             PackageManager.PERMISSION_GRANTED
 
     suspend fun refresh(scan: Boolean = true): LibraryScanner.Result? = withContext(Dispatchers.IO) {
-        val permission = hasAudioPermission()
-        _state.update { it.copy(hasPermission = permission, scanning = scan && permission, error = null) }
-        try {
-            val result = if (scan && permission) scanner.scan() else null
-            _state.value = loadedState(permission)
-            result
-        } catch (error: Exception) {
-            Log.w(TAG, "Library refresh failed", error)
+        mutationMutex.withLock {
+            val permission = hasAudioPermission()
             _state.update {
-                it.copy(scanning = false, error = error.message ?: "Could not read the music library.")
+                it.copy(hasPermission = permission, scanning = scan && permission, error = null)
             }
-            null
+            try {
+                val result = if (scan && permission) scanner.scan() else null
+                _state.value = loadedState(permission)
+                result
+            } catch (error: Exception) {
+                Log.w(TAG, "Library refresh failed", error)
+                _state.update {
+                    it.copy(
+                        scanning = false,
+                        error = error.message ?: "Could not read the music library.",
+                    )
+                }
+                null
+            }
         }
     }
 
     suspend fun importDocuments(uris: List<Uri>): Int = withContext(Dispatchers.IO) {
-        if (uris.isEmpty()) return@withContext 0
-        val imported = stores.importedTracks().toMutableList()
-        val metadataCache = stores.metadataCache().toMutableMap()
-        var cacheDirty = false
-        val musicDirectory = File(context.filesDir, "Music").apply { mkdirs() }
-        var added = 0
+        mutationMutex.withLock {
+            if (uris.isEmpty()) return@withLock 0
+            val imported = stores.importedTracksForUpdate().toMutableList()
+            val metadataCache = stores.metadataCacheForUpdate().toMutableMap()
+            var cacheDirty = false
+            val musicDirectory = File(context.filesDir, "Music").apply { mkdirs() }
+            val copiedFiles = mutableListOf<File>()
+            var added = 0
 
-        for ((index, uri) in uris.withIndex()) {
-            val filename = displayName(uri) ?: "audio-${System.currentTimeMillis()}-$index"
-            val target = File(musicDirectory, filename)
-            try {
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    target.outputStream().use { output -> input.copyTo(output) }
-                } ?: continue
-            } catch (error: Exception) {
-                Log.w(TAG, "Import copy failed for $uri", error)
-                continue
+            for ((index, uri) in uris.withIndex()) {
+                val filename = safeImportName(displayName(uri), index)
+                val target = copyImport(uri, musicDirectory, filename) ?: continue
+                copiedFiles += target
+
+                val id =
+                    "imported-${System.currentTimeMillis()}-$index-${UUID.randomUUID().toString().take(6)}"
+                val modified = System.currentTimeMillis()
+                val fileUri = "file://${target.absolutePath}"
+                val metadata = scanner.readTags(target.absolutePath, filename, "Imported", 0.0)
+                if (metadata != null) {
+                    metadataCache[id] = MetadataCacheEntry(modified.toDouble(), metadata)
+                    cacheDirty = true
+                }
+                val albumKey = albumKeyFor(
+                    album = metadata?.album ?: "Imported",
+                    albumArtist = metadata?.albumArtist ?: metadata?.artist ?: "Imported",
+                    artist = metadata?.artist ?: "Imported",
+                    uri = fileUri,
+                )
+                val artwork = scanner.resolveAlbumArtwork(
+                    fileUri,
+                    artworkCacheKey(albumKey, fileUri, modified),
+                )
+
+                imported += Track(
+                    id = id,
+                    title = metadata?.title?.takeIf { it.isNotEmpty() }
+                        ?: filename.replace(Regex("\\.[^.]+$"), "").trim()
+                            .ifEmpty { "Imported track" },
+                    artist = metadata?.artist ?: "Imported",
+                    album = metadata?.album ?: "Imported",
+                    albumArtist = metadata?.albumArtist,
+                    year = metadata?.year,
+                    genre = metadata?.genre,
+                    trackNumber = metadata?.trackNumber,
+                    discNumber = metadata?.discNumber,
+                    uri = fileUri,
+                    duration = metadata?.duration ?: 0.0,
+                    artwork = artwork,
+                    addedAt = modified,
+                )
+                added += 1
             }
 
-            val id = "imported-${System.currentTimeMillis()}-$index-${UUID.randomUUID().toString().take(6)}"
-            val modified = System.currentTimeMillis()
-            val fileUri = "file://${target.absolutePath}"
-            val metadata = scanner.readTags(target.absolutePath, filename, "Imported", 0.0)
-            if (metadata != null) {
-                metadataCache[id] = MetadataCacheEntry(modified.toDouble(), metadata)
-                cacheDirty = true
+            if (!stores.saveImportedTracks(imported)) {
+                copiedFiles.forEach { it.delete() }
+                throw StoreFailureException("Could not save imported tracks.")
             }
-            val albumKey = albumKeyFor(
-                album = metadata?.album ?: "Imported",
-                albumArtist = metadata?.albumArtist ?: metadata?.artist ?: "Imported",
-                artist = metadata?.artist ?: "Imported",
-                uri = fileUri,
-            )
-            val artwork = scanner.resolveAlbumArtwork(
-                fileUri,
-                artworkCacheKey(albumKey, fileUri, modified),
-            )
-
-            imported += Track(
-                id = id,
-                title = metadata?.title?.takeIf { it.isNotEmpty() }
-                    ?: filename.replace(Regex("\\.[^.]+$"), "").trim().ifEmpty { "Imported track" },
-                artist = metadata?.artist ?: "Imported",
-                album = metadata?.album ?: "Imported",
-                albumArtist = metadata?.albumArtist,
-                year = metadata?.year,
-                genre = metadata?.genre,
-                trackNumber = metadata?.trackNumber,
-                discNumber = metadata?.discNumber,
-                uri = fileUri,
-                duration = metadata?.duration ?: 0.0,
-                artwork = artwork,
-                addedAt = modified,
-            )
-            added += 1
+            if (cacheDirty) stores.saveMetadataCache(metadataCache)
+            _state.value = loadedState(hasAudioPermission())
+            added
         }
-
-        stores.saveImportedTracks(imported)
-        if (cacheDirty) stores.saveMetadataCache(metadataCache)
-        _state.value = loadedState(hasAudioPermission())
-        added
-    }
-
-    private fun initialState(): State {
-        val merged = merge(stores.importedTracks(), stores.scannedSnapshot())
-        return State(
-            tracks = merged,
-            albums = buildAlbums(merged),
-            playlists = stores.playlists(),
-            recents = stores.recents(),
-            hasPermission = hasAudioPermission(),
-        )
     }
 
     private fun loadedState(permission: Boolean): State {
-        val merged = merge(stores.importedTracks(), stores.scannedSnapshot())
+        val merged = mergeTracks(stores.importedTracks(), stores.scannedSnapshot())
         val favoriteIdentities = databases.favorites().mapTo(HashSet()) { it.identity }
         return State(
             tracks = merged,
@@ -151,14 +152,44 @@ class LibraryRepository(
         )
     }
 
-    private fun merge(imported: List<Track>, scanned: List<Track>): List<Track> {
-        val seen = HashSet<String>()
-        val merged = ArrayList<Track>(imported.size + scanned.size)
-        for (track in imported + scanned) {
-            if (!seen.add(track.uri)) continue
-            merged += track
+    private fun copyImport(uri: Uri, directory: File, filename: String): File? {
+        val target = uniqueTarget(directory, filename)
+        val temp = File.createTempFile("import-", ".part", directory)
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                temp.outputStream().use { output -> input.copyTo(output) }
+            } ?: return null
+            if (temp.renameTo(target)) target else null
+        } catch (error: Exception) {
+            Log.w(TAG, "Import copy failed for $uri", error)
+            null
+        } finally {
+            if (temp.exists()) temp.delete()
         }
-        return merged.sortedWith { left, right -> compareText(left.title, right.title) }
+    }
+
+    private fun safeImportName(raw: String?, index: Int): String {
+        val name = raw?.let { File(it).name }?.trim().orEmpty()
+        return if (name.isEmpty() || name == "." || name == "..") {
+            "audio-${System.currentTimeMillis()}-$index"
+        } else {
+            name
+        }
+    }
+
+    private fun uniqueTarget(directory: File, filename: String): File {
+        val direct = File(directory, filename)
+        if (!direct.exists()) return direct
+
+        val dot = filename.lastIndexOf('.')
+        val base = if (dot > 0) filename.substring(0, dot) else filename
+        val extension = if (dot > 0) filename.substring(dot) else ""
+        var counter = 1
+        while (true) {
+            val candidate = File(directory, "$base ($counter)$extension")
+            if (!candidate.exists()) return candidate
+            counter += 1
+        }
     }
 
     private fun displayName(uri: Uri): String? = try {

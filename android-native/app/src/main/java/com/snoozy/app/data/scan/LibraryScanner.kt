@@ -40,8 +40,13 @@ class LibraryScanner(private val context: Context, private val stores: SnoozySto
         val filename: String,
         val duration: Double,
         val modificationTime: Long,
-        val creationTime: Long?,
-        val albumId: Long?,
+        val creationTime: Long,
+        val albumId: String?,
+    )
+
+    private data class AssetQuery(
+        val assets: List<AudioAsset>,
+        val rowCount: Int,
     )
 
     private data class ResolvedAsset(
@@ -51,9 +56,18 @@ class LibraryScanner(private val context: Context, private val stores: SnoozySto
     )
 
     suspend fun scan(): Result = withContext(Dispatchers.IO) {
-        val assets = queryAssets()
+        val query = queryAssets()
+        val previousSnapshot = stores.scannedSnapshotForUpdate()
+        if (shouldPreserveSnapshot(query.rowCount, query.assets.size, previousSnapshot.size)) {
+            throw LibraryScanException(
+                "MediaStore returned ${query.rowCount} rows with ${query.assets.size} usable tracks; " +
+                    "keeping the preserved library.",
+            )
+        }
+
+        val assets = query.assets
         val albumTitles = queryAlbumTitles()
-        val cache = stores.metadataCache().toMutableMap()
+        val cache = stores.metadataCacheForUpdate().toMutableMap()
         var cacheDirty = false
 
         val resolved = mapWithConcurrency(assets, METADATA_CONCURRENCY) { asset ->
@@ -88,15 +102,19 @@ class LibraryScanner(private val context: Context, private val stores: SnoozySto
 
         val retained = assets.mapTo(HashSet()) { it.id }
         if (cache.keys.retainAll(retained)) cacheDirty = true
-        if (cacheDirty) stores.saveMetadataCache(cache)
+        if (cacheDirty && !stores.saveMetadataCache(cache)) {
+            throw LibraryScanException("Could not save the metadata cache.")
+        }
 
         val latest = assets.maxOfOrNull { it.modificationTime } ?: 0L
         val sorted = withArtwork.sortedWith { left, right -> compareText(left.title, right.title) }
-        stores.saveScannedSnapshot(sorted)
+        if (!stores.saveScannedSnapshot(sorted)) {
+            throw LibraryScanException("Could not save the scanned library.")
+        }
         Result(sorted, "${assets.size}:$latest", assets.size, latest)
     }
 
-    private fun queryAssets(): List<AudioAsset> {
+    private fun queryAssets(): AssetQuery {
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.DISPLAY_NAME,
@@ -104,60 +122,71 @@ class LibraryScanner(private val context: Context, private val stores: SnoozySto
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.DATE_MODIFIED,
             MediaStore.Audio.Media.DATE_TAKEN,
-            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.MediaColumns.BUCKET_ID,
         )
         val assets = mutableListOf<AudioAsset>()
-        context.contentResolver.query(
+        var rows = 0
+        val cursor = context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             projection,
             null,
             null,
-            "${MediaStore.Audio.Media._ID} ASC",
-        )?.use { cursor ->
-            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
-            val dataIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-            val durationIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-            val modifiedIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
-            val takenIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_TAKEN)
-            val albumIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            // Expo's default order is _ID DESC; the artwork cache key uses the first candidate.
+            "${MediaStore.Audio.Media._ID} DESC",
+        ) ?: throw LibraryScanException("MediaStore returned no cursor.")
 
-            while (cursor.moveToNext()) {
-                val data = cursor.getString(dataIndex) ?: continue
+        cursor.use {
+            val idIndex = it.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val nameIndex = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+            val dataIndex = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+            val durationIndex = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val modifiedIndex = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+            val takenIndex = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_TAKEN)
+            val albumIndex = it.getColumnIndexOrThrow(MediaStore.MediaColumns.BUCKET_ID)
+
+            while (it.moveToNext()) {
+                rows += 1
+                val data = it.getString(dataIndex) ?: continue
                 assets += AudioAsset(
-                    id = cursor.getLong(idIndex).toString(),
+                    id = it.getLong(idIndex).toString(),
                     uri = "file://$data",
-                    filename = cursor.getString(nameIndex) ?: data.substringAfterLast('/'),
-                    duration = cursor.getLong(durationIndex) / 1000.0,
-                    modificationTime = cursor.getLong(modifiedIndex) * 1000L,
-                    creationTime = if (cursor.isNull(takenIndex)) null else cursor.getLong(takenIndex),
-                    albumId = if (cursor.isNull(albumIndex)) null else cursor.getLong(albumIndex),
+                    filename = it.getString(nameIndex) ?: data.substringAfterLast('/'),
+                    duration = it.getLong(durationIndex) / 1000.0,
+                    modificationTime = it.getLong(modifiedIndex) * 1000L,
+                    // Expo maps a zero DATE_TAKEN to null, so React Native saved 0.
+                    creationTime = it.getLong(takenIndex),
+                    albumId = if (it.isNull(albumIndex)) null else it.getString(albumIndex),
                 )
             }
         }
-        return assets
+        return AssetQuery(assets, rows)
     }
 
-    private fun queryAlbumTitles(): Map<Long, String> {
-        val titles = mutableMapOf<Long, String>()
+    private fun queryAlbumTitles(): Map<String, String> {
+        val titles = mutableMapOf<String, String>()
         try {
             context.contentResolver.query(
-                MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
-                arrayOf(MediaStore.Audio.Albums._ID, MediaStore.Audio.Albums.ALBUM),
+                MediaStore.Files.getContentUri("external"),
+                arrayOf(
+                    MediaStore.MediaColumns.BUCKET_ID,
+                    MediaStore.MediaColumns.BUCKET_DISPLAY_NAME,
+                ),
+                "${MediaStore.Files.FileColumns.MEDIA_TYPE} = " +
+                    MediaStore.Files.FileColumns.MEDIA_TYPE_AUDIO,
                 null,
-                null,
-                null,
+                MediaStore.MediaColumns.BUCKET_DISPLAY_NAME,
             )?.use { cursor ->
-                val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums._ID)
-                val albumIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM)
+                val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.BUCKET_ID)
+                val titleIndex =
+                    cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.BUCKET_DISPLAY_NAME)
                 while (cursor.moveToNext()) {
-                    val title = cursor.getString(albumIndex) ?: continue
-                    titles[cursor.getLong(idIndex)] = title
+                    if (cursor.isNull(idIndex) || cursor.isNull(titleIndex)) continue
+                    titles[cursor.getString(idIndex)] = cursor.getString(titleIndex)
                 }
             }
         } catch (error: Exception) {
             // Embedded album tags are the primary source; this is only a fallback.
-            Log.w(TAG, "Could not read MediaStore albums", error)
+            Log.w(TAG, "Could not read MediaStore album buckets", error)
         }
         return titles
     }
@@ -232,7 +261,7 @@ class LibraryScanner(private val context: Context, private val stores: SnoozySto
         uri = asset.uri,
         duration = metadata?.duration ?: asset.duration.coerceAtLeast(0.0),
         artwork = null,
-        addedAt = asset.creationTime ?: asset.modificationTime,
+        addedAt = asset.creationTime,
     )
 
     private suspend fun resolveArtwork(

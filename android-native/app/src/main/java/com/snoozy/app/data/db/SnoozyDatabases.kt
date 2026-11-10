@@ -15,8 +15,9 @@ import java.io.File
 /**
  * Reads the five expo-sqlite files in place. Queries are blocking; call from IO.
  */
-class SnoozyDatabases(context: Context) {
+class SnoozyDatabases(private val context: Context) {
     private val directory = File(context.filesDir, "SQLite")
+    private val cacheDirectory = File(context.cacheDir, "snoozy-db")
     private val opened = HashMap<String, SQLiteDatabase?>()
 
     fun favorites(): List<FavoriteRow> = rows(
@@ -82,7 +83,7 @@ class SnoozyDatabases(context: Context) {
 
     fun playHistory(): List<PlayHistoryEntry> = rows(
         PLAY_HISTORY_DB,
-        "SELECT track_id, played_at, duration_listened_ms FROM play_history ORDER BY played_at",
+        "SELECT track_id, played_at, duration_listened_ms FROM play_history ORDER BY played_at DESC",
     ) { cursor ->
         PlayHistoryEntry(
             trackId = cursor.text("track_id"),
@@ -93,7 +94,8 @@ class SnoozyDatabases(context: Context) {
 
     fun listeningSessions(): List<ListeningSession> = rows(
         LIBRARY_DB,
-        "SELECT id, sound_id, started_at, ended_at, duration_seconds FROM listening_sessions ORDER BY started_at",
+        "SELECT id, sound_id, started_at, ended_at, duration_seconds FROM listening_sessions " +
+            "ORDER BY started_at DESC",
     ) { cursor ->
         ListeningSession(
             id = cursor.longValue("id"),
@@ -111,17 +113,37 @@ class SnoozyDatabases(context: Context) {
         val database = try {
             SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY)
         } catch (error: Exception) {
-            // A WAL file can need write access to -shm even for reads.
-            Log.w(TAG, "Read-only open failed for $name, retrying read-write", error)
-            try {
-                SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE)
-            } catch (fallback: Exception) {
-                Log.w(TAG, "Could not open $name", fallback)
+            // A WAL database can need write access to -shm even for reads. Never
+            // open the preserved original read-write; read a copy instead.
+            Log.w(TAG, "Read-only open failed for $name, reading a copy", error)
+            val copy = copyForReading(name, file)
+            if (copy == null) {
                 null
+            } else {
+                try {
+                    SQLiteDatabase.openDatabase(copy.path, null, SQLiteDatabase.OPEN_READONLY)
+                } catch (fallback: Exception) {
+                    Log.w(TAG, "Could not open the copy of $name", fallback)
+                    null
+                }
             }
         }
         opened[name] = database
         return database
+    }
+
+    private fun copyForReading(name: String, source: File): File? = try {
+        cacheDirectory.mkdirs()
+        val target = File(cacheDirectory, name)
+        source.copyTo(target, overwrite = true)
+        for (suffix in listOf("-wal", "-shm")) {
+            val part = File(source.path + suffix)
+            if (part.exists()) part.copyTo(File(target.path + suffix), overwrite = true)
+        }
+        target
+    } catch (error: Exception) {
+        Log.w(TAG, "Could not copy $name for reading", error)
+        null
     }
 
     private fun <T> rows(name: String, sql: String, map: (Cursor) -> T): List<T> {

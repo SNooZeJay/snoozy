@@ -8,139 +8,155 @@ import com.snoozy.app.data.model.Playlist
 import com.snoozy.app.data.model.Track
 import com.snoozy.app.data.playback.parsePlaybackSession
 import com.tencent.mmkv.MMKV
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import java.io.File
+
+class StoreFailureException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
  * Typed access to the seven react-native-mmkv stores. The directory and IDs match
- * MMKV's defaults under expo, so the files are opened in place.
+ * MMKV's defaults under expo, so the files are opened in place. Each store opens
+ * lazily so a corrupt file cannot crash Application.onCreate.
  */
 class SnoozyStores(context: Context) {
-    init {
-        MMKV.initialize(context, File(context.filesDir, "mmkv").absolutePath)
-    }
+    private val opened = HashMap<String, Result<MMKV>>()
 
-    private val music = MMKV.mmkvWithID(MUSIC)
-    private val playback = MMKV.mmkvWithID(PLAYBACK)
-    private val theme = MMKV.mmkvWithID(THEME)
-    private val preferences = MMKV.mmkvWithID(PREFERENCES)
-    private val search = MMKV.mmkvWithID(SEARCH)
-    private val lyrics = MMKV.mmkvWithID(LYRICS)
-    private val audio = MMKV.mmkvWithID(AUDIO)
+    init {
+        try {
+            MMKV.initialize(context, File(context.filesDir, "mmkv").absolutePath)
+        } catch (error: Exception) {
+            Log.e(TAG, "MMKV initialization failed", error)
+        }
+    }
 
     val storeIds: List<String> = listOf(MUSIC, PLAYBACK, THEME, PREFERENCES, SEARCH, LYRICS, AUDIO)
 
-    fun keyCount(): Int = storeIds.sumOf { MMKV.mmkvWithID(it).allKeys()?.size ?: 0 }
-
-    fun scannedSnapshot(): List<Track> = readList(music, SCANNED_SNAPSHOT, Track.serializer())
-
-    fun saveScannedSnapshot(tracks: List<Track>) =
-        writeJson(music, SCANNED_SNAPSHOT, ListSerializer(Track.serializer()), tracks)
-
-    fun importedTracks(): List<Track> = readList(music, IMPORTED, Track.serializer())
-
-    fun saveImportedTracks(tracks: List<Track>) =
-        writeJson(music, IMPORTED, ListSerializer(Track.serializer()), tracks)
-
-    fun playlists(): List<Playlist> = readList(music, PLAYLISTS, Playlist.serializer())
-
-    fun savePlaylists(playlists: List<Playlist>) =
-        writeJson(music, PLAYLISTS, ListSerializer(Playlist.serializer()), playlists)
-
-    fun recents(): List<String> = readList(music, RECENTS, String.serializer())
-
-    fun saveRecents(ids: List<String>) =
-        writeJson(music, RECENTS, ListSerializer(String.serializer()), ids)
-
-    fun songSort(): String? = music.decodeString(SONG_SORT)
-
-    fun saveSongSort(sort: String) {
-        music.encode(SONG_SORT, sort)
+    private fun store(id: String): MMKV? = synchronized(opened) {
+        opened.getOrPut(id) {
+            try {
+                Result.success(MMKV.mmkvWithID(id))
+            } catch (error: Exception) {
+                Log.e(TAG, "Could not open $id", error)
+                Result.failure(error)
+            }
+        }.getOrNull()
     }
 
-    fun albumSort(): String? = music.decodeString(ALBUM_SORT)
-
-    fun saveAlbumSort(sort: String) {
-        music.encode(ALBUM_SORT, sort)
+    fun keyCount(): Int = storeIds.sumOf { id ->
+        try {
+            store(id)?.allKeys()?.size ?: 0
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not count $id", error)
+            0
+        }
     }
 
-    fun playbackSession(): PlaybackSession? {
-        val raw = playback.decodeString(SESSION) ?: return null
-        return parsePlaybackSession(raw)
+    fun scannedSnapshot(): List<Track> = readList(MUSIC, SCANNED_SNAPSHOT, Track.serializer())
+
+    fun scannedSnapshotForUpdate(): List<Track> =
+        readListForUpdate(MUSIC, SCANNED_SNAPSHOT, Track.serializer())
+
+    fun saveScannedSnapshot(tracks: List<Track>): Boolean =
+        writeJson(MUSIC, SCANNED_SNAPSHOT, ListSerializer(Track.serializer()), tracks)
+
+    fun importedTracks(): List<Track> = readList(MUSIC, IMPORTED, Track.serializer())
+
+    fun importedTracksForUpdate(): List<Track> =
+        readListForUpdate(MUSIC, IMPORTED, Track.serializer())
+
+    fun saveImportedTracks(tracks: List<Track>): Boolean =
+        writeJson(MUSIC, IMPORTED, ListSerializer(Track.serializer()), tracks)
+
+    fun playlists(): List<Playlist> = readList(MUSIC, PLAYLISTS, Playlist.serializer())
+
+    fun savePlaylists(playlists: List<Playlist>): Boolean =
+        writeJson(MUSIC, PLAYLISTS, ListSerializer(Playlist.serializer()), playlists)
+
+    fun recents(): List<String> = readList(MUSIC, RECENTS, String.serializer())
+
+    fun saveRecents(ids: List<String>): Boolean =
+        writeJson(MUSIC, RECENTS, ListSerializer(String.serializer()), ids)
+
+    fun songSort(): String? = readStore(MUSIC, null) { it.decodeString(SONG_SORT) }
+
+    fun saveSongSort(sort: String): Boolean = writeStore(MUSIC) { it.encode(SONG_SORT, sort) }
+
+    fun albumSort(): String? = readStore(MUSIC, null) { it.decodeString(ALBUM_SORT) }
+
+    fun saveAlbumSort(sort: String): Boolean = writeStore(MUSIC) { it.encode(ALBUM_SORT, sort) }
+
+    fun playbackSession(): PlaybackSession? = readStore(PLAYBACK, null) { store ->
+        store.decodeString(SESSION)?.let(::parsePlaybackSession)
     }
 
-    fun savePlaybackSession(session: PlaybackSession) =
-        playback.encode(SESSION, SnoozyJson.encodeToString(PlaybackSession.serializer(), session))
+    fun savePlaybackSession(session: PlaybackSession): Boolean =
+        writeStore(PLAYBACK) {
+            it.encode(SESSION, SnoozyJson.encodeToString(PlaybackSession.serializer(), session))
+        }
 
-    fun clearPlaybackSession() {
-        playback.removeValueForKey(SESSION)
-    }
+    fun clearPlaybackSession(): Boolean = writeStore(PLAYBACK) { it.removeValueForKey(SESSION) }
 
-    fun queueIds(): List<String> = readList(playback, QUEUE_IDS, String.serializer())
+    fun queueIds(): List<String> = readList(PLAYBACK, QUEUE_IDS, String.serializer())
 
-    fun saveQueueIds(ids: List<String>) =
-        writeJson(playback, QUEUE_IDS, ListSerializer(String.serializer()), ids)
+    fun saveQueueIds(ids: List<String>): Boolean =
+        writeJson(PLAYBACK, QUEUE_IDS, ListSerializer(String.serializer()), ids)
 
-    fun repeatMode(): String? = playback.decodeString(REPEAT_MODE)
+    fun repeatMode(): String? = readStore(PLAYBACK, null) { it.decodeString(REPEAT_MODE) }
 
-    fun saveRepeatMode(mode: String) {
-        playback.encode(REPEAT_MODE, mode)
-    }
+    fun saveRepeatMode(mode: String): Boolean = writeStore(PLAYBACK) { it.encode(REPEAT_MODE, mode) }
 
-    fun shuffle(): Boolean = playback.decodeBool(SHUFFLE, false)
+    fun shuffle(): Boolean = readStore(PLAYBACK, false) { it.decodeBool(SHUFFLE, false) }
 
-    fun saveShuffle(enabled: Boolean) {
-        playback.encode(SHUFFLE, enabled)
-    }
+    fun saveShuffle(enabled: Boolean): Boolean = writeStore(PLAYBACK) { it.encode(SHUFFLE, enabled) }
 
-    fun playbackRate(): Double = playback.decodeDouble(PLAYBACK_RATE, 1.0)
+    fun playbackRate(): Double = readStore(PLAYBACK, 1.0) { it.decodeDouble(PLAYBACK_RATE, 1.0) }
 
-    fun savePlaybackRate(rate: Double) {
-        playback.encode(PLAYBACK_RATE, rate)
-    }
+    fun savePlaybackRate(rate: Double): Boolean =
+        writeStore(PLAYBACK) { it.encode(PLAYBACK_RATE, rate) }
 
-    fun themeMode(): String? = theme.decodeString(THEME_MODE)
+    fun themeMode(): String? = readStore(THEME, null) { it.decodeString(THEME_MODE) }
 
-    fun paletteStyle(): String? = theme.decodeString(PALETTE_STYLE)
+    fun paletteStyle(): String? = readStore(THEME, null) { it.decodeString(PALETTE_STYLE) }
 
-    fun themeSeed(): String? = theme.decodeString(SEED)
+    fun themeSeed(): String? = readStore(THEME, null) { it.decodeString(SEED) }
 
-    fun backdropEnabled(): Boolean = theme.decodeBool(BACKDROP_ENABLED, true)
+    fun backdropEnabled(): Boolean = readStore(THEME, true) { it.decodeBool(BACKDROP_ENABLED, true) }
 
-    fun backdropIntensity(): Double = theme.decodeDouble(BACKDROP_INTENSITY, 0.6)
+    fun backdropIntensity(): Double =
+        readStore(THEME, 60.0) { it.decodeDouble(BACKDROP_INTENSITY, 60.0) }
 
-    fun motionMode(): String? = theme.decodeString(MOTION_MODE)
+    fun motionMode(): String? = readStore(THEME, null) { it.decodeString(MOTION_MODE) }
 
-    fun haptics(): Boolean = preferences.decodeBool(HAPTICS, true)
+    fun haptics(): Boolean = readStore(PREFERENCES, true) { it.decodeBool(HAPTICS, true) }
 
-    fun notificationsAsked(): Boolean = preferences.decodeBool(NOTIFICATIONS_ASKED, false)
+    fun notificationsAsked(): Boolean =
+        readStore(PREFERENCES, false) { it.decodeBool(NOTIFICATIONS_ASKED, false) }
 
-    fun savePreferences(haptics: Boolean, notificationsAsked: Boolean) {
-        preferences.encode(HAPTICS, haptics)
-        preferences.encode(NOTIFICATIONS_ASKED, notificationsAsked)
-    }
+    fun savePreferences(haptics: Boolean, notificationsAsked: Boolean): Boolean =
+        writeStore(PREFERENCES) {
+            it.encode(HAPTICS, haptics)
+            it.encode(NOTIFICATIONS_ASKED, notificationsAsked)
+        }
 
-    fun searchRecents(): List<String> = readList(search, SEARCH_RECENTS, String.serializer())
+    fun searchRecents(): List<String> = readList(SEARCH, SEARCH_RECENTS, String.serializer())
 
-    fun saveSearchRecents(queries: List<String>) =
-        writeJson(search, SEARCH_RECENTS, ListSerializer(String.serializer()), queries)
+    fun saveSearchRecents(queries: List<String>): Boolean =
+        writeJson(SEARCH, SEARCH_RECENTS, ListSerializer(String.serializer()), queries)
 
-    fun lyricsOffset(trackUri: String): Double? {
+    fun lyricsOffset(trackUri: String): Double? = readStore(LYRICS, null) { store ->
         val key = "$LYRICS_OFFSET_PREFIX$trackUri"
-        return if (lyrics.containsKey(key)) lyrics.decodeDouble(key, 0.0) else null
+        if (store.containsKey(key)) store.decodeDouble(key, 0.0) else null
     }
 
-    fun saveLyricsOffset(trackUri: String, seconds: Double) {
-        lyrics.encode("$LYRICS_OFFSET_PREFIX$trackUri", seconds)
-    }
+    fun saveLyricsOffset(trackUri: String, seconds: Double): Boolean =
+        writeStore(LYRICS) { it.encode("$LYRICS_OFFSET_PREFIX$trackUri", seconds) }
 
-    fun metadataCache(): Map<String, MetadataCacheEntry> {
-        val raw = audio.decodeString(METADATA_CACHE) ?: return emptyMap()
-        return try {
+    fun metadataCache(): Map<String, MetadataCacheEntry> = readStore(AUDIO, emptyMap()) { store ->
+        val raw = store.decodeString(METADATA_CACHE) ?: return@readStore emptyMap()
+        try {
             SnoozyJson.decodeFromString(METADATA_CACHE_SERIALIZER, raw)
         } catch (error: Exception) {
             Log.w(TAG, "Ignoring unreadable embedded metadata cache", error)
@@ -148,9 +164,17 @@ class SnoozyStores(context: Context) {
         }
     }
 
-    fun saveMetadataCache(cache: Map<String, MetadataCacheEntry>) {
-        audio.encode(METADATA_CACHE, SnoozyJson.encodeToString(METADATA_CACHE_SERIALIZER, cache))
+    fun metadataCacheForUpdate(): Map<String, MetadataCacheEntry> {
+        val raw = readStringForUpdate(AUDIO, METADATA_CACHE) ?: return emptyMap()
+        return try {
+            SnoozyJson.decodeFromString(METADATA_CACHE_SERIALIZER, raw)
+        } catch (error: Exception) {
+            throw StoreFailureException("Could not decode $METADATA_CACHE", error)
+        }
     }
+
+    fun saveMetadataCache(cache: Map<String, MetadataCacheEntry>): Boolean =
+        writeJson(AUDIO, METADATA_CACHE, METADATA_CACHE_SERIALIZER, cache)
 
     fun rawThemeValues(): Map<String, String?> = mapOf(
         THEME_MODE to themeMode(),
@@ -159,7 +183,26 @@ class SnoozyStores(context: Context) {
         MOTION_MODE to motionMode(),
     )
 
-    private fun <T> readList(store: MMKV, key: String, serializer: kotlinx.serialization.KSerializer<T>): List<T> {
+    private fun <T> readList(
+        id: String,
+        key: String,
+        serializer: KSerializer<T>,
+    ): List<T> = readStore(id, emptyList()) { store -> decodeList(store, key, serializer) }
+
+    private fun <T> readListForUpdate(
+        id: String,
+        key: String,
+        serializer: KSerializer<T>,
+    ): List<T> {
+        val raw = readStringForUpdate(id, key) ?: return emptyList()
+        return try {
+            SnoozyJson.decodeFromString(ListSerializer(serializer), raw)
+        } catch (error: Exception) {
+            throw StoreFailureException("Could not decode $key", error)
+        }
+    }
+
+    private fun <T> decodeList(store: MMKV, key: String, serializer: KSerializer<T>): List<T> {
         val raw = store.decodeString(key) ?: return emptyList()
         return try {
             SnoozyJson.decodeFromString(ListSerializer(serializer), raw)
@@ -169,16 +212,42 @@ class SnoozyStores(context: Context) {
         }
     }
 
-    private fun <T> writeJson(
-        store: MMKV,
-        key: String,
-        serializer: kotlinx.serialization.KSerializer<T>,
-        value: T,
-    ) {
-        try {
-            store.encode(key, SnoozyJson.encodeToString(serializer, value))
+    private fun readStringForUpdate(id: String, key: String): String? {
+        val store = store(id) ?: throw StoreFailureException("Store $id is unavailable")
+        return try {
+            store.decodeString(key)
         } catch (error: Exception) {
-            Log.w(TAG, "Could not write $key", error)
+            throw StoreFailureException("Could not read $key", error)
+        }
+    }
+
+    private fun <T> writeJson(
+        id: String,
+        key: String,
+        serializer: KSerializer<T>,
+        value: T,
+    ): Boolean = writeStore(id) { store ->
+        store.encode(key, SnoozyJson.encodeToString(serializer, value))
+    }
+
+    private fun <T> readStore(id: String, default: T, block: (MMKV) -> T): T {
+        val store = store(id) ?: return default
+        return try {
+            block(store)
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not read $id", error)
+            default
+        }
+    }
+
+    private fun writeStore(id: String, block: (MMKV) -> Unit): Boolean {
+        val store = store(id) ?: return false
+        return try {
+            block(store)
+            true
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not write $id", error)
+            false
         }
     }
 
@@ -217,9 +286,4 @@ class SnoozyStores(context: Context) {
         private val METADATA_CACHE_SERIALIZER =
             MapSerializer(String.serializer(), MetadataCacheEntry.serializer())
     }
-}
-
-val SnoozyJson = Json {
-    encodeDefaults = true
-    ignoreUnknownKeys = true
 }

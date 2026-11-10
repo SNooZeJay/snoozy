@@ -24,9 +24,11 @@ class AppContainer(context: Context) {
     private var loadJob: Job? = null
 
     fun start() {
-        if (loadJob?.isActive == true) return
+        val previous = loadJob
         loadJob = scope.launch {
-            val preserved = stores.scannedSnapshot().size
+            // A grant can arrive mid-load; run again after it finishes.
+            previous?.join()
+            val preserved = runCatching { stores.scannedSnapshot().size }.getOrDefault(0)
             val result = repository.refresh()
             DataDiagnostics.log(stores, databases, preserved, result)
         }
