@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 val releaseStoreFile = System.getenv("SNOOZY_KEYSTORE_FILE")
@@ -71,8 +72,11 @@ dependencies {
     implementation("io.github.neoruaa.glasmio:glasmio-scaffold:0.1.2")
     implementation("br.com.devsrsouza.compose.icons:feather:1.1.1")
     implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("com.tencent:mmkv:2.4.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.09.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
