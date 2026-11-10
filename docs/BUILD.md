@@ -1,5 +1,23 @@
 # Snoozy build record
 
+## Native 3.0 Phase 2 (3.0.0, versionCode 14) - data layer verified on device
+
+- Intent: read the existing expo-sqlite and react-native-mmkv data in place, scan MediaStore with the expo-media-library identity and caching rules, and add a library repository plus startup diagnostics. No migration, no store clearing, and no UI changes beyond the Phase 1 shell.
+- New code: `data/model/Models.kt`, `data/mmkv/SnoozyStores.kt`, `data/db/SnoozyDatabases.kt`, `data/library/AlbumGrouping.kt`, `data/library/LibraryStats.kt`, `data/library/AudioMetadata.kt`, `data/library/LibraryRepository.kt`, `data/scan/LibraryScanner.kt`, `data/playback/PlaybackSessionLogic.kt`, `data/diagnostics/DataDiagnostics.kt`, `AppContainer.kt`, and `SnoozyApplication.kt`.
+- Compatibility: MediaStore `_ID` string id, `file://` plus unencoded `DATA` path, `DATE_MODIFIED * 1000` ms, `DATE_TAKEN` added-at, `DURATION / 1000` seconds. Album key is `album-` plus FNV-1a base36 of `<normalized artist>::<normalized title>` with the React Native fallbacks. Artwork stays at `filesDir/artwork/<albumKey>-<stableHash(uri:modified)>.jpg` with `.none` misses. JSON keeps the React Native field names and `encodeDefaults = true`. MMKV opens `filesDir/mmkv` explicitly and uses the seven existing store ids.
+- Static gates: `gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug` with JDK 25: `BUILD SUCCESSFUL`. Unit tests: 21 tests, 0 failures across album grouping, library stats, audio metadata helpers, playback session logic, and navigation. Lint: no blocking issues.
+- Artifact: `android-native/app/build/outputs/apk/debug/app-debug.apk`, `76,377,110` bytes, SHA-256 `13B9C2112547E977DDEAE70C67EE137255F6FED3FC0E632DB8A9F2F42EE3A2D1`. Signed with the same 2.3.0 release certificate, SHA-256 `0b3acae8b73999d871c4f18684e70fc32967fada05967f9d18a463b37fe755ce`.
+- Device verification on Oppo A55 (`CPH2325`, Android 13, `9PGE8SQKAM598PBY`): `adb install -r` succeeded over the Phase 1 build.
+  - The 2.3.0 `READ_MEDIA_AUDIO` grant carried over; a shell `pm grant` was rejected by the Oppo permission service, so no new dialog was needed.
+  - Logcat tag `SnoozyData`: preserved snapshot `37` tracks before the scan, runtime scan `37` tracks and `37` assets, snapshot after scan `37`, imported `0`, `15` MMKV keys.
+  - Full snapshot comparison against the pre-scan backup: the same 37 ids and **0 field differences** across `uri`, `title`, `artist`, `album`, `albumArtist`, `year`, `genre`, `trackNumber`, `discNumber`, `duration`, `artwork`, and `addedAt`.
+  - Existing artwork cache files were reused: the album keys resolve to `album-hhxvcj` and `album-zcp9rt`, matching the files left by 2.3.0.
+  - Embedded metadata cache: `37` entries before and after, identical values, so the preserved `snoozy.audio.v1` cache was read and rewritten without loss.
+  - Preserved stores: playlists `1` with `1` track, recents `19`, play history `6`, listening sessions `34`, and a readable `session.v1` with a 10-track queue whose active track exists in the snapshot.
+  - SQLite counts confirmed independently against pulled files: favorites `0`, track overrides `0`, album overrides `0`, artist overrides `0`, play history `6`, listening sessions `34`. SHA-256 of all five database files is unchanged before and after, so the read-only open did not modify them.
+  - No entries in `logcat -b crash`.
+- Not yet verified: no list UI consumes the repository yet; header collapse and scrolling stay gated in Phase 3.
+
 ## Native 3.0 Phase 1 (3.0.0, versionCode 14) - shell verified on device
 
 - Intent: first native Kotlin and Jetpack Compose build on Glasmio `0.1.2`: Snoozy theme, bundled fonts, Feather icon mapping, and the five root tabs with collapsed headers. The React Native 2.3.0 app is untouched at the repository root.
