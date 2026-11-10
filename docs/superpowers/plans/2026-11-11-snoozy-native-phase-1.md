@@ -28,11 +28,11 @@ Build config:
 - versionCode 14, versionName 3.0.0
 - NDK ABI filter arm64-v8a
 - Compose enabled
-- `dev` build type: debuggable, signed with the release key when env vars exist, otherwise debug
+- `debug` build type: debuggable, signed with the release key when env vars exist, otherwise debug
 - `release` build type: minify, signed with the release key
 - dependencies: Glasmio scaffold, activity-compose, Feather icons, JUnit, Compose UI test
 
-Expected: `gradlew.bat :app:assembleDev` produces an APK.
+Expected: `gradlew.bat :app:assembleDebug` produces an APK.
 
 ## Task 2: Fonts and launcher resources
 
@@ -60,7 +60,7 @@ Expected: `SnoozyTheme { Text("Snoozy") }` compiles with the bundled fonts.
 
 Files:
 
-- `ui/icons/Feather.kt`
+- `ui/icons/SnoozyIcons.kt`
 
 Re-export the icons the app needs as stable `ImageVector` properties, for example `Feather.Home`, `Feather.Library`, `Feather.Search`, `Feather.List`, `Feather.Settings`, `Feather.Play`, `Feather.Pause`, `Feather.SkipBack`, `Feather.SkipForward`, `Feather.Shuffle`, `Feather.Repeat`, `Feather.Heart`, `Feather.MoreHorizontal`, `Feather.Edit3`, `Feather.Music`, `Feather.Headphones`.
 
@@ -73,19 +73,20 @@ Expected: an icon renders in the shell.
 Files:
 
 - `ui/navigation/NavKey.kt`
-- `ui/navigation/SnoozyNavHost.kt`
-- `ui/screens/PlaceholderScreen.kt`
+- `ui/navigation/NavHeaderEntry.kt`
+- `ui/navigation/SnoozyApp.kt`
+- `ui/screens/RootPlaceholder.kt`
 - `MainActivity.kt`
 
 `NavKey` roots: Home, Library, Search, Playlists, Settings. Detail keys are added in later phases.
 
 `SnoozyNavHost` mirrors the Glasmio sample:
 
-- `SnapshotStateList<NavKey>` back stack saved with `listSaver`.
+- `SnapshotStateList<String>` back stack saved with `listSaver`; route strings are the NavEntry keys because Navigation3 saveable state only accepts Bundle-compatible keys. `NavKey` resolves from the route string.
 - `GlasmioNavHeaderMotion` with Tab, Push, Pop classification.
-- `GlasmioNavigationScaffold` with header specs, page bodies, and `GlasmioTabBar`.
+- `GlasmioNavigationScaffold` with header specs, page bodies, and `GlasmioNavigationBar`.
 - `GlasmioNavDisplay` with iOS transitions.
-- Bottom bar and mini player slot reserved above the tab bar.
+- Bottom bar above the tab bar; the mini player is added in Phase 4.
 - Edge-to-edge with transparent system bars.
 
 Root tabs use Feather icons and accessible labels. Each placeholder screen shows the screen title and a one-line description of the phase that fills it.
@@ -95,15 +96,15 @@ Expected: all five tabs switch, the header morphs, back exits from a root.
 ## Task 6: Signing and install over 2.3.0
 
 - Read signing values from the existing environment variables: `SNOOZY_KEYSTORE_FILE`, `SNOOZY_KEYSTORE_PASSWORD`, `SNOOZY_KEY_ALIAS`, `SNOOZY_KEY_PASSWORD`.
-- Build `dev` signed with the release config.
+- Build `debug` signed with the release config.
 - `adb install -r`.
 - Compare `run-as com.snoozy.app ls files` before and after.
 
-Expected: install succeeds over 2.3.0, `files/SQLite`, `files/mmkv`, and `files/Music` still exist.
+Expected: install succeeds over 2.3.0, `files/SQLite` and `files/mmkv` still hold the existing files.
 
 ## Task 7: Verification
 
-- `gradlew.bat :app:assembleDev`
+- `gradlew.bat :app:assembleDebug`
 - `gradlew.bat :app:testDebugUnitTest`
 - `gradlew.bat :app:lintDebug`
 - Install and screenshot each tab.

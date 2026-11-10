@@ -1,5 +1,24 @@
 # Snoozy build record
 
+## Native 3.0 Phase 1 (3.0.0, versionCode 14) - shell verified on device
+
+- Intent: first native Kotlin and Jetpack Compose build on Glasmio `0.1.2`: Snoozy theme, bundled fonts, Feather icon mapping, and the five root tabs with collapsed headers. The React Native 2.3.0 app is untouched at the repository root.
+- Location: `android-native/`, package `com.snoozy.app`, `versionCode` 14, `versionName` 3.0.0, minSdk 33, compile/targetSdk 37, `arm64-v8a` only.
+- Toolchain: JDK 25 (`C:\Program Files\Eclipse Adoptium\jdk-25.0.2.10-hotspot`), Gradle 9.6.0, AGP 9.4.1 with built-in Kotlin, Kotlin Compose plugin 2.4.21, Compose BOM 2026.09.00, Glasmio `io.github.neoruaa.glasmio:glasmio-scaffold:0.1.2`, Feather `br.com.devsrsouza.compose.icons:feather:1.1.1` (package `compose.icons`).
+- Defaults: Reduce Transparency enabled, dark system appearance, emerald `#10B981`, Bricolage Grotesque headings, Atkinson Hyperlegible body, Feather icons mapped onto Glasmio `SfSymbol` names so no SF Symbol asset ships.
+- Static gates: `gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug` with JDK 25 and `ANDROID_HOME=D:\Android\Sdk`: `BUILD SUCCESSFUL in 1m 19s`. Unit tests: 1 test, 0 failures (`NavKeyTest`). Lint: no blocking issues.
+- Debug APK is signed with the existing release key: certificate SHA-256 `0b3acae8b73999d871c4f18684e70fc32967fada05967f9d18a463b37fe755ce`, identical to the 2.3.0 release certificate.
+- Artifact: `android-native/app/build/outputs/apk/debug/app-debug.apk`, `74,536,107` bytes, SHA-256 `B660E65915B6923A6E01855D991403D1AC87C06B39849945E902D4532CFA1F43`.
+- Device verification on Oppo A55 (`CPH2325`, Android 13, `9PGE8SQKAM598PBY`):
+  - `adb install -r` over 2.3.0 (versionCode 13) succeeded with `Success`.
+  - Home, Search, Library, Playlists, and Settings all open from the tab bar; the selected tab moves and the header morphs.
+  - Header title fades out at rest and appears during the tab morph, matching Glasmio's transition behavior.
+  - No entries in `logcat -b crash`. Cold start reported `TotalTime: 5782` ms while the process was cold and the device was charging.
+  - Existing data verified through `run-as`: `files/SQLite` still holds `snoozy.db`, `snoozy_errorlog.db`, `snoozy_favorites.db`, `snoozy_metadata.db`, and `snoozy_playhistory.db`; `files/mmkv` still holds all seven stores with their `.crc` files; `files/artwork` still holds the cached album art.
+  - `files/Music` does not exist and `snoozy.music.v1` contains no `imported-*` ids or `files/Music/` paths, so there were no imported files to preserve on this device.
+- Defect found and fixed during the gate: `NavKey.roots` was built eagerly in the companion initializer and captured `NavKey.Home` as null while that object was still class-initializing, which crashed every launch. The list is now lazy and `fromRoute` uses a `when`; `NavKeyTest` covers route resolution.
+- Not yet verified: header collapse under scroll (the placeholder pages have no scrollable content). It is gated in Phase 3 with the real lists.
+
 ## v2.3 (2.3.0, versionCode 13) - released and verified
 
 - Intent: port the Glasmio interaction motion layer into Snoozy's Reanimated and Gesture Handler architecture (`src/motion/chrome.ts`, `src/motion/scrollState.ts`, `src/components/CollapsingHeader.tsx`, `src/components/SheetPanel.tsx`), adding collapsing compact title bars across tabs and stack screens, tab-bar shrink with docked mini-player travel, header drag-to-dismiss and scroll-scaled artwork on the full player, and grabber drag-to-dismiss on bottom sheets.
