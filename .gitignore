@@ -63,3 +63,6 @@ local.properties
 
 # sauron harness local state
 /.sauron/backups/
+
+# superpowers execution ledger
+.superpowers/
