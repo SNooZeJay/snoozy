@@ -9,6 +9,7 @@ export type TrackDisplay = {
   genre: string;
   year: string;
   trackNumber: string;
+  discNumber: string;
   description: string;
   artwork: string | null;
 };
@@ -20,10 +21,11 @@ export async function resolveTrackDisplay(track: Track): Promise<TrackDisplay> {
     title: o?.title ?? fallbackTitle,
     artist: o?.artist ?? (track.artist || 'Unknown artist'),
     album: o?.album ?? (track.album || 'Unknown album'),
-    albumArtist: o?.albumArtist ?? (track.artist || 'Unknown artist'),
-    genre: o?.genre ?? '',
-    year: o?.year ?? '',
-    trackNumber: o?.trackNumber ?? '',
+    albumArtist: o?.albumArtist ?? track.albumArtist ?? (track.artist || 'Unknown artist'),
+    genre: o?.genre ?? track.genre ?? '',
+    year: o?.year ?? track.year ?? '',
+    trackNumber: o?.trackNumber ?? track.trackNumber ?? '',
+    discNumber: track.discNumber ?? '',
     description: o?.description ?? '',
     artwork: o?.artworkPath ?? track.artwork ?? null,
   };

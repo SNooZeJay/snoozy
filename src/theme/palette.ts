@@ -11,7 +11,7 @@ export const defaultPalette: ArtworkPalette = {
   accent: colors.accent,
   accentStrong: colors.accentStrong,
   accentInk: colors.accentInk,
-  glow: 'rgba(216, 242, 198, 0.18)',
+  glow: 'rgba(255, 55, 95, 0.22)',
 };
 
 function parseHex(value: string): [number, number, number] | null {

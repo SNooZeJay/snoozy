@@ -2,7 +2,7 @@ import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
 export type ListeningSession = {
   id: number;
-  soundId: string;
+  trackId: string;
   startedAt: number;
   endedAt: number | null;
   durationSeconds: number;
@@ -44,12 +44,12 @@ async function getDatabase(): Promise<SQLiteDatabase> {
   return databasePromise;
 }
 
-export async function startListeningSession(soundId: string): Promise<number | null> {
+export async function startListeningSession(trackId: string): Promise<number | null> {
   try {
     const db = await getDatabase();
     const result = await db.runAsync(
       'INSERT INTO listening_sessions (sound_id, started_at, duration_seconds) VALUES (?, ?, 0)',
-      soundId,
+      trackId,
       Date.now(),
     );
     return result.lastInsertRowId;
@@ -73,7 +73,7 @@ export async function finishListeningSession(
       sessionId,
     );
   } catch {
-    // A lost history row is better than a broken night.
+    // A lost history row must never interrupt playback.
   }
 }
 
@@ -89,46 +89,13 @@ export async function getRecentSessions(limit = 12): Promise<ListeningSession[]>
     );
     return rows.map((row) => ({
       id: row.id,
-      soundId: row.sound_id,
+      trackId: row.sound_id,
       startedAt: row.started_at,
       endedAt: row.ended_at,
       durationSeconds: row.duration_seconds,
     }));
   } catch {
     return [];
-  }
-}
-
-export type NightSummary = {
-  sessions: number;
-  minutes: number;
-  lastStartedAt: number | null;
-};
-
-export async function getNightSummary(days = 7): Promise<NightSummary> {
-  try {
-    const db = await getDatabase();
-    const since = Date.now() - days * 24 * 60 * 60 * 1000;
-    const row = await db.getFirstAsync<{
-      sessions: number;
-      seconds: number | null;
-      last_started_at: number | null;
-    }>(
-      `SELECT
-        COUNT(*) AS sessions,
-        SUM(duration_seconds) AS seconds,
-        MAX(started_at) AS last_started_at
-       FROM listening_sessions
-       WHERE started_at >= ?`,
-      since,
-    );
-    return {
-      sessions: row?.sessions ?? 0,
-      minutes: Math.round((row?.seconds ?? 0) / 60),
-      lastStartedAt: row?.last_started_at ?? null,
-    };
-  } catch {
-    return { sessions: 0, minutes: 0, lastStartedAt: null };
   }
 }
 

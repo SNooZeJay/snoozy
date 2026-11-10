@@ -61,67 +61,58 @@ function buildDarkPalette(
   const palette: AppPalette = { ...DEFAULT_DARK };
   if (isDefaultDark(seed, paletteStyle)) return palette;
 
-  // Keep the pine ground and readable ink, but let the selected seed/style
-  // tint surfaces and drive the accent. This preserves the Snoozy identity
-  // while making palette choices visibly different.
-  palette.background = mixHex(DEFAULT_DARK.background, tokens.background, 0.3);
-  palette.backgroundDeep = mixHex(DEFAULT_DARK.backgroundDeep, tokens.background, 0.24);
-  palette.backgroundRaised = mixHex(
-    DEFAULT_DARK.backgroundRaised,
-    tokens.surfaceContainerLow,
-    0.32,
-  );
-  palette.surface = mixHex(DEFAULT_DARK.surface, tokens.surfaceContainer, 0.32);
-  palette.surfaceRaised = mixHex(
-    DEFAULT_DARK.surfaceRaised,
-    tokens.surfaceContainerHigh,
-    0.32,
-  );
-  palette.surfaceMuted = mixHex(
-    DEFAULT_DARK.surfaceMuted,
-    tokens.surfaceContainerHighest,
-    0.32,
-  );
-  palette.border = withAlpha(tokens.outlineVariant, 0.22);
-  palette.borderStrong = withAlpha(tokens.outline, 0.3);
-  palette.accent = tokens.primary;
-  palette.accentStrong = tokens.primary;
+  // Keep Cupertino OLED dark system surfaces, while letting the selected seed
+  // drive the accent and subtly tint elevated surfaces.
+  palette.background = '#000000';
+  palette.backgroundDeep = '#000000';
+  palette.backgroundRaised = mixHex('#0F1015', tokens.surfaceContainerLow, 0.18);
+  palette.surface = mixHex('#1C1C1E', tokens.surfaceContainer, 0.16);
+  palette.surfaceRaised = mixHex('#2C2C2E', tokens.surfaceContainerHigh, 0.18);
+  palette.surfaceMuted = mixHex('#3A3A3C', tokens.surfaceContainerHighest, 0.18);
+  palette.border = 'rgba(255, 255, 255, 0.12)';
+  palette.borderStrong = 'rgba(255, 255, 255, 0.22)';
+  palette.accent = seed;
+  palette.accentStrong = seed;
   palette.accentInk = readableInk(palette.accent);
+  palette.iosGreen = '#30D158';
   palette.ember = tokens.tertiary;
-  palette.emberSoft = withAlpha(tokens.tertiary, 0.13);
+  palette.emberSoft = withAlpha(tokens.tertiary, 0.16);
   palette.imageTint = tokens.secondary;
   return palette;
 }
 
-function buildLightPalette(tokens: ColorTokens): AppPalette {
-  const background = tokens.background;
+function buildLightPalette(tokens: ColorTokens, seed: string): AppPalette {
+  // iOS System Grouped Background (#F2F2F7) with pure white (#FFFFFF) inset cards.
+  const background = '#F2F2F7';
+  const accent = seed;
   return {
     background,
-    backgroundDeep: mixHex(background, '#000000', 0.05),
-    backgroundRaised: tokens.surfaceContainerLow,
-    surface: tokens.surfaceContainer,
-    surfaceRaised: tokens.surfaceContainerHigh,
-    surfaceMuted: tokens.surfaceContainerHighest,
-    border: withAlpha(tokens.outlineVariant, 0.65),
-    borderStrong: withAlpha(tokens.outline, 0.75),
-    ink: tokens.onBackground,
-    inkMuted: tokens.onSurfaceVariant,
-    inkFaint: mixHex(tokens.onSurfaceVariant, background, 0.35),
-    accent: tokens.primary,
-    accentStrong: tokens.primary,
-    accentInk: tokens.onPrimary,
-    ember: tokens.tertiary,
-    emberSoft: withAlpha(tokens.tertiary, 0.14),
-    danger: tokens.error,
-    dangerSoft: withAlpha(tokens.error, 0.14),
-    pass: tokens.primary,
-    fail: tokens.error,
-    pending: tokens.tertiary,
+    backgroundDeep: '#E5E5EA',
+    backgroundRaised: '#FFFFFF',
+    surface: '#FFFFFF',
+    surfaceRaised: '#F2F2F7',
+    surfaceMuted: '#E5E5EA',
+    border: 'rgba(60, 60, 67, 0.14)',
+    borderStrong: 'rgba(60, 60, 67, 0.24)',
+    ink: '#000000',
+    inkMuted: 'rgba(60, 60, 67, 0.62)',
+    inkFaint: 'rgba(60, 60, 67, 0.38)',
+    accent,
+    accentStrong: accent,
+    accentInk: readableInk(accent),
+    iosGreen: '#34C759',
+    ember: '#FF9500',
+    emberSoft: 'rgba(255, 149, 0, 0.14)',
+    danger: '#FF3B30',
+    dangerSoft: 'rgba(255, 59, 48, 0.12)',
+    pass: '#34C759',
+    fail: '#FF3B30',
+    pending: '#FF9500',
     imageTint: tokens.secondary,
-    scrim: withAlpha(tokens.scrim, 0.32),
+    scrim: 'rgba(0, 0, 0, 0.32)',
     white: '#FFFFFF',
     black: '#000000',
-    surfaceOld: tokens.surfaceContainerHigh,
+    surfaceOld: '#FFFFFF',
   };
 }
 
@@ -133,7 +124,7 @@ export function buildAppPalette(
 ): AppPalette {
   return dark
     ? buildDarkPalette(tokens, seed, paletteStyle)
-    : buildLightPalette(tokens);
+    : buildLightPalette(tokens, seed);
 }
 
 function shadow(
@@ -145,8 +136,8 @@ function shadow(
 
 export function buildAppGlass(palette: AppPalette, dark: boolean): AppGlass {
   const shadowColor = dark
-    ? 'rgba(0, 0, 0, 0.42)'
-    : 'rgba(12, 25, 18, 0.16)';
+    ? 'rgba(0, 0, 0, 0.44)'
+    : 'rgba(0, 0, 0, 0.10)';
   const cardShadow = shadow(glassShadow.card, shadowColor);
   const floatingShadow = shadow(glassShadow.floating, shadowColor);
   const buttonShadow = shadow(glassShadow.button, shadowColor);
@@ -154,27 +145,27 @@ export function buildAppGlass(palette: AppPalette, dark: boolean): AppGlass {
   const base = dark
     ? {
         ...darkGlass,
-        tintAccent: withAlpha(palette.accent, 0.12),
-        innerGlow: withAlpha(palette.accent, 0.06),
+        tintAccent: withAlpha(palette.accent, 0.16),
+        innerGlow: withAlpha(palette.accent, 0.08),
       }
     : {
-        tint: withAlpha(palette.surface, 0.72),
-        tintStrong: withAlpha(palette.surface, 0.86),
-        tintSoft: withAlpha(palette.surface, 0.55),
-        tintDeep: withAlpha(palette.backgroundDeep, 0.74),
+        tint: 'rgba(255, 255, 255, 0.86)',
+        tintStrong: 'rgba(255, 255, 255, 0.92)',
+        tintSoft: 'rgba(118, 118, 128, 0.12)',
+        tintDeep: 'rgba(242, 242, 247, 0.86)',
         tintAccent: withAlpha(palette.accent, 0.14),
-        buttonTint: withAlpha(palette.surface, 0.68),
-        fieldTint: withAlpha(palette.surface, 0.78),
-        edge: withAlpha(palette.ink, 0.12),
-        edgeStrong: withAlpha(palette.ink, 0.2),
-        edgeSoft: withAlpha(palette.ink, 0.08),
-        highlight: 'rgba(255, 255, 255, 0.72)',
-        highlightSoft: 'rgba(255, 255, 255, 0.35)',
-        highlightEdge: 'rgba(255, 255, 255, 0.1)',
-        shadow: 'rgba(12, 25, 18, 0.14)',
-        shadowDeep: 'rgba(12, 25, 18, 0.2)',
+        buttonTint: 'rgba(255, 255, 255, 0.82)',
+        fieldTint: 'rgba(118, 118, 128, 0.12)',
+        edge: 'rgba(60, 60, 67, 0.12)',
+        edgeStrong: 'rgba(60, 60, 67, 0.18)',
+        edgeSoft: 'rgba(60, 60, 67, 0.08)',
+        highlight: 'rgba(255, 255, 255, 0.85)',
+        highlightSoft: 'rgba(255, 255, 255, 0.45)',
+        highlightEdge: 'rgba(255, 255, 255, 0.18)',
+        shadow: 'rgba(0, 0, 0, 0.08)',
+        shadowDeep: 'rgba(0, 0, 0, 0.14)',
         innerGlow: withAlpha(palette.accent, 0.08),
-        scrim: 'rgba(7, 17, 13, 0.32)',
+        scrim: 'rgba(0, 0, 0, 0.32)',
       };
 
   return {
@@ -183,27 +174,27 @@ export function buildAppGlass(palette: AppPalette, dark: boolean): AppGlass {
       card: {
         tint: base.tint,
         edge: base.edge,
-        radius: 28,
+        radius: 16,
         highlight: true,
         shadow: cardShadow,
       },
       panel: {
         tint: base.tintStrong,
         edge: base.edgeStrong,
-        radius: 28,
+        radius: 24,
         highlight: true,
-        shadow: cardShadow,
+        shadow: floatingShadow,
       },
       row: {
         tint: base.tint,
         edge: base.edgeSoft,
-        radius: 20,
+        radius: 14,
         highlight: false,
         shadow: null,
       },
       pill: {
         tint: base.tintStrong,
-        edge: base.edge,
+        edge: base.edgeStrong,
         radius: 999,
         highlight: true,
         shadow: floatingShadow,
@@ -211,16 +202,16 @@ export function buildAppGlass(palette: AppPalette, dark: boolean): AppGlass {
       button: {
         tint: base.buttonTint,
         edge: base.edge,
-        radius: 24,
+        radius: 22,
         highlight: true,
         shadow: buttonShadow,
       },
       field: {
         tint: base.fieldTint,
-        edge: base.edge,
-        radius: 999,
-        highlight: true,
-        shadow: buttonShadow,
+        edge: base.edgeSoft,
+        radius: 12,
+        highlight: false,
+        shadow: null,
       },
     },
   };

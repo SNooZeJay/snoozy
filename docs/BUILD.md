@@ -1,5 +1,23 @@
 # Snoozy build record
 
+## v2.3 (2.3.0, versionCode 13) - released and verified
+
+- Intent: port the Glasmio interaction motion layer into Snoozy's Reanimated and Gesture Handler architecture (`src/motion/chrome.ts`, `src/motion/scrollState.ts`, `src/components/CollapsingHeader.tsx`, `src/components/SheetPanel.tsx`), adding collapsing compact title bars across tabs and stack screens, tab-bar shrink with docked mini-player travel, header drag-to-dismiss and scroll-scaled artwork on the full player, and grabber drag-to-dismiss on bottom sheets.
+- App version `2.3.0`; Android `versionCode` `13`; package `com.snoozy.app`.
+- Design and execution references: `docs/HANDOFF-v2.3-antigravity.md`.
+- Static gates: `npx tsc --noEmit` (0 errors), `npx expo lint` (0 errors), `npx jest --silent` (7 suites, 34 tests passed).
+- Native autolinking fix: removed the stale Android autolinking block in `react-native.config.js`, aligned `react-native-gesture-handler` at `3.4.0`, and cleared cached autolinking artifacts in `C:\s\android\build\generated\autolinking` so `RNGestureHandlerModule` and `RNGestureHandlerRootViewComponentDescriptor` link into the release binary.
+- Post-verification UI and accessibility fixes:
+  - Added `useSafeAreaInsets().top` padding and height adjustment to `CollapsedBar` in `src/components/CollapsingHeader.tsx` so compact headers sit below the Android status bar, and added `importantForAccessibility` / `accessibilityElementsHidden` when inactive.
+  - Placed `GestureHandlerRootView` outside the translated `Animated.View` in `src/components/SheetPanel.tsx` so drag coordinates remain stationary and `FlatList` scrolling inside `QueueSheet` works cleanly within its 78% max height.
+- Release command: sync `D:\OWN_PROJECTS\SNOOZY\src` and `app.json` to `C:\s`, delete stale `*.bundle` files, export `SNOOZY_KEYSTORE_*` from `C:\Users\Administrator\.snoozy\keystore.properties`, and run `gradlew.bat -p C:\s\android :app:assembleRelease -PreactNativeArchitectures=arm64-v8a` with JDK 17 (`C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot`).
+- Build result: JS bundle pass `Android Bundled 29788ms` (2171 modules); signed release pass `BUILD SUCCESSFUL in 1m 37s`.
+- Artifact: `artifacts/snoozy-arm64-release-v2.3.apk`
+  - Size: `54,683,139` bytes
+  - SHA-256: `BB5368BA36F225DCA3D6B6E56E2ED2FF0FCE15BE63689ED0870625C29F32622C`
+  - Manifest: `com.snoozy.app`, version `2.3.0`, versionCode `13`, SDK 24-36, native code `arm64-v8a` only.
+- Device verification on Oppo A55 (`CPH2325`, Android 13, `9PGE8SQKAM598PBY`): installed over `com.snoozy.app` with `adb install -r` (`Success`). Verified Home, Search, Library, Playlists, and Settings scroll/reverse, compact title bars on Album, Artist, Genre, and Playlist screens with working back buttons, full Player artwork scroll scale and header drag-to-dismiss (snap-back below 120 dp and dismiss above threshold), `QueueSheet` and `AddToPlaylistSheet` grabber drag-to-dismiss and list scrolling, Glasmio Apache-2.0 attribution in Settings, and zero crashes in `logcat -b crash`. Evidence stored under `artifacts/audit/v2.3/`.
+
 ## v2.2 (2.2.0, versionCode 12) — released and audited
 
 - Intent: complete the v2.1 visual reset with a live semantic theme, shared

@@ -206,6 +206,9 @@ export function SongEditSheet({ visible, onClose, trackId, original }: Props) {
     <Modal visible={visible} animationType="slide" onRequestClose={closeSheet} transparent>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
+          <View style={styles.grabberRow} pointerEvents="none">
+            <View style={[styles.grabber, { backgroundColor: palette.inkFaint }]} />
+          </View>
           <ScrollView
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
@@ -336,6 +339,16 @@ const createStyles = ({ palette, glass }: AppTheme) => ({
     borderColor: glass.edgeStrong,
     padding: spacing.lg,
     maxHeight: '90%' as const,
+  },
+  grabberRow: {
+    alignItems: 'center' as const,
+    paddingBottom: spacing.xs,
+  },
+  grabber: {
+    width: 36,
+    height: 5,
+    borderRadius: 2.5,
+    opacity: 0.55,
   },
   content: { gap: spacing.md, paddingBottom: spacing.xl },
   header: {

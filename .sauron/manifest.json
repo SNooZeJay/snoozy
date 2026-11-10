@@ -1,0 +1,105 @@
+{
+  "installedAt": "2026-11-10T17:05:22.554Z",
+  "version": "1.0.0",
+  "managedFiles": [
+    {
+      "path": "opencode.json",
+      "runtime": "opencode",
+      "backupPath": null,
+      "checksum": "sha256:3a1689520689222b217d5107e8e7becc3fbbd2aae41dc086435cd6a941b650c1",
+      "lastUpdated": "2026-11-10T17:05:22.557Z"
+    },
+    {
+      "path": ".opencode/README.md",
+      "runtime": "opencode",
+      "backupPath": null,
+      "checksum": "sha256:c0172935958a40072d429c2db2bdc7ac73e33eb32e9a9da23f02a69cd6d95f4d",
+      "lastUpdated": "2026-11-10T17:05:22.572Z"
+    },
+    {
+      "path": "AGENTS.md",
+      "runtime": "agents-md",
+      "backupPath": ".sauron\\backups\\AGENTS.md.2026-11-10T17-05-22-573Z.bak",
+      "checksum": "sha256:8c99ec29728903e2be72349e97e5ed9cce9f3775f9e7790e61704fa2963bbd7d",
+      "lastUpdated": "2026-11-10T17:05:22.576Z",
+      "merged": true
+    },
+    {
+      "path": ".agents/skills/README.md",
+      "runtime": "agents-md",
+      "backupPath": null,
+      "checksum": "sha256:d7b95d7c70f2c379e420a5803cf8be11b599ea5f3be964f9d13416d33973894e",
+      "lastUpdated": "2026-11-10T17:05:22.577Z"
+    },
+    {
+      "path": ".agents/anti-patterns.md",
+      "runtime": "agents-md",
+      "backupPath": null,
+      "checksum": "sha256:f9a8e91c557700fd46cd1d56aba47bd8517aab5365e350c2ddb5114570b5c190",
+      "lastUpdated": "2026-11-10T17:05:22.580Z"
+    },
+    {
+      "path": ".opencode/agents/aragorn.md",
+      "runtime": "install",
+      "backupPath": null,
+      "checksum": "sha256:0cd7999a9f95642edfb2b2183232eb8627270a92a142db93fa555597c815e9a5",
+      "lastUpdated": "2026-11-10T17:05:22.581Z"
+    },
+    {
+      "path": ".opencode/agents/boromir.md",
+      "runtime": "install",
+      "backupPath": null,
+      "checksum": "sha256:57c3d71a49ec4868eace4f77bead199efe6b3ce5a3a839bd52a3af39da07715b",
+      "lastUpdated": "2026-11-10T17:05:22.582Z"
+    },
+    {
+      "path": ".opencode/agents/frodo.md",
+      "runtime": "install",
+      "backupPath": null,
+      "checksum": "sha256:f81a424720e69fd71ac7b92e627c034e9f65b9ff9eede27ff3e312abf9981a6d",
+      "lastUpdated": "2026-11-10T17:05:22.584Z"
+    },
+    {
+      "path": ".opencode/agents/gandalf.md",
+      "runtime": "install",
+      "backupPath": null,
+      "checksum": "sha256:6a7243b84de135f08f23e2649b482a1e594deb27496e20b0e5f596e978f3a7bc",
+      "lastUpdated": "2026-11-10T17:05:22.586Z"
+    },
+    {
+      "path": ".opencode/agents/gimli.md",
+      "runtime": "install",
+      "backupPath": null,
+      "checksum": "sha256:2e11e18e279d1a8e73e7b527bb4a2907ea37914371b18d65c968e0430ec8beea",
+      "lastUpdated": "2026-11-10T17:05:22.588Z"
+    },
+    {
+      "path": ".opencode/agents/legolas.md",
+      "runtime": "install",
+      "backupPath": null,
+      "checksum": "sha256:418ebfd52488fa3309144ba9a9663c66c35363ad65f9b48710fac9bcbf1f26fd",
+      "lastUpdated": "2026-11-10T17:05:22.589Z"
+    },
+    {
+      "path": ".opencode/agents/merry.md",
+      "runtime": "install",
+      "backupPath": null,
+      "checksum": "sha256:d5b17109d7a6d927f97b3f643101cd764e6444c0751d1b286e4e0c8efe35c447",
+      "lastUpdated": "2026-11-10T17:05:22.591Z"
+    },
+    {
+      "path": ".opencode/agents/pippin.md",
+      "runtime": "install",
+      "backupPath": null,
+      "checksum": "sha256:6dc167c6343b0a8ae5b93ac69bec7c3ee1cf18c92311e3bbdc0a49cc8aeaaf00",
+      "lastUpdated": "2026-11-10T17:05:22.592Z"
+    },
+    {
+      "path": ".opencode/agents/samwise.md",
+      "runtime": "install",
+      "backupPath": null,
+      "checksum": "sha256:512a671b52f886e4c4d11613fc1131e721397d3cfcddc274a37b41dc31950669",
+      "lastUpdated": "2026-11-10T17:05:22.593Z"
+    }
+  ]
+}

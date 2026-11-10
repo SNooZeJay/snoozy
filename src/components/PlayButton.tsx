@@ -2,10 +2,10 @@ import Feather from '@expo/vector-icons/Feather';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   StyleSheet,
-  View,
 } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { shadows, useTheme, withAlpha } from '../theme';
+import { motion, shadows, useTheme, withAlpha } from '../theme';
 import { ScalePressable } from './ScalePressable';
 
 type PlayButtonProps = {
@@ -74,13 +74,21 @@ export function PlayButton({
         end={{ x: 1, y: 1 }}
         style={[StyleSheet.absoluteFill, { borderRadius: size / 2 }]}
       />
-      <View pointerEvents="none" style={playing ? styles.pauseIcon : styles.playIcon}>
+      {/* Keyed so the glyph cross-fades instead of snapping on toggle. */}
+      <Animated.View
+        key={playing ? 'pause' : 'play'}
+        pointerEvents="none"
+        entering={
+          reducedMotion ? undefined : FadeIn.duration(motion.durations.medium)
+        }
+        style={playing ? styles.pauseIcon : styles.playIcon}
+      >
         <Feather
           name={playing ? 'pause' : 'play'}
           size={Math.round(size * 0.4)}
           color={iconColor}
         />
-      </View>
+      </Animated.View>
     </ScalePressable>
   );
 }

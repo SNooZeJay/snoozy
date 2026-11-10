@@ -1,7 +1,8 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
+import { BlurTargetView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs, router, usePathname } from 'expo-router';
-import { useEffect, useState, type ComponentProps } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -11,32 +12,42 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { GlassSurface } from '../../components/glass/GlassSurface';
+import { AppText } from '../../components/AppText';
+import { GlassSurface, type GlassBlurTarget } from '../../components/glass/GlassSurface';
 import { MiniPlayer } from '../../components/MiniPlayer';
-import { layout, motion, useTheme } from '../../theme';
+import { collapseProgress } from '../../motion/chrome';
+import { resetTabScroll, tabScrollY } from '../../motion/scrollState';
+import { layout, motion, useTheme, withAlpha } from '../../theme';
 
-type IconName = ComponentProps<typeof Ionicons>['name'];
+type IconName = ComponentProps<typeof Feather>['name'];
 
-const TABS: { name: string; path: string; icon: IconName; label: string }[] = [
+const TABS: {
+  name: string;
+  path: string;
+  icon: IconName;
+  label: string;
+}[] = [
   { name: 'index', path: '/', icon: 'home', label: 'Home' },
   { name: 'search', path: '/search', icon: 'search', label: 'Search' },
-  { name: 'library', path: '/library', icon: 'library', label: 'Library' },
+  { name: 'library', path: '/library', icon: 'book-open', label: 'Library' },
+  { name: 'playlists', path: '/playlists', icon: 'list', label: 'Playlists' },
   { name: 'settings', path: '/settings', icon: 'settings', label: 'Settings' },
 ];
 
 const TAB_COUNT = TABS.length;
-const PILL_WIDTH = 52;
-const PILL_HEIGHT = 46;
+const PILL_WIDTH = 56;
+const PILL_HEIGHT = 50;
 
 /**
- * Floating pill bar: four icon-only tabs. The active tab sits in a mint
- * rounded-square that slides between slots on the v1.2 spring. Reduced motion
- * snaps instead of springing.
+ * Cupertino Liquid Glass floating tab bar:
+ * - Translucent frosted glass surface with 0.5pt specular border
+ * - Spring-animated glass selection capsule
+ * - SF-style icon + micro caption hierarchy with quick opacity compression
  */
-function FloatingPillBar() {
+function FloatingPillBar({ blurTarget }: { blurTarget: GlassBlurTarget }) {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const { palette, reducedMotion } = useTheme();
+  const { palette, glass, reducedMotion } = useTheme();
   const activeIndex = Math.max(
     TABS.findIndex((tab) => tab.path === pathname),
     0,
@@ -55,14 +66,35 @@ function FloatingPillBar() {
       : withSpring(activeIndex, motion.springs.standard);
   }, [activeIndex, position, reducedMotion]);
 
-  const pillStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX:
-          position.value * unit.value + Math.max((unit.value - PILL_WIDTH) / 2, 0),
-      },
-    ],
+  useEffect(() => {
+    resetTabScroll();
+  }, [pathname]);
+
+  const barStyle = useAnimatedStyle(() => ({
+    height: layout.tabBarHeight - 10 * collapseProgress(tabScrollY.value),
   }));
+
+  const labelStyle = useAnimatedStyle(() => {
+    const progress = collapseProgress(tabScrollY.value);
+    return {
+      opacity: 1 - progress,
+      height: 12 * (1 - progress),
+      transform: [{ translateY: -1.5 * progress }],
+    };
+  });
+
+  const pillStyle = useAnimatedStyle(() => {
+    const progress = collapseProgress(tabScrollY.value);
+    return {
+      top: (layout.tabBarHeight - 10 * progress - PILL_HEIGHT) / 2,
+      transform: [
+        {
+          translateX:
+            position.value * unit.value + Math.max((unit.value - PILL_WIDTH) / 2, 0),
+        },
+      ],
+    };
+  });
 
   return (
     <View
@@ -70,14 +102,29 @@ function FloatingPillBar() {
       pointerEvents="box-none"
       onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
     >
-      <GlassSurface variant="pill" style={[styles.bar, { borderColor: palette.borderStrong }]}>
-        <Animated.View style={[styles.pill, { backgroundColor: palette.accent }, pillStyle]}>
+      <Animated.View style={[styles.barShell, barStyle]}>
+        <GlassSurface
+          variant="pill"
+          blurTarget={blurTarget}
+          blurIntensity={58}
+          style={[styles.bar, { borderColor: glass.edgeStrong }]}
+        >
+        <Animated.View
+          style={[
+            styles.pill,
+            {
+              backgroundColor: withAlpha(palette.accent, 0.16),
+              borderColor: withAlpha(palette.accent, 0.28),
+            },
+            pillStyle,
+          ]}
+        >
           <LinearGradient
             pointerEvents="none"
-            colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.02)']}
+            colors={['rgba(255,255,255,0.20)', 'rgba(255,255,255,0.02)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={[StyleSheet.absoluteFill, { borderRadius: 17 }]}
+            style={[StyleSheet.absoluteFill, { borderRadius: PILL_HEIGHT / 2 }]}
           />
         </Animated.View>
         {TABS.map((tab, index) => {
@@ -92,48 +139,67 @@ function FloatingPillBar() {
                 if (focused) return;
                 router.navigate(tab.path as Parameters<typeof router.navigate>[0]);
               }}
-              style={styles.tab}
+              style={({ pressed }) => [
+                styles.tab,
+                pressed && { opacity: 0.56 },
+              ]}
             >
-              <Ionicons
+              <Feather
                 name={tab.icon}
                 size={24}
-                color={focused ? palette.accentInk : palette.inkMuted}
+                color={focused ? palette.accent : palette.inkMuted}
               />
+              <Animated.View style={[styles.tabLabelWrap, labelStyle]}>
+                <AppText
+                  variant="micro"
+                  color={focused ? palette.accent : palette.inkMuted}
+                  style={styles.tabLabel}
+                >
+                  {tab.label}
+                </AppText>
+              </Animated.View>
             </Pressable>
           );
         })}
-      </GlassSurface>
+        </GlassSurface>
+      </Animated.View>
     </View>
   );
 }
 
 export default function TabsLayout() {
-  const { palette } = useTheme();
+  const { palette, reducedMotion } = useTheme();
+  const blurTarget = useRef<ComponentRef<typeof View> | null>(null);
 
   return (
     <View style={[styles.root, { backgroundColor: palette.background }]}>
-      <Tabs
-        screenOptions={{
-          headerShown: false,
-          tabBarStyle: { display: 'none' },
-          animation: 'none',
-          lazy: false,
-          sceneStyle: { backgroundColor: palette.background },
-        }}
-      >
-        <Tabs.Screen name="index" options={{ title: 'Home' }} />
-        <Tabs.Screen name="search" options={{ title: 'Search' }} />
-        <Tabs.Screen name="library" options={{ title: 'Library' }} />
-        <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
-      </Tabs>
-      <MiniPlayer />
-      <FloatingPillBar />
+      <BlurTargetView ref={blurTarget} style={styles.scene}>
+        <Tabs
+          screenOptions={{
+            headerShown: false,
+            tabBarStyle: { display: 'none' },
+            // Scenes cross-fade; the pill bar and mini player stay put above them.
+            animation: reducedMotion ? 'none' : 'fade',
+            lazy: false,
+            sceneStyle: { backgroundColor: palette.background },
+          }}
+        >
+          <Tabs.Screen name="index" options={{ title: 'Home' }} />
+          <Tabs.Screen name="search" options={{ title: 'Search' }} />
+          <Tabs.Screen name="library" options={{ title: 'Library' }} />
+          <Tabs.Screen name="playlists" options={{ title: 'Playlists' }} />
+          <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+        </Tabs>
+      </BlurTargetView>
+      <MiniPlayer blurTarget={blurTarget} />
+      <FloatingPillBar blurTarget={blurTarget} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  scene: { flex: 1 },
   shell: {
     position: 'absolute',
     left: layout.screenPadding,
@@ -141,9 +207,14 @@ const styles = StyleSheet.create({
     zIndex: 20,
     elevation: 32,
   },
-  bar: {
+  barShell: {
     height: layout.tabBarHeight,
     borderRadius: layout.tabBarHeight / 2,
+  },
+  bar: {
+    flex: 1,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -151,8 +222,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: PILL_WIDTH,
     height: PILL_HEIGHT,
-    top: (layout.tabBarHeight - PILL_HEIGHT) / 2,
-    borderRadius: 17,
+    borderRadius: PILL_HEIGHT / 2,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   tab: {
@@ -160,5 +231,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
+    gap: 2,
+  },
+  tabLabelWrap: {
+    overflow: 'hidden',
+    justifyContent: 'flex-start',
+  },
+  tabLabel: {
+    fontSize: 10,
+    lineHeight: 12,
   },
 });

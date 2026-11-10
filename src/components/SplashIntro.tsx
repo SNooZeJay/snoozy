@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { Image, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -8,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { motion, useTheme } from '../theme';
+import { SnoozyBrandIcon } from './SnoozyBrandIcon';
 
 type SplashIntroProps = {
   onDone: () => void;
@@ -15,38 +17,49 @@ type SplashIntroProps = {
 
 /**
  * Bridges the native splash into the first app frame. The native splash keeps
- * showing the S while fonts load; this overlay renders the same S at the same
- * 180px size, then fades away so the home screen is revealed without a blank
- * frame or a second, differently-sized logo.
+ * showing the mark while fonts load; this overlay renders the same mark at the
+ * same 152px size, settles it (a small rise, so the handoff has motion instead
+ * of a still image), then fades away so the home screen is revealed without a
+ * blank frame or a second, differently-sized logo.
  */
 export function SplashIntro({ onDone }: SplashIntroProps) {
   const { palette, reducedMotion } = useTheme();
   const opacity = useSharedValue(1);
+  const settle = useSharedValue(reducedMotion ? 0 : 1);
 
   useEffect(() => {
     const delay = reducedMotion ? 220 : motion.durations.splash;
     const fade = reducedMotion ? 140 : 320;
+    if (!reducedMotion) {
+      settle.value = withTiming(0, {
+        duration: motion.durations.extraLong,
+        easing: Easing.out(Easing.cubic),
+      });
+    }
     const timer = setTimeout(() => {
       opacity.value = withTiming(0, { duration: fade }, (finished) => {
         if (finished) runOnJS(onDone)();
       });
     }, delay);
     return () => clearTimeout(timer);
-  }, [onDone, opacity, reducedMotion]);
+  }, [onDone, opacity, reducedMotion, settle]);
 
   const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const markStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: settle.value * 12 },
+      { scale: 1 + settle.value * 0.04 },
+    ],
+  }));
 
   return (
     <Animated.View
       pointerEvents="auto"
       style={[styles.overlay, { backgroundColor: palette.background }, fadeStyle]}
     >
-      <Image
-        source={require('../../assets/splash-icon.png')}
-        style={styles.logo}
-        resizeMode="contain"
-        accessibilityIgnoresInvertColors
-      />
+      <Animated.View style={[styles.logo, markStyle]}>
+        <SnoozyBrandIcon size={152} />
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -64,7 +77,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logo: {
-    width: 180,
-    height: 180,
+    width: 152,
+    height: 152,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

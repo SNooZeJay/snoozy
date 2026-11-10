@@ -1,7 +1,9 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import {
+  Platform,
   StyleSheet,
+  View,
   type PressableProps,
   type StyleProp,
   type ViewStyle,
@@ -22,8 +24,9 @@ type GlassButtonProps = Omit<PressableProps, 'children'> & {
 };
 
 /**
- * Pressable glass control. The gradient is a specular sweep, not a live blur.
- * Keep this for controls; use GlassSurface for non-interactive cards.
+ * Glasmio-inspired interactive Liquid Glass button:
+ * - Specular refraction sweep + 0.5pt hairline fresnel rim
+ * - Quick Cupertino opacity + spring scale compression on press
  */
 export function GlassButton({
   variant = 'button',
@@ -58,10 +61,20 @@ export function GlassButton({
       <LinearGradient
         pointerEvents="none"
         colors={[glass.highlight, glass.highlightSoft, 'transparent', glass.highlightEdge]}
-        locations={[0, 0.34, 0.74, 1]}
+        locations={[0, 0.32, 0.72, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[StyleSheet.absoluteFill, { borderRadius: resolvedRadius }]}
+      />
+      <View
+        pointerEvents="none"
+        style={[
+          styles.fresnelRim,
+          {
+            borderRadius: Math.max(0, resolvedRadius - 0.5),
+            borderColor: glass.innerGlow,
+          },
+        ]}
       />
       {glowColor ? (
         <LinearGradient
@@ -79,9 +92,18 @@ export function GlassButton({
 
 const styles = StyleSheet.create({
   base: {
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+    ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as const } : null),
+  },
+  fresnelRim: {
+    position: 'absolute',
+    top: 0.5,
+    right: 0.5,
+    bottom: 0.5,
+    left: 0.5,
+    borderWidth: StyleSheet.hairlineWidth,
   },
 });

@@ -39,3 +39,71 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+<!-- Repository-specific note: this project has no `npm run build` script. Use the Expo commands above; the generic Build line in the Sauron block below does not apply. -->
+
+<!-- sauron:start (managed by Sauron; edit outside this block) -->
+<!--
+  AGENTS.md: shared agent instructions standard (https://agents.md).
+  Read by Codex, Cursor, GitHub Copilot, Windsurf, Cline, OpenCode, Kiro, Zed, CodeBuddy, Pi, and omp.
+-->
+
+# AGENTS.md
+
+> Governed by Sauron v1.0.0. Shared instructions for every AGENTS.md-aware coding agent.
+
+## Project Overview
+
+Production codebase governed by Sauron Universal Agent Harness.
+
+## Essential Commands
+
+- Build: `npm run build`
+- Test All: `npm test`
+- Typecheck: `npx tsc --noEmit`
+
+## Engineering Rules
+
+- Present tense, active voice, English language exclusively.
+- Zero emojis across all code files, comments, and commit messages.
+- Prohibit Latin abbreviations: use 'for example', 'that is', 'and so forth'.
+- Prohibit em dashes: use colons, parentheses, or separate sentences.
+- Strict Red-Green-Refactor TDD required before touching production code.
+- Zero untyped boundary parameters: enforce runtime validation (Zod, Pydantic).
+- Zero hardcoded secrets, connection strings, or unredacted logging output.
+- Token Conservation & Caveman Mode: off by default. Enable with '/caveman lite', '/caveman full', or '/caveman ultra'.
+
+## Token Optimization & Caveman Mode
+
+- Default: OFF. Reply in normal style until the user enables it.
+- Never compress code blocks, diffs, commands, file paths, URLs, error messages, or quoted text. Copy them verbatim.
+- Never drop negations (`not`, `never`, `no`). Compression must not flip meaning.
+- Use normal prose for security warnings and confirmations of irreversible actions.
+- Switch tiers on request: `/caveman lite`, `/caveman full`, `/caveman ultra`. Disable with `/caveman off`.
+
+## Fellowship Sub-Agents
+
+- **Elessar** (`/aragorn`): Principal System Architect
+- **Shield of Gondor** (`/boromir`): Security Auditor and Shield
+- **Ringbearer** (`/frodo`): Core Task Executor
+- **Mithrandir** (`/gandalf`): Master Planner and Strategy Guide
+- **Lockbearer** (`/gimli`): Refactorer and AST Dead Code Slasher
+- **Greenleaf** (`/legolas`): Precision Linter and Syntax Bug Hunter
+- **Brandir** (`/merry`): QA and TDD Specialist
+- **Took** (`/pippin`): Edge Case and Chaos Prober
+- **The Brave** (`/samwise`): Git Commits and State Keeper
+
+## Anti-Pattern Guardrails
+
+- AP-1 (Vague task verb) : Always decompose requests into concrete atomic tasks.
+- AP-6 (Monolithic prompt) : Never combine architecture, code, and test in one step.
+- AP-14 (Leaking secrets) : Zero credentials in version control.
+- AP-17 (Skipping tests) : Code without a prior failing test is unverified code.
+- AP-18 (Non-atomic commit) : One logical concern per commit.
+- AP-52 (Fake fix) : Masking errors with type casts or empty catch blocks is prohibited.
+- Full catalog: see `.agents/anti-patterns.md` before planning non-trivial work.
+
+## Skills
+
+- Shared Agent Skills live in `.agents/skills/<name>/SKILL.md`. See `.agents/skills/README.md`.
+<!-- sauron:end -->

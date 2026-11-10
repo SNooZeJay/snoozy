@@ -3,24 +3,24 @@
     "name": "Snoozy",
     "slug": "snoozy",
     "scheme": "snoozy",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "backgroundColor": "#07110D",
+    "backgroundColor": "#080E09",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false
     },
     "android": {
       "package": "com.snoozy.app",
-      "versionCode": 12,
+      "versionCode": 13,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#07110D",
+        "backgroundColor": "#080E09",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -35,9 +35,13 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#07110D",
+          "backgroundColor": "#F2F2F7",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 180,
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#000000"
+          },
+          "imageWidth": 152,
           "resizeMode": "contain"
         }
       ],

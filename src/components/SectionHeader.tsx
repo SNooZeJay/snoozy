@@ -27,7 +27,7 @@ export function SectionHeader({
 
   return (
     <View style={styles.row}>
-      <AppText variant="overline" color={palette.inkFaint} style={styles.label}>
+      <AppText variant="heading" color={palette.ink} style={styles.label}>
         {label}
       </AppText>
       {actionLabel && onAction ? (

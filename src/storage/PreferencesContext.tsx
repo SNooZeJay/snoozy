@@ -17,9 +17,6 @@ import {
 
 type PreferencesContextValue = {
   preferences: Preferences;
-  isFavorite: (soundId: string) => boolean;
-  toggleFavorite: (soundId: string) => boolean;
-  rememberSound: (soundId: string) => void;
   setHaptics: (enabled: boolean) => void;
   setNotificationsAsked: (asked: boolean) => void;
   resetPreferences: () => void;
@@ -46,39 +43,6 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const isFavorite = useCallback(
-    (soundId: string) => preferences.favoriteIds.includes(soundId),
-    [preferences.favoriteIds],
-  );
-
-  const toggleFavorite = useCallback(
-    (soundId: string) => {
-      const wasFavorite = preferences.favoriteIds.includes(soundId);
-      update((current) => {
-        const has = current.favoriteIds.includes(soundId);
-        return {
-          ...current,
-          favoriteIds: has
-            ? current.favoriteIds.filter((id) => id !== soundId)
-            : [soundId, ...current.favoriteIds],
-        };
-      });
-      return !wasFavorite;
-    },
-    [preferences.favoriteIds, update],
-  );
-
-  const rememberSound = useCallback(
-    (soundId: string) => {
-      update((current) => ({
-        ...current,
-        lastSoundId: soundId,
-        recentIds: [soundId, ...current.recentIds.filter((id) => id !== soundId)].slice(0, 5),
-      }));
-    },
-    [update],
-  );
-
   const setHaptics = useCallback(
     (enabled: boolean) => update((current) => ({ ...current, haptics: enabled })),
     [update],
@@ -92,9 +56,6 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const resetPreferences = useCallback(() => {
     clearPreferences();
     const next: Preferences = {
-      favoriteIds: [],
-      recentIds: [],
-      lastSoundId: 'rain-on-fir',
       haptics: true,
       notificationsAsked: false,
     };
@@ -127,9 +88,6 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const value = useMemo<PreferencesContextValue>(
     () => ({
       preferences,
-      isFavorite,
-      toggleFavorite,
-      rememberSound,
       setHaptics,
       setNotificationsAsked,
       resetPreferences,
@@ -137,9 +95,6 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     }),
     [
       preferences,
-      isFavorite,
-      toggleFavorite,
-      rememberSound,
       setHaptics,
       setNotificationsAsked,
       resetPreferences,

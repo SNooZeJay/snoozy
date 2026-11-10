@@ -21,28 +21,43 @@ type ScalePressableProps = Omit<PressableProps, 'children' | 'style'> & {
 };
 
 /**
- * Pressable with a short native-driver scale. Kept as a class so the
- * imperative Animated value stays outside the React Compiler's hook rules.
+ * Cupertino pressable with quick opacity + scale compression and no Android
+ * ripple. Kept as a class so the imperative Animated values stay outside the
+ * React Compiler's hook rules.
  */
 export class ScalePressable extends Component<ScalePressableProps> {
   private scale = new Animated.Value(1);
+  private opacity = new Animated.Value(1);
 
   private handlePressIn = (event: GestureResponderEvent) => {
     const { disabled, reducedMotion, scaleTo = 0.96 } = this.props;
-    if (!disabled && !reducedMotion) {
-      Animated.timing(this.scale, {
-        toValue: scaleTo,
-        duration: motion.durations.short,
+    if (!disabled) {
+      Animated.timing(this.opacity, {
+        toValue: 0.68,
+        duration: 85,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }).start();
+      if (!reducedMotion) {
+        Animated.timing(this.scale, {
+          toValue: scaleTo,
+          duration: motion.durations.short,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }).start();
+      }
     }
     this.props.onPressIn?.(event);
   };
 
   private handlePressOut = (event: GestureResponderEvent) => {
-    const { reducedMotion } = this.props;
-    if (!reducedMotion) {
+    Animated.timing(this.opacity, {
+      toValue: 1,
+      duration: 140,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+    if (!this.props.reducedMotion) {
       Animated.spring(this.scale, {
         toValue: 1,
         useNativeDriver: true,
@@ -54,6 +69,7 @@ export class ScalePressable extends Component<ScalePressableProps> {
 
   componentWillUnmount() {
     this.scale.stopAnimation();
+    this.opacity.stopAnimation();
   }
 
   render() {
@@ -70,7 +86,13 @@ export class ScalePressable extends Component<ScalePressableProps> {
         {...rest}
         onPressIn={this.handlePressIn}
         onPressOut={this.handlePressOut}
-        style={[style, { transform: [{ scale: this.scale }] }]}
+        style={[
+          style,
+          {
+            opacity: this.opacity,
+            transform: [{ scale: this.scale }],
+          },
+        ]}
       >
         {children}
       </AnimatedPressable>

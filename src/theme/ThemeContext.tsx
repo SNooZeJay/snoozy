@@ -56,7 +56,7 @@ const KEYS = {
   motionMode: 'motionMode',
 } as const;
 
-export const PRESET_SWATCHES = ['#B8F0B0', '#F2B8E6', '#B8D4F2', '#F2D4B8', '#D4B8F2'] as const;
+export const PRESET_SWATCHES = ['#10B981', '#FF375F', '#0A84FF', '#BF5AF2', '#FF9F0A'] as const;
 
 
 function readMode(): ThemeMode {

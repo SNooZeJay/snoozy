@@ -2,6 +2,7 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from './AppText';
+import { GlassSurface } from './glass/GlassSurface';
 import { SheetPanel } from './SheetPanel';
 import {
   radii,
@@ -27,6 +28,12 @@ type AppDialogProps = {
   inline?: boolean;
 };
 
+/**
+ * Cupertino Action Sheet (`UIAlertController` style):
+ * - Floating translucent 16pt squircle group for title, message, and primary/destructive actions
+ * - Separate floating 16pt squircle pill button at the bottom for Cancel
+ * - 0.5pt hairline separators and quick opacity compression on tap
+ */
 export function AppDialog({
   visible,
   title,
@@ -41,6 +48,16 @@ export function AppDialog({
 
   if (!visible) return null;
 
+  const isCancel = (action: AppDialogAction, index: number) =>
+    index === actions.length - 1 &&
+    action.tone !== 'danger' &&
+    action.label.toLowerCase() === 'cancel';
+
+  const cancelAction = actions.find((a, idx) => isCancel(a, idx)) ?? null;
+  const primaryActions = cancelAction
+    ? actions.slice(0, actions.length - 1)
+    : actions;
+
   const content = (
     <View
       style={inline ? styles.inlineBackdrop : styles.backdrop}
@@ -53,47 +70,72 @@ export function AppDialog({
         style={StyleSheet.absoluteFill}
       />
       <SheetPanel
+        onDismiss={onClose}
+        showGrabber={false}
         style={[
-          styles.panel,
-          { paddingBottom: Math.max(insets.bottom, spacing.huge) + spacing.md },
+          styles.sheetWrap,
+          { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.sm },
         ]}
       >
-        <View style={styles.copy}>
-          <AppText variant="heading" color={palette.ink} numberOfLines={2}>
-            {title}
-          </AppText>
-          {message ? (
-            <AppText variant="body" color={palette.inkMuted}>
-              {message}
+        <GlassSurface variant="panel" radius={radii.lg} style={styles.groupCard}>
+          <View style={styles.copy}>
+            <AppText variant="label" color={palette.inkMuted} style={styles.centeredText} numberOfLines={2}>
+              {title}
             </AppText>
-          ) : null}
-        </View>
-        <View style={styles.actions}>
-          {actions.map((action, index) => (
+            {message ? (
+              <AppText variant="micro" color={palette.inkFaint} style={styles.centeredText}>
+                {message}
+              </AppText>
+            ) : null}
+          </View>
+          <View style={styles.actions}>
+            {primaryActions.map((action, index) => (
+              <Pressable
+                key={`${action.label}-${index}`}
+                accessibilityRole="button"
+                accessibilityLabel={action.label}
+                onPress={() => {
+                  onClose();
+                  action.onPress();
+                }}
+                style={({ pressed }) => [
+                  styles.action,
+                  index > 0 && styles.actionDivider,
+                  pressed && styles.actionPressed,
+                ]}
+              >
+                <AppText
+                  variant="body"
+                  color={action.tone === 'danger' ? palette.danger : palette.accent}
+                  style={styles.actionLabel}
+                >
+                  {action.label}
+                </AppText>
+              </Pressable>
+            ))}
+          </View>
+        </GlassSurface>
+
+        {cancelAction ? (
+          <GlassSurface variant="panel" radius={radii.lg} style={styles.cancelCard}>
             <Pressable
-              key={`${action.label}-${index}`}
               accessibilityRole="button"
-              accessibilityLabel={action.label}
+              accessibilityLabel={cancelAction.label}
               onPress={() => {
                 onClose();
-                action.onPress();
+                cancelAction.onPress();
               }}
               style={({ pressed }) => [
                 styles.action,
-                index > 0 && styles.actionDivider,
-                action.tone === 'danger' && styles.dangerAction,
                 pressed && styles.actionPressed,
               ]}
             >
-              <AppText
-                variant="label"
-                color={action.tone === 'danger' ? palette.danger : palette.accent}
-              >
-                {action.label}
+              <AppText variant="bodyBold" color={palette.accent} style={styles.actionLabel}>
+                {cancelAction.label}
               </AppText>
             </Pressable>
-          ))}
-        </View>
+          </GlassSurface>
+        ) : null}
       </SheetPanel>
     </View>
   );
@@ -130,37 +172,48 @@ const createStyles = ({ palette, glass }: AppTheme) => ({
     justifyContent: 'flex-end' as const,
     zIndex: 1000,
   },
-  panel: {
-    backgroundColor: palette.surface,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
+  sheetWrap: {
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+  },
+  groupCard: {
+    backgroundColor: glass.tintStrong,
     borderColor: glass.edgeStrong,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    gap: spacing.md,
+    overflow: 'hidden' as const,
+  },
+  cancelCard: {
+    backgroundColor: glass.tintStrong,
+    borderColor: glass.edgeStrong,
+    overflow: 'hidden' as const,
   },
   copy: {
-    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    gap: 4,
+    alignItems: 'center' as const,
+  },
+  centeredText: {
+    textAlign: 'center' as const,
   },
   actions: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: glass.edgeSoft,
-    marginHorizontal: -spacing.lg,
+    borderTopColor: glass.edge,
   },
   action: {
-    minHeight: 52,
+    minHeight: 54,
+    alignItems: 'center' as const,
     justifyContent: 'center' as const,
     paddingHorizontal: spacing.lg,
   },
   actionDivider: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: glass.edgeSoft,
+    borderTopColor: glass.edge,
   },
   actionPressed: {
-    opacity: 0.68,
+    opacity: 0.56,
+    backgroundColor: glass.tintSoft,
   },
-  dangerAction: {
-    backgroundColor: palette.dangerSoft,
+  actionLabel: {
+    textAlign: 'center' as const,
   },
 });

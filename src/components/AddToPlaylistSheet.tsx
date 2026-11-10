@@ -84,6 +84,7 @@ export function AddToPlaylistSheet({
           style={StyleSheet.absoluteFill}
         />
         <SheetPanel
+          onDismiss={close}
           style={[
             styles.panel,
             { paddingBottom: insets.bottom + spacing.md },

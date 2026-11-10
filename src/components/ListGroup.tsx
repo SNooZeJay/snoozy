@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
 import {
   StyleSheet,
+  View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 
-import { radii, spacing } from '../theme';
-import { GlassSurface } from './glass/GlassSurface';
+import { useTheme } from '../theme';
 
 type ListGroupProps = {
   children: ReactNode;
@@ -14,21 +14,30 @@ type ListGroupProps = {
 };
 
 /**
- * A single clipped glass container for a related run of rows. Keeping the
- * radius and padding here prevents each screen from inventing its own card.
+ * Glasmio inset grouped card: flat #1C1C1E surface, 26pt continuous corners,
+ * no glossy gradient. Glass is reserved for floating chrome.
  */
 export function ListGroup({ children, style }: ListGroupProps) {
+  const { palette } = useTheme();
+
   return (
-    <GlassSurface variant="card" radius={radii.lg} style={[styles.group, style]}>
+    <View
+      style={[
+        styles.group,
+        { backgroundColor: palette.surface, borderColor: palette.border },
+        style,
+      ]}
+    >
       {children}
-    </GlassSurface>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   group: {
-    marginHorizontal: spacing.screen,
-    padding: spacing.xs,
+    marginHorizontal: 16,
+    borderRadius: 26,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
 });

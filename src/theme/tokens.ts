@@ -1,39 +1,42 @@
 /**
- * Snoozy visual system.
+ * Snoozy Cupertino & Liquid Glass visual system.
  *
- * A dark, warm room rather than a black screen: pine ground, milk type,
- * pale lichen for action, and ember only for time. Values are intentionally
- * low-chroma; the artwork supplies the color.
+ * Engineered around Apple's Human Interface Guidelines (HIG):
+ * - Deep OLED/system grouped backgrounds (#000000 / #1C1C1E in dark, #F2F2F7 / #FFFFFF in light)
+ * - 16pt continuous squircle inset grouped cards with 0.5pt hairline rims
+ * - Bold SF-Pro-inspired Large Title hierarchy and clean secondary labels
+ * - iOS system green (#30D158) toggles and critically-damped Cupertino springs
  */
 
 export const colors = {
-  background: '#07110D',
-  backgroundDeep: '#040B08',
-  backgroundRaised: '#0B1A12',
-  surface: '#0D1B14',
-  surfaceRaised: '#13261C',
-  surfaceMuted: '#1A2E22',
-  border: 'rgba(232, 242, 224, 0.10)',
-  borderStrong: 'rgba(232, 242, 224, 0.18)',
-  ink: '#F3F0E4',
-  inkMuted: '#B8C6BA',
-  inkFaint: '#889A8D',
-  accent: '#D8F2C6',
-  accentStrong: '#A9DCA8',
-  accentInk: '#143019',
-  ember: '#EAC77A',
-  emberSoft: 'rgba(234, 199, 122, 0.13)',
-  danger: '#F0A69C',
-  dangerSoft: 'rgba(240, 166, 156, 0.13)',
-  pass: '#9EE0B5',
-  fail: '#F0A69C',
-  pending: '#EAC77A',
-  imageTint: '#B7A9DC',
-  scrim: 'rgba(4, 11, 8, 0.64)',
+  background: '#000000',
+  backgroundDeep: '#000000',
+  backgroundRaised: '#0F1015',
+  surface: '#1C1C1E',
+  surfaceRaised: '#2C2C2E',
+  surfaceMuted: '#3A3A3C',
+  border: 'rgba(255, 255, 255, 0.12)',
+  borderStrong: 'rgba(255, 255, 255, 0.22)',
+  ink: '#FFFFFF',
+  inkMuted: 'rgba(235, 235, 245, 0.62)',
+  inkFaint: 'rgba(235, 235, 245, 0.38)',
+  accent: '#10B981',
+  accentStrong: '#059669',
+  accentInk: '#ECFDF5',
+  iosGreen: '#30D158',
+  ember: '#FF9F0A',
+  emberSoft: 'rgba(255, 159, 10, 0.16)',
+  danger: '#FF453A',
+  dangerSoft: 'rgba(255, 69, 58, 0.16)',
+  pass: '#30D158',
+  fail: '#FF453A',
+  pending: '#FF9F0A',
+  imageTint: '#5E5CE6',
+  scrim: 'rgba(0, 0, 0, 0.52)',
   white: '#FFFFFF',
   black: '#000000',
   // Kept for the native diagnostics route, which documents the release gate.
-  surfaceOld: '#131A16',
+  surfaceOld: '#1C1C1E',
 } as const;
 
 export const fonts = {
@@ -53,64 +56,64 @@ export const spacing = {
   xxl: 24,
   xxxl: 32,
   huge: 48,
-  screen: 20,
+  screen: 16,
 } as const;
 
 export const radii = {
-  sm: 10,
-  md: 14,
-  lg: 20,
-  xl: 28,
-  xxl: 36,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 22,
+  xxl: 32,
   pill: 999,
 } as const;
 
 export const type = {
   display: {
     fontFamily: fonts.display,
-    fontSize: 43,
-    lineHeight: 45,
-    letterSpacing: -1.4,
+    fontSize: 40,
+    lineHeight: 44,
+    letterSpacing: -1.1,
   },
   title: {
     fontFamily: fonts.display,
-    fontSize: 30,
-    lineHeight: 33,
+    fontSize: 34,
+    lineHeight: 38,
     letterSpacing: -0.8,
   },
   heading: {
     fontFamily: fonts.display,
-    fontSize: 22,
-    lineHeight: 26,
-    letterSpacing: -0.35,
+    fontSize: 20,
+    lineHeight: 25,
+    letterSpacing: -0.4,
   },
   body: {
     fontFamily: fonts.body,
     fontSize: 16,
-    lineHeight: 24,
+    lineHeight: 22,
   },
   bodyBold: {
     fontFamily: fonts.bodyBold,
     fontSize: 16,
-    lineHeight: 24,
+    lineHeight: 22,
   },
   label: {
     fontFamily: fonts.bodyBold,
-    fontSize: 13,
-    lineHeight: 18,
-    letterSpacing: 0.1,
+    fontSize: 15,
+    lineHeight: 20,
+    letterSpacing: -0.15,
   },
   micro: {
     fontFamily: fonts.body,
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.1,
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: -0.05,
   },
   overline: {
     fontFamily: fonts.bodyBold,
-    fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: 1.2,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.6,
     textTransform: 'uppercase' as const,
   },
   // Legacy diagnostics aliases.
@@ -124,55 +127,55 @@ export const type = {
 export const shadows = {
   card: {
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.32,
-    shadowRadius: 24,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.24,
+    shadowRadius: 18,
+    elevation: 6,
   },
   floating: {
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.36,
+    shadowRadius: 22,
     elevation: 14,
   },
 } as const;
 
 export const layout = {
-  screenPadding: 20,
-  cardRadius: 28,
-  tabBarSpace: 216, // content bottom inset: floating bar (62) + gap (12) + mini (60) + gap + safe area
+  screenPadding: 16,
+  cardRadius: 16,
+  tabBarSpace: 216, // content bottom inset: floating bar (64) + gap (10) + mini (60) + gap + safe area
   tabBarHeight: 62,
-  tabBarInset: 12,
-  pillGap: 12,
+  tabBarInset: 10,
+  pillGap: 10,
 } as const;
 
 export const motion = {
   durations: {
     instant: 0,
-    short: 120,
+    short: 110,
     medium: 240,
-    long: 400,
-    extraLong: 700,
+    long: 360,
+    extraLong: 600,
     screen: 280,
-    splash: 450,
+    splash: 420,
   },
   springs: {
-    gentle: { damping: 20, stiffness: 180, mass: 1 },
-    standard: { damping: 18, stiffness: 260, mass: 1 },
-    bouncy: { damping: 12, stiffness: 320, mass: 1 },
-    snappy: { damping: 22, stiffness: 400, mass: 0.8 },
+    gentle: { damping: 26, stiffness: 220, mass: 0.95 },
+    standard: { damping: 26, stiffness: 320, mass: 0.9 },
+    bouncy: { damping: 18, stiffness: 340, mass: 0.85 },
+    snappy: { damping: 28, stiffness: 440, mass: 0.78 },
   },
   easings: {
-    standard: [0.2, 0, 0, 1] as const,
-    decelerate: [0, 0, 0, 1] as const,
-    accelerate: [0.3, 0, 1, 1] as const,
+    standard: [0.25, 0.1, 0.25, 1] as const,
+    decelerate: [0, 0, 0.2, 1] as const,
+    accelerate: [0.4, 0, 1, 1] as const,
   },
   stagger: {
-    step: 38,
+    step: 28,
     maxItems: 8,
   },
-  reduced: { damping: 40, stiffness: 600, mass: 1 },
+  reduced: { damping: 45, stiffness: 600, mass: 1 },
 } as const;
 
 export const shape = {
@@ -181,8 +184,8 @@ export const shape = {
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 28,
-  xxl: 36,
+  xl: 22,
+  xxl: 32,
   full: 999,
-  cover: 24,
+  cover: 18,
 } as const;

@@ -1,8 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ScrollView, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated from 'react-native-reanimated';
 
+import { AppText } from '../components/AppText';
+import { CoverArt } from '../components/Artwork';
+import { CollapsedBar, useCollapsingScroll } from '../components/CollapsingHeader';
 import { EmptyState } from '../components/EmptyState';
 import { IconButton } from '../components/IconButton';
 import { ListGroup } from '../components/ListGroup';
@@ -11,10 +15,13 @@ import { MiniPlayer } from '../components/MiniPlayer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { Thumb } from '../components/Thumb';
+import { albumKeyFor } from '../storage/albumGrouping';
 import { useMusicLibrary } from '../storage/MusicLibraryContext';
 import { usePlayer } from '../playback/PlayerContext';
+import { randomStartIndex } from '../playback/controls';
 import { usePreferences } from '../storage/PreferencesContext';
 import {
+  layout,
   radii,
   spacing,
   useTheme,
@@ -30,13 +37,26 @@ export default function ArtistScreen() {
   const { tapFeedback } = usePreferences();
   const { palette } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const { scrollY, onScroll } = useCollapsingScroll(false);
 
   const tracks = library.displayTracks.filter((track) => track.artist === artistName);
-  const albums = [...new Set(tracks.map((track) => track.album))];
+  const albumIds = new Set(tracks.map(albumKeyFor));
+  const albums = library.albums.filter((album) => albumIds.has(album.id));
+
+  const playAll = (shuffled: boolean) => {
+    if (tracks.length === 0) return;
+    const start = shuffled ? tracks[randomStartIndex(tracks.length)] : tracks[0];
+    tapFeedback('selection');
+    void player.playTrack(start, tracks, { shuffle: shuffled });
+  };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <Animated.ScrollView
+        contentContainerStyle={styles.content}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+      >
         <ScreenHeader
           leading={(
             <IconButton
@@ -62,22 +82,40 @@ export default function ArtistScreen() {
           />
         ) : (
           <>
+            <View style={styles.actions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Play ${artistName}`}
+                onPress={() => playAll(false)}
+                style={({ pressed }) => [styles.playButton, { opacity: pressed ? 0.75 : 1 }]}
+              >
+                <Feather name="play" size={16} color={palette.accentInk} />
+                <AppText variant="label" color={palette.accentInk}>Play</AppText>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Shuffle ${artistName}`}
+                onPress={() => playAll(true)}
+                style={({ pressed }) => [styles.secondaryButton, { opacity: pressed ? 0.75 : 1 }]}
+              >
+                <Feather name="shuffle" size={16} color={palette.ink} />
+                <AppText variant="label" color={palette.ink}>Shuffle</AppText>
+              </Pressable>
+            </View>
+
             <SectionHeader label="Albums" />
             <ListGroup>
               {albums.map((album) => (
                 <ListRow
-                  key={album}
-                  leading={(
-                    <View style={styles.albumTile}>
-                      <Feather name="disc" size={20} color={palette.accent} />
-                    </View>
-                  )}
-                  title={album}
+                  key={album.id}
+                  leading={<CoverArt uri={album.artwork} size={44} radius={radii.md} />}
+                  title={album.title}
+                  subtitle={`${album.trackIds.length} ${album.trackIds.length === 1 ? 'track' : 'tracks'}${album.year ? ` · ${album.year}` : ''}`}
                   onPress={() => {
                     tapFeedback('selection');
-                    router.push({ pathname: '/album', params: { album } });
+                    router.push({ pathname: '/album', params: { albumKey: album.id } });
                   }}
-                  accessibilityLabel={`Open album ${album}`}
+                  accessibilityLabel={`Open album ${album.title}`}
                   trailing={<Feather name="chevron-right" size={18} color={palette.inkFaint} />}
                 />
               ))}
@@ -102,26 +140,48 @@ export default function ArtistScreen() {
             </ListGroup>
           </>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
+      <CollapsedBar
+        title={artistName || 'Unknown artist'}
+        scrollY={scrollY}
+        left={<IconButton name="chevron-left" label="Back" iconSize={22} onPress={() => router.back()} />}
+      />
       <MiniPlayer standalone />
     </SafeAreaView>
   );
 }
 
-const createStyles = ({ palette }: AppTheme) => ({
+const createStyles = ({ palette, glass }: AppTheme) => ({
   safe: { flex: 1 },
   content: {
     paddingBottom: 150,
     gap: spacing.md,
   },
-  albumTile: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.md,
+  actions: {
+    flexDirection: 'row' as const,
+    gap: spacing.sm,
+    paddingHorizontal: layout.screenPadding,
+  },
+  playButton: {
+    minHeight: 44,
+    flexDirection: 'row' as const,
     alignItems: 'center' as const,
+    gap: spacing.xs,
     justifyContent: 'center' as const,
-    backgroundColor: palette.surfaceMuted,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.pill,
+    backgroundColor: palette.accent,
+  },
+  secondaryButton: {
+    minHeight: 44,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: spacing.xs,
+    justifyContent: 'center' as const,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.pill,
+    backgroundColor: glass.tintSoft,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: glass.edgeSoft,
   },
 });

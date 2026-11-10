@@ -12,7 +12,7 @@ import {
 export type PaletteStyle = 'classic' | 'tonal-spot' | 'expressive' | 'vibrant' | 'neutral';
 export type ThemeMode = 'light' | 'dark' | 'auto';
 
-export const DEFAULT_SEED = '#B8F0B0';
+export const DEFAULT_SEED = '#10B981';
 
 export type ColorRole =
   | 'primary' | 'onPrimary' | 'primaryContainer' | 'onPrimaryContainer'

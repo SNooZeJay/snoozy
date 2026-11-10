@@ -5,9 +5,16 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  useAnimatedStyle,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { collapseProgress } from '../motion/chrome';
+import { tabScrollY } from '../motion/scrollState';
 import { usePlayer } from '../playback/PlayerContext';
 import {
   layout,
@@ -18,18 +25,34 @@ import {
 } from '../theme';
 import { AppText } from './AppText';
 import { CrossfadeArtwork } from './CrossfadeArtwork';
-import { GlassSurface } from './glass/GlassSurface';
+import { GlassSurface, type GlassBlurTarget } from './glass/GlassSurface';
 import { ScalePressable } from './ScalePressable';
 
 type MiniPlayerProps = {
   /** Stack screens have no tab bar, so the player sits at the safe-area edge. */
   standalone?: boolean;
+  /** Live backdrop for the floating capsule on tab screens. */
+  blurTarget?: GlassBlurTarget;
 };
 
-export function MiniPlayer({ standalone = false }: MiniPlayerProps) {
-  const { activeTrack, isPlaying, togglePlayback, palette: artworkPalette } = usePlayer();
+/**
+ * Glasmio / Apple Music floating Liquid Glass MiniPlayer bar:
+ * - Translucent frosted capsule with 0.5pt specular border & artwork glow
+ * - 44pt squircle cover art, bold title + secondary artist
+ * - Inline Play/Pause and Next controls with Cupertino compression physics
+ */
+export function MiniPlayer({ standalone = false, blurTarget }: MiniPlayerProps) {
+  const { activeTrack, isPlaying, togglePlayback, next, palette: artworkPalette } = usePlayer();
   const { palette, glass, reducedMotion } = useTheme();
   const insets = useSafeAreaInsets();
+
+  const dockStyle = useAnimatedStyle(() => {
+    if (standalone) return {};
+    const progress = collapseProgress(tabScrollY.value);
+    return {
+      transform: [{ translateY: progress * 10 }, { scale: 1 - progress * 0.01 }],
+    };
+  });
 
   if (!activeTrack) return null;
 
@@ -48,13 +71,16 @@ export function MiniPlayer({ standalone = false }: MiniPlayerProps) {
             ? insets.bottom + spacing.md
             : insets.bottom + layout.tabBarInset + layout.tabBarHeight + layout.pillGap,
         },
+        dockStyle,
       ]}
     >
       <GlassSurface
-        variant="card"
+        variant="panel"
         radius={radii.lg}
-        borderColor={artworkPalette.glow}
+        borderColor={glass.edgeStrong}
         glowColor={artworkPalette.glow}
+        blurTarget={blurTarget}
+        blurIntensity={62}
         style={styles.card}
       >
         <Pressable
@@ -62,7 +88,7 @@ export function MiniPlayer({ standalone = false }: MiniPlayerProps) {
           accessibilityLabel={`Open player for ${activeTrack.title}`}
           hitSlop={{ top: 2, bottom: 2 }}
           onPress={() => router.push('/player')}
-          style={({ pressed }) => [styles.info, { opacity: pressed ? 0.75 : 1 }]}
+          style={({ pressed }) => [styles.info, { opacity: pressed ? 0.62 : 1 }]}
         >
           <CrossfadeArtwork
             uri={activeTrack.artwork}
@@ -79,21 +105,26 @@ export function MiniPlayer({ standalone = false }: MiniPlayerProps) {
             <AppText variant="micro" color={palette.inkMuted} numberOfLines={1}>{activeTrack.artist}</AppText>
           </View>
         </Pressable>
-        <ScalePressable
-          accessibilityRole="button"
-          accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-          onPress={() => void togglePlayback()}
-          reducedMotion={reducedMotion}
-          style={[
-            styles.playButton,
-            {
-              backgroundColor: glass.buttonTint,
-              borderColor: glass.edge,
-            },
-          ]}
-        >
-          <Feather name={isPlaying ? 'pause' : 'play'} size={20} color={palette.ink} />
-        </ScalePressable>
+        <View style={styles.controls}>
+          <ScalePressable
+            accessibilityRole="button"
+            accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+            onPress={() => void togglePlayback()}
+            reducedMotion={reducedMotion}
+            style={styles.controlButton}
+          >
+            <Feather name={isPlaying ? 'pause' : 'play'} size={21} color={palette.ink} />
+          </ScalePressable>
+          <ScalePressable
+            accessibilityRole="button"
+            accessibilityLabel="Next track"
+            onPress={() => void next()}
+            reducedMotion={reducedMotion}
+            style={styles.controlButton}
+          >
+            <Feather name="fast-forward" size={20} color={palette.ink} />
+          </ScalePressable>
+        </View>
       </GlassSurface>
     </Animated.View>
   );
@@ -102,14 +133,15 @@ export function MiniPlayer({ standalone = false }: MiniPlayerProps) {
 const styles = StyleSheet.create({
   shell: {
     position: 'absolute',
-    left: spacing.md,
-    right: spacing.md,
+    left: layout.screenPadding,
+    right: layout.screenPadding,
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.sm,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
     borderRadius: radii.lg,
   },
   info: {
@@ -121,19 +153,23 @@ const styles = StyleSheet.create({
   artwork: {
     width: 44,
     height: 44,
-    borderRadius: radii.md,
+    borderRadius: radii.sm + 2,
     overflow: 'hidden',
   },
   text: {
     flex: 1,
+    gap: 1,
+  },
+  controls: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 2,
   },
-  playButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  controlButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
   },
 });

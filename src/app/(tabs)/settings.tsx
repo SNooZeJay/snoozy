@@ -5,18 +5,20 @@ import type { ComponentProps, ReactNode } from 'react';
 import {
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Switch,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated from 'react-native-reanimated';
 
 import { AppText } from '../../components/AppText';
+import { CollapsedBar, useCollapsingScroll } from '../../components/CollapsingHeader';
 import { ListGroup } from '../../components/ListGroup';
 import { ListRow } from '../../components/ListRow';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { SectionHeader } from '../../components/SectionHeader';
+import { SnoozyBrandIcon } from '../../components/SnoozyBrandIcon';
 import { useMusicLibrary } from '../../storage/MusicLibraryContext';
 import { usePreferences } from '../../storage/PreferencesContext';
 import {
@@ -34,35 +36,36 @@ const MODES: { value: 'light' | 'dark' | 'auto'; label: string }[] = [
   { value: 'dark', label: 'Dark' },
   { value: 'auto', label: 'Auto' },
 ];
-const STYLES: { value: 'classic' | 'tonal-spot' | 'expressive' | 'vibrant' | 'neutral'; label: string }[] = [
-  { value: 'classic', label: 'Classic' },
-  { value: 'tonal-spot', label: 'Tonal spot' },
-  { value: 'expressive', label: 'Expressive' },
-  { value: 'vibrant', label: 'Vibrant' },
-  { value: 'neutral', label: 'Neutral' },
-];
 const MOTION: { value: 'system' | 'reduced' | 'full'; label: string }[] = [
   { value: 'system', label: 'Follow system' },
   { value: 'reduced', label: 'Reduced' },
   { value: 'full', label: 'Full' },
 ];
 
+const SWATCH_NAMES: Record<(typeof PRESET_SWATCHES)[number], string> = {
+  '#10B981': 'Emerald',
+  '#FF375F': 'Rose',
+  '#0A84FF': 'Blue',
+  '#BF5AF2': 'Violet',
+  '#FF9F0A': 'Amber',
+};
+
 /**
- * Static OSS manifest: every dependency seeds an audible or visual surface.
+ * Static OSS manifest: the main open-source projects behind the app.
  * Licences based on each project's published licence (no trackers here).
  */
 const OSS_NOTICES: string[] = [
-  'App font Atkinson Hyperlegible — SIL Open Font License',
-  'App font Bricolage Grotesque — SIL Open Font License',
-  'Tab icons Ionicons, transport icons Feather — MIT',
-  'Palette engine @material/material-color-utilities — Apache-2.0',
-  'Playback engine @rntp/player — Apache-2.0',
-  'Visuals @shopify/react-native-skia — MIT',
-  'Colors react-native-image-colors — MIT',
-  'Motion react-native-reanimated — MIT',
-  'Storage react-native-mmkv, expo-sqlite — MIT',
-  'Navigation expo-router, react-native-screens — MIT',
-  'Platform Expo SDK, react-native, react — MIT',
+  'App fonts Atkinson Hyperlegible and Bricolage Grotesque (SIL Open Font License)',
+  'Icons Feather (MIT)',
+  'Palette engine @material/material-color-utilities (Apache-2.0)',
+  'Playback engine @rntp/player (Apache-2.0)',
+  'Interaction motion ported from Glasmio (Apache-2.0)',
+  'Visuals @shopify/react-native-skia and expo-blur (MIT)',
+  'Artwork colors react-native-image-colors (MIT)',
+  'Motion react-native-reanimated (MIT)',
+  'Storage react-native-mmkv and expo-sqlite (MIT)',
+  'Navigation expo-router and react-native-screens (MIT)',
+  'Platform Expo SDK, React Native, and React (MIT)',
 ];
 
 type FeatherName = ComponentProps<typeof Feather>['name'];
@@ -106,8 +109,8 @@ function SwitchRow({
           <Switch
             value={value}
             onValueChange={onChange}
-            trackColor={{ false: palette.surfaceMuted, true: palette.accentStrong }}
-            thumbColor={palette.ink}
+            trackColor={{ false: palette.surfaceMuted, true: palette.iosGreen }}
+            thumbColor={palette.white}
             ios_backgroundColor={palette.surfaceMuted}
           />
         </View>
@@ -214,16 +217,22 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const { palette } = theme;
   const styles = useThemedStyles(createStyles);
+  const { scrollY, onScroll } = useCollapsingScroll();
   const androidRelease = (Platform.constants as { Release?: string }).Release;
   const osVersion = `${Platform.OS === 'android' ? 'Android' : Platform.OS} ${
     androidRelease ?? Platform.Version
   }`;
-  const version = Constants.expoConfig?.version ?? '2.2.0';
-  const build = Constants.expoConfig?.android?.versionCode ?? 12;
+  const version = Constants.expoConfig?.version ?? '2.3.0';
+  const build = Constants.expoConfig?.android?.versionCode ?? 13;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+      >
         <ScreenHeader
           title="Settings"
           subtitle="Theme, motion, and library"
@@ -233,22 +242,6 @@ export default function SettingsScreen() {
           <SectionHeader label="Library" />
           <ListGroup>
             <LibraryRow />
-          </ListGroup>
-        </View>
-
-        <View style={styles.section}>
-          <SectionHeader label="Feedback" />
-          <ListGroup>
-            <SwitchRow
-              icon="radio"
-              label="Haptics"
-              hint="Feedback on taps"
-              value={preferences.haptics}
-              onChange={(value) => {
-                tapFeedback('selection');
-                setHaptics(value);
-              }}
-            />
           </ListGroup>
         </View>
 
@@ -266,18 +259,7 @@ export default function SettingsScreen() {
               />
             </SettingField>
 
-            <SettingField label="Palette style">
-              <ChipRow
-                items={STYLES}
-                value={theme.paletteStyle}
-                onSelect={(style) => {
-                  tapFeedback('selection');
-                  theme.setPaletteStyle(style);
-                }}
-              />
-            </SettingField>
-
-            <SettingField label="Accent swatch">
+            <SettingField label="Accent color">
               <View style={styles.chipRowWrap}>
                 {PRESET_SWATCHES.map((swatch) => {
                   const selected = theme.seed.toLowerCase() === swatch.toLowerCase();
@@ -285,7 +267,7 @@ export default function SettingsScreen() {
                     <Pressable
                       key={swatch}
                       accessibilityRole="button"
-                      accessibilityLabel={`Accent ${swatch}`}
+                      accessibilityLabel={`${SWATCH_NAMES[swatch]} accent`}
                       accessibilityState={{ selected }}
                       onPress={() => {
                         tapFeedback('selection');
@@ -364,12 +346,26 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
+          <SectionHeader label="Feedback" />
+          <ListGroup>
+            <SwitchRow
+              icon="radio"
+              label="Haptics"
+              hint="Feedback on taps"
+              value={preferences.haptics}
+              onChange={(value) => {
+                tapFeedback('selection');
+                setHaptics(value);
+              }}
+            />
+          </ListGroup>
+        </View>
+
+        <View style={styles.section}>
           <SectionHeader label="About" />
           <ListGroup style={styles.settingsCard}>
             <View style={styles.aboutRow}>
-              <View style={styles.mark}>
-                <AppText variant="display" color={palette.accentInk}>S</AppText>
-              </View>
+              <SnoozyBrandIcon size={56} />
               <View style={styles.aboutCopy}>
                 <AppText variant="heading" color={palette.ink}>About Snoozy</AppText>
                 <AppText variant="micro" color={palette.inkMuted}>
@@ -407,7 +403,9 @@ export default function SettingsScreen() {
             </View>
           </ListGroup>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
+
+      <CollapsedBar title="Settings" scrollY={scrollY} />
     </SafeAreaView>
   );
 }
@@ -484,13 +482,12 @@ const createStyles = ({ palette, glass }: AppTheme) => ({
     alignItems: 'center' as const,
     gap: spacing.md,
   },
-  mark: {
-    width: 52,
-    height: 52,
-    borderRadius: radii.md,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    backgroundColor: palette.accent,
+  markImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: glass.edgeStrong,
   },
   aboutCopy: { flex: 1, gap: 2 },
   ossList: {

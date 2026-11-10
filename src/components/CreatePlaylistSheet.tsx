@@ -26,17 +26,23 @@ type CreatePlaylistSheetProps = {
   visible: boolean;
   onClose: () => void;
   onCreate: (name: string) => void;
+  title?: string;
+  submitLabel?: string;
+  initialName?: string;
 };
 
 export function CreatePlaylistSheet({
   visible,
   onClose,
   onCreate,
+  title = 'New playlist',
+  submitLabel = 'Create',
+  initialName = '',
 }: CreatePlaylistSheetProps) {
   const { palette, dark } = useTheme();
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName);
 
   const close = () => {
     setName('');
@@ -56,6 +62,7 @@ export function CreatePlaylistSheet({
       transparent
       animationType="fade"
       statusBarTranslucent
+      onShow={() => setName(initialName)}
       onRequestClose={close}
     >
       <KeyboardAvoidingView
@@ -68,11 +75,13 @@ export function CreatePlaylistSheet({
           onPress={close}
           style={StyleSheet.absoluteFill}
         />
-        <SheetPanel style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}>
-          <View style={styles.handle} />
+        <SheetPanel
+          onDismiss={close}
+          style={[styles.sheet, { paddingBottom: insets.bottom + spacing.xl }]}
+        >
           <View style={styles.headingRow}>
             <View style={styles.headingCopy}>
-              <AppText variant="heading" color={palette.ink} style={styles.title}>New playlist</AppText>
+              <AppText variant="heading" color={palette.ink} style={styles.title}>{title}</AppText>
             </View>
             <Pressable
               accessibilityRole="button"
@@ -112,7 +121,7 @@ export function CreatePlaylistSheet({
                 (!name.trim() || pressed) && { opacity: 0.6 },
               ]}
             >
-              <AppText variant="label" color={palette.accentInk}>Create</AppText>
+              <AppText variant="label" color={palette.accentInk}>{submitLabel}</AppText>
             </Pressable>
           </View>
         </SheetPanel>

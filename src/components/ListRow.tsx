@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -6,6 +6,7 @@ import {
   type AccessibilityRole,
   type AccessibilityState,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { radii, spacing, useTheme } from '../theme';
 import { AppText } from './AppText';
@@ -13,6 +14,7 @@ import { AppText } from './AppText';
 type ListRowProps = {
   leading?: ReactNode;
   title: string;
+  titleColor?: string;
   subtitle?: string;
   subtitleColor?: string;
   trailing?: ReactNode;
@@ -21,15 +23,19 @@ type ListRowProps = {
   accessibilityHint?: string;
   accessibilityRole?: AccessibilityRole;
   accessibilityState?: AccessibilityState;
+  /** List entrance; see `staggerEnter`. Omitted rows render static. */
+  entering?: ComponentProps<typeof Animated.View>['entering'];
 };
 
 /**
- * The compact row used by every list surface. It owns the 48dp rhythm and
- * leaves artwork, icons, and controls to the leading/trailing slots.
+ * Cupertino inset-grouped list row: 52pt comfortable height, SF-style bold
+ * primary label + clean secondary label, and quick opacity compression on tap
+ * (no Android ripple).
  */
 export function ListRow({
   leading,
   title,
+  titleColor,
   subtitle,
   subtitleColor,
   trailing,
@@ -38,6 +44,7 @@ export function ListRow({
   accessibilityHint,
   accessibilityRole,
   accessibilityState,
+  entering,
 }: ListRowProps) {
   const { palette } = useTheme();
 
@@ -45,7 +52,7 @@ export function ListRow({
     <>
       {leading ? <View style={styles.leading}>{leading}</View> : null}
       <View style={styles.copy}>
-        <AppText variant="label" color={palette.ink} numberOfLines={1}>
+        <AppText variant="body" color={titleColor ?? palette.ink} numberOfLines={1}>
           {title}
         </AppText>
         {subtitle ? (
@@ -55,35 +62,52 @@ export function ListRow({
         ) : null}
       </View>
       {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.separator,
+          {
+            left: leading ? 60 : spacing.lg,
+            backgroundColor: palette.border,
+          },
+        ]}
+      />
     </>
   );
 
-  if (!onPress) {
-    return <View style={styles.row}>{content}</View>;
-  }
-
-  return (
+  const row = onPress ? (
     <Pressable
       accessibilityRole={accessibilityRole ?? 'button'}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
       accessibilityState={accessibilityState}
       onPress={onPress}
-      style={({ pressed }) => [styles.row, { opacity: pressed ? 0.68 : 1 }]}
+      style={({ pressed }) => [
+        styles.row,
+        pressed && {
+          opacity: 0.72,
+          backgroundColor: palette.surfaceRaised,
+        },
+      ]}
     >
       {content}
     </Pressable>
+  ) : (
+    <View style={styles.row}>{content}</View>
   );
+
+  if (!entering) return row;
+  return <Animated.View entering={entering}>{row}</Animated.View>;
 }
 
 const styles = StyleSheet.create({
   row: {
-    minHeight: 48,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderRadius: radii.md,
   },
   leading: {
@@ -93,11 +117,17 @@ const styles = StyleSheet.create({
   },
   copy: {
     flex: 1,
-    gap: 1,
+    gap: 2,
   },
   trailing: {
     minWidth: 44,
     alignItems: 'flex-end',
     justifyContent: 'center',
+  },
+  separator: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
   },
 });

@@ -60,3 +60,6 @@ local.properties
 /.android-sdk/
 /artifacts/
 /.tmp/
+
+# sauron harness local state
+/.sauron/backups/

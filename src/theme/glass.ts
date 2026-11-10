@@ -1,52 +1,50 @@
 /**
- * Liquid Glass tokens.
+ * Cupertino Liquid Glass tokens (inspired by Glasmio & iOS 26 materials).
  *
- * Android cannot render a live backdrop blur without a native module, so the
- * glass is built from layered translucency, a diagonal specular highlight, a
- * fine rim, and a soft shadow. The result reads as glass over the pine ground
- * while staying cheap enough for the A55.
+ * Layered translucent acrylic fill, 0.5pt hairline rim, top-left specular
+ * reflection, and diffused elevation shadow.
  */
 export const glass = {
-  tint: 'rgba(19, 38, 28, 0.72)',
-  tintStrong: 'rgba(27, 52, 39, 0.84)',
-  tintSoft: 'rgba(13, 27, 20, 0.58)',
-  tintDeep: 'rgba(7, 17, 13, 0.72)',
-  tintAccent: 'rgba(216, 242, 198, 0.12)',
-  buttonTint: 'rgba(27, 52, 39, 0.62)',
-  fieldTint: 'rgba(13, 27, 20, 0.66)',
-  edge: 'rgba(232, 242, 224, 0.16)',
-  edgeStrong: 'rgba(243, 240, 228, 0.26)',
-  edgeSoft: 'rgba(232, 242, 224, 0.10)',
-  highlight: 'rgba(255, 255, 255, 0.13)',
+  tint: 'rgba(28, 28, 30, 0.76)',
+  tintStrong: 'rgba(38, 38, 42, 0.88)',
+  tintSoft: 'rgba(118, 118, 128, 0.22)',
+  tintDeep: 'rgba(18, 18, 20, 0.82)',
+  tintAccent: 'rgba(255, 55, 95, 0.16)',
+  buttonTint: 'rgba(44, 44, 46, 0.72)',
+  fieldTint: 'rgba(118, 118, 128, 0.24)',
+  edge: 'rgba(255, 255, 255, 0.14)',
+  edgeStrong: 'rgba(255, 255, 255, 0.24)',
+  edgeSoft: 'rgba(255, 255, 255, 0.08)',
+  highlight: 'rgba(255, 255, 255, 0.16)',
   highlightSoft: 'rgba(255, 255, 255, 0.06)',
   highlightEdge: 'rgba(255, 255, 255, 0.03)',
-  shadow: 'rgba(0, 0, 0, 0.34)',
-  shadowDeep: 'rgba(0, 0, 0, 0.46)',
-  innerGlow: 'rgba(216, 242, 198, 0.06)',
-  scrim: 'rgba(4, 11, 8, 0.58)',
+  shadow: 'rgba(0, 0, 0, 0.28)',
+  shadowDeep: 'rgba(0, 0, 0, 0.44)',
+  innerGlow: 'rgba(255, 255, 255, 0.06)',
+  scrim: 'rgba(0, 0, 0, 0.48)',
 } as const;
 
 export const glassShadow = {
   card: {
     shadowColor: glass.shadowDeep,
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.28,
-    shadowRadius: 26,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 4,
   },
   floating: {
     shadowColor: glass.shadowDeep,
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.42,
-    shadowRadius: 22,
-    elevation: 16,
+    shadowOpacity: 0.36,
+    shadowRadius: 24,
+    elevation: 14,
   },
   button: {
     shadowColor: glass.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 3,
   },
 } as const;
 
@@ -54,27 +52,27 @@ export const glassVariants = {
   card: {
     tint: glass.tint,
     edge: glass.edge,
-    radius: 28,
+    radius: 16,
     highlight: true,
     shadow: glassShadow.card,
   },
   panel: {
     tint: glass.tintStrong,
     edge: glass.edgeStrong,
-    radius: 28,
+    radius: 24,
     highlight: true,
-    shadow: glassShadow.card,
+    shadow: glassShadow.floating,
   },
   row: {
     tint: glass.tint,
     edge: glass.edgeSoft,
-    radius: 20,
+    radius: 14,
     highlight: false,
     shadow: null,
   },
   pill: {
     tint: glass.tintStrong,
-    edge: glass.edge,
+    edge: glass.edgeStrong,
     radius: 999,
     highlight: true,
     shadow: glassShadow.floating,
@@ -82,16 +80,16 @@ export const glassVariants = {
   button: {
     tint: glass.buttonTint,
     edge: glass.edge,
-    radius: 24,
+    radius: 22,
     highlight: true,
     shadow: glassShadow.button,
   },
   field: {
     tint: glass.fieldTint,
-    edge: glass.edge,
-    radius: 999,
-    highlight: true,
-    shadow: glassShadow.button,
+    edge: glass.edgeSoft,
+    radius: 12,
+    highlight: false,
+    shadow: null,
   },
 } as const;
 

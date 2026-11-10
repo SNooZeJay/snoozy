@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
   Linking,
   Pressable,
@@ -9,20 +9,25 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated from 'react-native-reanimated';
 
 import { AppDialog } from '../../components/AppDialog';
 import { AppText } from '../../components/AppText';
-import { CreatePlaylistSheet } from '../../components/CreatePlaylistSheet';
+import { CollapsedBar, useCollapsingScroll } from '../../components/CollapsingHeader';
+import { CoverArt, PlaylistCover } from '../../components/Artwork';
 import { EmptyState } from '../../components/EmptyState';
 import { GlassButton } from '../../components/glass/GlassButton';
 import { ListGroup } from '../../components/ListGroup';
 import { ListRow } from '../../components/ListRow';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { SectionHeader } from '../../components/SectionHeader';
-import { NoteTile, Thumb } from '../../components/Thumb';
 import { useMusicLibrary } from '../../storage/MusicLibraryContext';
 import { usePlayer } from '../../playback/PlayerContext';
+import { randomStartIndex } from '../../playback/controls';
 import { usePreferences } from '../../storage/PreferencesContext';
+import { getAllPlayHistory, type PlayHistoryEntry } from '../../storage/playHistory';
+import { topPlayedTracks } from '../../storage/libraryStats';
+import type { LibraryTab, Playlist, Track } from '../../types/music';
 import {
   layout,
   radii,
@@ -32,13 +37,45 @@ import {
   type AppTheme,
 } from '../../theme';
 
-function BrowseTile() {
+const CARD_SIZE = 136;
+
+function BrowseTile({ icon = 'grid' }: { icon?: 'grid' | 'shuffle' | 'disc' | 'heart' }) {
   const { palette } = useTheme();
   const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.browseTile}>
-      <Feather name="grid" size={18} color={palette.accent} />
+      <Feather name={icon} size={18} color={palette.accent} />
     </View>
+  );
+}
+
+type MediaCardProps = {
+  cover: ReactNode;
+  title: string;
+  subtitle?: string;
+  onPress: () => void;
+  accessibilityLabel: string;
+};
+
+function MediaCard({ cover, title, subtitle, onPress, accessibilityLabel }: MediaCardProps) {
+  const { palette } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+    >
+      {cover}
+      <AppText variant="label" numberOfLines={1}>{title}</AppText>
+      {subtitle ? (
+        <AppText variant="micro" color={palette.inkMuted} numberOfLines={1}>
+          {subtitle}
+        </AppText>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -48,34 +85,65 @@ export default function HomeScreen() {
   const { tapFeedback } = usePreferences();
   const { palette } = useTheme();
   const styles = useThemedStyles(createStyles);
-  const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
+  const { scrollY, onScroll } = useCollapsingScroll();
   const [clearHistoryOpen, setClearHistoryOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [playHistory, setPlayHistory] = useState<PlayHistoryEntry[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      getAllPlayHistory()
+        .then((rows) => {
+          if (active) setPlayHistory(rows);
+        })
+        .catch(() => undefined);
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   const recentTracks = library.recents
     .map((id) => library.displayTracksById.get(id))
-    .filter((track): track is NonNullable<typeof track> => Boolean(track));
+    .filter((track): track is Track => Boolean(track))
+    .slice(0, 10);
 
-  const playlistTrackCount = (trackIds: string[]) =>
-    trackIds.filter((id) => library.displayTracksById.has(id)).length;
+  const favoriteTracks = useMemo(
+    () => library.displayTracks.filter((track) => library.favorites.has(track.id)),
+    [library.displayTracks, library.favorites],
+  );
 
-  const confirmClearHistory = () => {
-    setClearHistoryOpen(true);
-  };
+  const mostPlayed = useMemo(
+    () => topPlayedTracks(library.displayTracks, playHistory, 8),
+    [library.displayTracks, playHistory],
+  );
 
-  const playRecent = (track: NonNullable<(typeof recentTracks)[number]>) => {
+  const recentAlbums = useMemo(
+    () => library.recentlyAddedAlbums.filter((album) => (album.addedAt ?? 0) > 0).slice(0, 8),
+    [library.recentlyAddedAlbums],
+  );
+
+  const playlistTracks = (playlist: Playlist): Track[] =>
+    playlist.trackIds
+      .map((id) => library.displayTracksById.get(id))
+      .filter((track): track is Track => Boolean(track));
+
+  const playTrack = (track: Track, queue: Track[]) => {
     tapFeedback('selection');
-    void player.playTrack(track, library.displayTracks);
+    void player.playTrack(track, queue);
   };
 
-  const openLibrary = (tab: 'songs' | 'playlists') => {
+  const openLibrary = (tab: LibraryTab) => {
     tapFeedback('selection');
     library.setTab(tab);
     router.push('/library');
   };
 
-  const confirmDeletePlaylist = (id: string, name: string) => {
-    setDeleteTarget({ id, name });
+  const shuffleAll = () => {
+    if (library.displayTracks.length === 0) return;
+    tapFeedback('selection');
+    const start = library.displayTracks[randomStartIndex(library.displayTracks.length)];
+    void player.playTrack(start, library.displayTracks, { shuffle: true });
   };
 
   const statusLine =
@@ -87,11 +155,15 @@ export default function HomeScreen() {
           ? `${library.tracks.length} ${library.tracks.length === 1 ? 'song' : 'songs'}`
           : 'No songs yet';
 
+  const hasLibrary = library.tracks.length > 0;
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
-      <ScrollView
+      <Animated.ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={library.scanning}
@@ -175,7 +247,7 @@ export default function HomeScreen() {
           <EmptyState
             compact
             title="Scanning…"
-            message={`${library.tracks.length} songs found so far.`}
+            message="Reading audio files on this device. This can take a moment for large libraries."
           />
         ) : library.tracks.length === 0 ? (
           <>
@@ -196,117 +268,210 @@ export default function HomeScreen() {
           </>
         ) : null}
 
-        {library.tracks.length > 0 ? (
+        {hasLibrary ? (
           <>
-            <SectionHeader
-              label="Recently played"
-              actionLabel={recentTracks.length > 0 ? 'Clear' : undefined}
-              onAction={recentTracks.length > 0
-                ? () => {
-                    tapFeedback('light');
-                    confirmClearHistory();
-                  }
-                : undefined}
-            />
-            {recentTracks.length === 0 ? (
-              <EmptyState
-                compact
-                title="Nothing played yet"
-                message="Play a song and it will appear here."
+            <View style={styles.section}>
+              <SectionHeader
+                label="Recently played"
+                actionLabel={recentTracks.length > 0 ? 'Clear' : undefined}
+                onAction={recentTracks.length > 0
+                  ? () => {
+                      tapFeedback('light');
+                      setClearHistoryOpen(true);
+                    }
+                  : undefined}
               />
-            ) : (
-              <ListGroup>
-                {recentTracks.map((track) => (
-                  <ListRow
-                    key={track.id}
-                    leading={<Thumb track={track} size={44} />}
-                    title={track.title}
-                    subtitle={track.artist}
-                    onPress={() => playRecent(track)}
-                    accessibilityLabel={`Play ${track.title}`}
-                    trailing={<Feather name="play" size={18} color={palette.inkMuted} />}
-                  />
-                ))}
-              </ListGroup>
-            )}
-          </>
-        ) : null}
-
-        {library.tracks.length > 0 ? (
-          <>
-            <SectionHeader
-              label="Playlists"
-              actionLabel="New"
-              onAction={() => {
-                tapFeedback('selection');
-                setPlaylistSheetOpen(true);
-              }}
-            />
-            {library.playlists.length === 0 ? (
-              <EmptyState
-                compact
-                title="No playlists yet"
-                message="Create one to group songs, then add tracks from any song menu."
-              />
-            ) : (
-              <ListGroup>
-                {library.playlists.map((playlist) => {
-                  const count = playlistTrackCount(playlist.trackIds);
-                  return (
-                    <ListRow
-                      key={playlist.id}
-                      leading={<NoteTile size={44} />}
-                      title={playlist.name}
-                      subtitle={`${count} ${count === 1 ? 'track' : 'tracks'}`}
-                      onPress={() => openLibrary('playlists')}
-                      accessibilityLabel={`Open ${playlist.name} in library`}
-                      trailing={(
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={`Manage ${playlist.name}`}
-                          onPress={() => confirmDeletePlaylist(playlist.id, playlist.name)}
-                          style={({ pressed }) => [styles.rowMenu, { opacity: pressed ? 0.6 : 1 }]}
-                        >
-                          <Feather name="more-horizontal" size={20} color={palette.inkMuted} />
-                        </Pressable>
-                      )}
+              {recentTracks.length === 0 ? (
+                <EmptyState
+                  compact
+                  title="Nothing played yet"
+                  message="Play a song and it will appear here."
+                />
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.cardRow}
+                >
+                  {recentTracks.map((track) => (
+                    <MediaCard
+                      key={track.id}
+                      cover={<CoverArt uri={track.artwork} size={CARD_SIZE} radius={radii.lg} />}
+                      title={track.title}
+                      subtitle={track.artist}
+                      onPress={() => playTrack(track, recentTracks)}
+                      accessibilityLabel={`Play ${track.title}`}
                     />
-                  );
-                })}
-              </ListGroup>
-            )}
-          </>
-        ) : null}
+                  ))}
+                </ScrollView>
+              )}
+            </View>
 
-        {library.tracks.length > 0 ? (
-          <>
-            <SectionHeader
-              label="Library"
-              actionLabel="See all"
-              onAction={() => openLibrary('songs')}
-            />
-            <ListGroup>
-              <ListRow
-                leading={<BrowseTile />}
-                title="Browse all songs"
-                subtitle={`${library.tracks.length} ${library.tracks.length === 1 ? 'track' : 'tracks'}`}
-                onPress={() => openLibrary('songs')}
-                accessibilityLabel="Browse all songs"
-                trailing={<Feather name="chevron-right" size={18} color={palette.inkFaint} />}
+            {recentAlbums.length > 0 ? (
+              <View style={styles.section}>
+                <SectionHeader
+                  label="Recently added"
+                  actionLabel="Albums"
+                  onAction={() => openLibrary('albums')}
+                />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.cardRow}
+                >
+                  {recentAlbums.map((album) => (
+                    <MediaCard
+                      key={album.id}
+                      cover={<CoverArt uri={album.artwork} size={CARD_SIZE} radius={radii.lg} />}
+                      title={album.title}
+                      subtitle={album.artist}
+                      onPress={() => {
+                        tapFeedback('selection');
+                        router.push({ pathname: '/album', params: { albumKey: album.id } });
+                      }}
+                      accessibilityLabel={`Open album ${album.title} by ${album.artist}`}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {mostPlayed.length > 0 ? (
+              <View style={styles.section}>
+                <SectionHeader label="Most played" />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.cardRow}
+                >
+                  {mostPlayed.map(({ track, plays }) => (
+                    <MediaCard
+                      key={track.id}
+                      cover={<CoverArt uri={track.artwork} size={CARD_SIZE} radius={radii.lg} />}
+                      title={track.title}
+                      subtitle={`${plays} ${plays === 1 ? 'play' : 'plays'}`}
+                      onPress={() => playTrack(track, mostPlayed.map((entry) => entry.track))}
+                      accessibilityLabel={`Play ${track.title}`}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {favoriteTracks.length > 0 ? (
+              <View style={styles.section}>
+                <SectionHeader
+                  label="Favorites"
+                  actionLabel="See all"
+                  onAction={() => openLibrary('favorites')}
+                />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.cardRow}
+                >
+                  {favoriteTracks.slice(0, 8).map((track) => (
+                    <MediaCard
+                      key={track.id}
+                      cover={<CoverArt uri={track.artwork} size={CARD_SIZE} radius={radii.lg} />}
+                      title={track.title}
+                      subtitle={track.artist}
+                      onPress={() => playTrack(track, favoriteTracks)}
+                      accessibilityLabel={`Play ${track.title}`}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            <View style={styles.section}>
+              <SectionHeader
+                label="Playlists"
+                actionLabel="See all"
+                onAction={() => {
+                  tapFeedback('selection');
+                  router.push('/playlists');
+                }}
               />
-            </ListGroup>
+              {library.playlists.length === 0 ? (
+                <EmptyState
+                  compact
+                  title="No playlists yet"
+                  message="Build a set for a walk, a drive, or a quiet evening in Playlists."
+                />
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.cardRow}
+                >
+                  {library.playlists.slice(0, 8).map((playlist) => {
+                    const tracks = playlistTracks(playlist);
+                    return (
+                      <MediaCard
+                        key={playlist.id}
+                        cover={(
+                          <PlaylistCover
+                            artworks={tracks.map((track) => track.artwork)}
+                            size={CARD_SIZE}
+                            radius={radii.lg}
+                          />
+                        )}
+                        title={playlist.name}
+                        subtitle={`${tracks.length} ${tracks.length === 1 ? 'track' : 'tracks'}`}
+                        onPress={() => {
+                          tapFeedback('selection');
+                          router.push({ pathname: '/playlist', params: { id: playlist.id } });
+                        }}
+                        accessibilityLabel={`Open playlist ${playlist.name}`}
+                      />
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
+
+            <View style={styles.section}>
+              <SectionHeader
+                label="Library"
+                actionLabel="See all"
+                onAction={() => openLibrary('songs')}
+              />
+              <ListGroup>
+                <ListRow
+                  leading={<BrowseTile icon="shuffle" />}
+                  title="Shuffle all songs"
+                  subtitle={`Play a random mix of ${library.tracks.length} ${library.tracks.length === 1 ? 'track' : 'tracks'}`}
+                  onPress={shuffleAll}
+                  accessibilityLabel="Shuffle all songs"
+                  trailing={<Feather name="play" size={18} color={palette.inkMuted} />}
+                />
+                <ListRow
+                  leading={<BrowseTile icon="grid" />}
+                  title="Browse all songs"
+                  subtitle={`${library.tracks.length} ${library.tracks.length === 1 ? 'track' : 'tracks'} · ${library.albums.length} ${library.albums.length === 1 ? 'album' : 'albums'}`}
+                  onPress={() => openLibrary('songs')}
+                  accessibilityLabel="Browse all songs"
+                  trailing={<Feather name="chevron-right" size={18} color={palette.inkFaint} />}
+                />
+                {library.genres.length > 0 ? (
+                  <ListRow
+                    leading={<BrowseTile icon="disc" />}
+                    title="Genres"
+                    subtitle={`${library.genres.length} ${library.genres.length === 1 ? 'genre' : 'genres'} in your library`}
+                    onPress={() => openLibrary('genres')}
+                    accessibilityLabel="Browse genres"
+                    trailing={<Feather name="chevron-right" size={18} color={palette.inkFaint} />}
+                  />
+                ) : null}
+              </ListGroup>
+            </View>
           </>
         ) : null}
-      </ScrollView>
+      </Animated.ScrollView>
 
-      <CreatePlaylistSheet
-        visible={playlistSheetOpen}
-        onClose={() => setPlaylistSheetOpen(false)}
-        onCreate={(name) => {
-          tapFeedback('success');
-          library.createPlaylist(name);
-        }}
-      />
+      <CollapsedBar title="Your music" scrollY={scrollY} />
+
       <AppDialog
         visible={clearHistoryOpen}
         title="Clear recently played?"
@@ -319,29 +484,11 @@ export default function HomeScreen() {
             onPress: () => {
               tapFeedback('light');
               library.clearRecentHistory();
+              setPlayHistory([]);
             },
           },
           { label: 'Cancel', onPress: () => {} },
         ]}
-      />
-      <AppDialog
-        visible={deleteTarget !== null}
-        title="Delete playlist?"
-        message={deleteTarget
-          ? `"${deleteTarget.name}" will be removed. Your songs stay in the library.`
-          : undefined}
-        onClose={() => setDeleteTarget(null)}
-        actions={deleteTarget ? [
-          {
-            label: 'Delete',
-            tone: 'danger',
-            onPress: () => {
-              tapFeedback('light');
-              library.deletePlaylist(deleteTarget.id);
-            },
-          },
-          { label: 'Cancel', onPress: () => {} },
-        ] : []}
       />
     </SafeAreaView>
   );
@@ -352,7 +499,22 @@ const createStyles = ({ palette }: AppTheme) => ({
   content: {
     paddingTop: spacing.lg,
     paddingBottom: layout.tabBarSpace,
-    gap: spacing.xxl,
+  },
+  section: {
+    gap: spacing.sm,
+    marginTop: spacing.xxl,
+  },
+  cardRow: {
+    gap: spacing.md,
+    paddingHorizontal: layout.screenPadding,
+    paddingBottom: spacing.xs,
+  },
+  card: {
+    width: CARD_SIZE,
+    gap: 5,
+  },
+  cardPressed: {
+    opacity: 0.72,
   },
   circleButton: {
     width: 48,
@@ -364,6 +526,7 @@ const createStyles = ({ palette }: AppTheme) => ({
     alignItems: 'center' as const,
     gap: spacing.sm,
     marginHorizontal: layout.screenPadding,
+    marginTop: spacing.md,
     padding: spacing.md,
     borderRadius: radii.md,
     backgroundColor: palette.dangerSoft,
@@ -380,12 +543,7 @@ const createStyles = ({ palette }: AppTheme) => ({
   scanError: {
     paddingHorizontal: layout.screenPadding,
     textAlign: 'center' as const,
-  },
-  rowMenu: {
-    width: 44,
-    height: 44,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
+    marginTop: spacing.sm,
   },
   browseTile: {
     width: 44,
