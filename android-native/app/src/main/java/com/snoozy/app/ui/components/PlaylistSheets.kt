@@ -130,6 +130,56 @@ fun PlaylistActionsSheet(
 }
 
 @Composable
+fun TrackActionsSheet(
+    track: Track,
+    onPlayNext: () -> Unit,
+    onAddToQueue: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    GlasmioBottomSheet(
+        visible = true,
+        fitContent = true,
+        onDismissRequest = onDismiss,
+    ) {
+        GlasmioActionSheetContent(
+            title = track.title,
+            message = "${track.artist} \u00B7 ${track.album}",
+        ) {
+            GlasmioListRow(
+                title = "Play next",
+                showDisclosure = false,
+                onClick = {
+                    onPlayNext()
+                    onDismiss()
+                },
+            )
+            GlasmioListRow(
+                title = "Add to queue",
+                showDisclosure = false,
+                onClick = {
+                    onAddToQueue()
+                    onDismiss()
+                },
+            )
+            GlasmioListRow(
+                title = "Add to playlist",
+                showDisclosure = false,
+                onClick = {
+                    onDismiss()
+                    onAddToPlaylist()
+                },
+            )
+            GlasmioListRow(
+                title = "Cancel",
+                showDisclosure = false,
+                onClick = onDismiss,
+            )
+        }
+    }
+}
+
+@Composable
 fun PlaylistTrackActionsSheet(
     track: Track,
     canMoveUp: Boolean,
@@ -138,6 +188,8 @@ fun PlaylistTrackActionsSheet(
     onMoveDown: () -> Unit,
     onRemove: () -> Unit,
     onDismiss: () -> Unit,
+    onPlayNext: (() -> Unit)? = null,
+    onAddToQueue: (() -> Unit)? = null,
 ) {
     val destructive = LocalGlassColors.current.destructive
     GlasmioBottomSheet(
@@ -149,6 +201,26 @@ fun PlaylistTrackActionsSheet(
             title = track.title,
             message = "${track.artist} \u00B7 ${track.album}",
         ) {
+            if (onPlayNext != null) {
+                GlasmioListRow(
+                    title = "Play next",
+                    showDisclosure = false,
+                    onClick = {
+                        onPlayNext()
+                        onDismiss()
+                    },
+                )
+            }
+            if (onAddToQueue != null) {
+                GlasmioListRow(
+                    title = "Add to queue",
+                    showDisclosure = false,
+                    onClick = {
+                        onAddToQueue()
+                        onDismiss()
+                    },
+                )
+            }
             if (canMoveUp) {
                 GlasmioListRow(
                     title = "Move up",

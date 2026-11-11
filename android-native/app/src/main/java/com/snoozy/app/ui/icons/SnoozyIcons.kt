@@ -12,9 +12,10 @@ import compose.icons.feathericons.Cloud
 import compose.icons.feathericons.Compass
 import compose.icons.feathericons.Download
 import compose.icons.feathericons.Edit3
+import compose.icons.feathericons.FastForward
+import compose.icons.feathericons.Grid
 import compose.icons.feathericons.Heart
 import compose.icons.feathericons.Home
-import compose.icons.feathericons.Grid
 import compose.icons.feathericons.Info
 import compose.icons.feathericons.Layers
 import compose.icons.feathericons.List
@@ -24,9 +25,11 @@ import compose.icons.feathericons.Music
 import compose.icons.feathericons.Pause
 import compose.icons.feathericons.Play
 import compose.icons.feathericons.Plus
+import compose.icons.feathericons.Repeat
 import compose.icons.feathericons.RotateCw
 import compose.icons.feathericons.Search
 import compose.icons.feathericons.Settings
+import compose.icons.feathericons.Shuffle
 import compose.icons.feathericons.SkipBack
 import compose.icons.feathericons.SkipForward
 import compose.icons.feathericons.Star
@@ -38,7 +41,7 @@ import io.github.neoruaa.glasmio.icons.GlasmioIconResolver
 object SnoozyIcons {
     val Home: ImageVector = FeatherIcons.Home
     val Search: ImageVector = FeatherIcons.Search
-    val Library: ImageVector = FeatherIcons.BookOpen
+    val Library: ImageVector = FeatherIcons.LibraryOrBookOpen
     val Playlists: ImageVector = FeatherIcons.List
     val Settings: ImageVector = FeatherIcons.Settings
     val Music: ImageVector = FeatherIcons.Music
@@ -53,6 +56,9 @@ object SnoozyIcons {
     val Pause: ImageVector = FeatherIcons.Pause
     val Next: ImageVector = FeatherIcons.SkipForward
     val Previous: ImageVector = FeatherIcons.SkipBack
+    val Shuffle: ImageVector = FeatherIcons.Shuffle
+    val Repeat: ImageVector = FeatherIcons.Repeat
+    val FastForward: ImageVector = FeatherIcons.FastForward
     val Star: ImageVector = FeatherIcons.Star
     val Clock: ImageVector = FeatherIcons.Clock
     val Activity: ImageVector = FeatherIcons.Activity
@@ -68,6 +74,9 @@ object SnoozyIcons {
     val Edit: ImageVector = FeatherIcons.Edit3
     val Grid: ImageVector = FeatherIcons.Grid
 }
+
+private val FeatherIcons.LibraryOrBookOpen: ImageVector
+    get() = BookOpen
 
 /** Maps Glasmio's semantic system names onto Feather so no SF Symbol asset ships. */
 object SnoozyIconResolver : GlasmioIconResolver {
@@ -89,6 +98,8 @@ object SnoozyIconResolver : GlasmioIconResolver {
         systemName.startsWith("pause") -> SnoozyIcons.Pause
         systemName.startsWith("forward") -> SnoozyIcons.Next
         systemName.startsWith("backward") -> SnoozyIcons.Previous
+        systemName.startsWith("shuffle") -> SnoozyIcons.Shuffle
+        systemName.startsWith("repeat") -> SnoozyIcons.Repeat
         systemName.startsWith("star") -> SnoozyIcons.Star
         systemName.startsWith("clock") -> SnoozyIcons.Clock
         systemName.startsWith("mic") -> SnoozyIcons.Microphone

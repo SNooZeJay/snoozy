@@ -2,10 +2,13 @@ package com.snoozy.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,6 +35,8 @@ import com.snoozy.app.ui.format.formatClock
 import com.snoozy.app.ui.icons.SnoozyIcons
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.core.LocalGlassColors
+import io.github.neoruaa.glasmio.glass.GlassEmphasis
+import io.github.neoruaa.glasmio.ui.GlasmioButton
 import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import io.github.neoruaa.glasmio.ui.glasmioGroupedListBackground
 
@@ -52,18 +57,62 @@ fun SnoozyTrackRow(
     track: Track,
     subtitle: String,
     onClick: (() -> Unit)?,
+    active: Boolean = false,
     showTopSeparator: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val colors = LocalGlassColors.current
     GlasmioListRow(
         title = track.title,
         subtitle = subtitle,
         detail = formatClock(track.duration),
+        titleColor = if (active) colors.accent else colors.content,
         leading = { SnoozyArtwork(track.artwork, 44.dp, 10.dp, null) },
         onClick = onClick,
         trailing = trailing,
         showTopSeparator = showTopSeparator,
     )
+}
+
+@Composable
+fun SnoozyCollectionActions(
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit,
+    playLabel: String,
+    shuffleLabel: String,
+    enabled: Boolean = true,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        GlasmioButton(
+            onClick = onPlay,
+            enabled = enabled,
+            emphasis = GlassEmphasis.Prominent,
+            modifier = Modifier.heightIn(min = 44.dp).semantics {
+                contentDescription = playLabel
+            },
+        ) {
+            Icon(SnoozyIcons.Play, contentDescription = null, modifier = Modifier.size(16.dp))
+            Text(text = "Play", modifier = Modifier.padding(start = 6.dp))
+        }
+        GlasmioButton(
+            onClick = onShuffle,
+            enabled = enabled,
+            modifier = Modifier.heightIn(min = 44.dp).semantics {
+                contentDescription = shuffleLabel
+            },
+        ) {
+            Icon(SnoozyIcons.Shuffle, contentDescription = null, modifier = Modifier.size(16.dp))
+            Text(text = "Shuffle", modifier = Modifier.padding(start = 6.dp))
+        }
+        if (trailing != null) {
+            trailing()
+        }
+    }
 }
 
 @Composable

@@ -1,7 +1,7 @@
 package com.snoozy.app.ui.components
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,13 +24,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.snoozy.app.ui.navigation.LocalHasActiveTrack
+import com.snoozy.app.ui.navigation.NavHeaderEntry
 import io.github.neoruaa.glasmio.core.IosPageHorizontalPadding
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.core.LocalGlassColors
@@ -42,7 +44,6 @@ import io.github.neoruaa.glasmio.scaffold.rememberGlasmioHeaderScrollEdge
 import io.github.neoruaa.glasmio.ui.GlasmioButton
 import io.github.neoruaa.glasmio.ui.GlasmioButtonSize
 import io.github.neoruaa.glasmio.ui.NavigationBarSurfaceHeight
-import com.snoozy.app.ui.navigation.NavHeaderEntry
 
 /**
  * A Glasmio page body plus one lazy grid. Single column pages and the two column
@@ -65,11 +66,16 @@ fun SnoozyGridPage(
 
     val edgeProgress = rememberGlasmioHeaderScrollEdge(gridState)
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val miniPlayerSpace = if (LocalHasActiveTrack.current) MiniPlayerBottomSpace else 0.dp
     val padding = PaddingValues(
         start = IosPageHorizontalPadding,
         top = contentPadding.calculateTopPadding(),
         end = IosPageHorizontalPadding,
-        bottom = contentPadding.calculateBottomPadding() + NavigationBarSurfaceHeight + 32.dp + navigationInset,
+        bottom = contentPadding.calculateBottomPadding() +
+            NavigationBarSurfaceHeight +
+            miniPlayerSpace +
+            32.dp +
+            navigationInset,
     )
 
     GlasmioPageBody(contentPadding = padding, topBarBlurProgress = edgeProgress) { bodyPadding ->
