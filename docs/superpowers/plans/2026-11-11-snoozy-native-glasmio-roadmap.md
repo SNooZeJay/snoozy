@@ -37,7 +37,7 @@ Gate: five tabs switch, header collapses, no crash, screenshots on the A55.
 
 Gate: existing playlists, recents, favorites, and overrides load from the real v2.3 data; a fresh scan matches the old snapshot count.
 
-## Phase 3: Library and home screens (3A done, 3B pending)
+## Phase 3: Library and home screens (3A and 3B done)
 
 - Home with status, recently played, recently added, top played.
 - Library with Songs, Albums, Artists, Genres, Favorites, sorts, grid and list.
@@ -46,7 +46,7 @@ Gate: existing playlists, recents, favorites, and overrides load from the real v
 - Playlist detail and full import execution. Phase 3B owns these.
 - Import picker and permission states. Phase 3A owns these.
 
-Gate: every list opens and scrolls at the performance budget. Playback is Phase 4. Phase 3A passed on the A55 on 11 November 2026; the Phase 3 gate closes after Phase 3B.
+Gate: every list opens and scrolls at the performance budget; playback, row playback, and player controls are Phase 4. Phase 3A passed and the Phase 3 gate closed on the A55 on 11 November 2026.
 
 ## Phase 4: Playback engine
 
