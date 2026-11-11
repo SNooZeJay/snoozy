@@ -446,113 +446,142 @@ public struct PlayerScreen: View {
         }
 
         return VStack(spacing: 10) {
-            // Subtle Liquid Glass Lyrics Sync Offset Bar + WWDC25 Session 284 (17:24) Tick-Marked Neutral Slider
-            VStack(spacing: 6) {
-                HStack(spacing: 8) {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(theme.accent)
-                    Text(String(format: "Sync %+.1fs", offset))
-                        .font(SnoozyTypography.caption(11, bold: true))
-                        .foregroundStyle(Color.white.opacity(0.75))
-                    Spacer()
-                    Button("-0.5s") {
-                        repository.setLyricsOffset(for: track.id, seconds: offset - 0.5)
-                    }
-                    .font(SnoozyTypography.caption(11, bold: true))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .liquidGlassSurface(cornerRadius: 10, glassMode: repository.preferences.glassMode, tintColor: .white, variant: .ultraClear)
-
-                    Button("+0.5s") {
-                        repository.setLyricsOffset(for: track.id, seconds: offset + 0.5)
-                    }
-                    .font(SnoozyTypography.caption(11, bold: true))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .liquidGlassSurface(cornerRadius: 10, glassMode: repository.preferences.glassMode, tintColor: .white, variant: .ultraClear)
-
-                    if abs(offset) >= 0.05 {
-                        Button("Reset") {
-                            repository.setLyricsOffset(for: track.id, seconds: 0.0)
-                        }
-                        .font(SnoozyTypography.caption(11, bold: true))
-                        .foregroundStyle(theme.accent)
-                    }
-                }
-
-                LiquidGlassThumblessSlider(
-                    value: Binding(
-                        get: { offset },
-                        set: { repository.setLyricsOffset(for: track.id, seconds: ($0 * 2.0).rounded() / 2.0) }
-                    ),
-                    range: -5.0...5.0,
-                    neutralValue: 0.0,
-                    tickCount: 21,
-                    restingHeight: 5,
-                    activeHeight: 11,
-                    fillColor: theme.accent,
-                    trackColor: Color.white.opacity(0.18),
-                    enableMomentum: false
-                )
-            }
+            lyricsSyncOffsetControls(for: track, offset: offset)
 
             if let lyrics = playback.activeLyrics, !lyrics.lines.isEmpty {
-                ScrollViewReader { proxy in
-                    ScrollView(showsIndicators: false) {
-                        LazyVStack(alignment: .leading, spacing: 18) {
-                            ForEach(lyrics.lines) { line in
-                                let isCurrent = (activeIdx == line.id)
-                                Button {
-                                    if let t = line.timeSeconds {
-                                        playback.seek(to: max(0.0, t + offset))
-                                    }
-                                } label: {
-                                    Text(line.text)
-                                        .font(SnoozyTypography.display(isCurrent ? 25 : 20))
-                                        .foregroundStyle(isCurrent ? Color.white : Color.white.opacity(0.38))
-                                        .blur(radius: isCurrent || !lyrics.isSynchronized ? 0.0 : 0.4)
-                                        .scaleEffect(isCurrent ? 1.0 : 0.96, anchor: .leading)
-                                        .multilineTextAlignment(.leading)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.vertical, 4)
-                                        .animation(.spring(response: 0.34, dampingFraction: 0.80), value: isCurrent)
-                                }
-                                .buttonStyle(.plain)
-                                .id(line.id)
-                            }
-                        }
-                        .padding(.vertical, 24)
-                    }
-                    .onChange(of: activeIdx) { _, newIdx in
-                        if let newIdx {
-                            withAnimation(.spring(response: 0.40, dampingFraction: 0.82)) {
-                                proxy.scrollTo(newIdx, anchor: .center)
-                            }
-                        }
-                    }
-                }
+                lyricsScrollContent(lyrics: lyrics, activeIdx: activeIdx, offset: offset)
             } else {
-                Spacer()
-                VStack(spacing: 10) {
-                    Image(systemName: "quote.bubble")
-                        .font(.system(size: 36, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.45))
-                    Text("No Local Lyrics Available")
-                        .font(SnoozyTypography.headline(17))
-                        .foregroundStyle(.white)
-                    Text("Place a matching .lrc file next to this song in On My iPhone > Snoozy or embed USLT/SYLT tags.")
-                        .font(SnoozyTypography.footnote(13))
-                        .foregroundStyle(Color.white.opacity(0.66))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 18)
-                }
-                Spacer()
+                emptyLyricsView
             }
         }
         .frame(maxHeight: .infinity)
+    }
+
+    private func lyricsSyncOffsetControls(for track: Track, offset: Double) -> some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(theme.accent)
+                Text(String(format: "Sync %+.1fs", offset))
+                    .font(SnoozyTypography.caption(11, bold: true))
+                    .foregroundStyle(Color.white.opacity(0.75))
+                Spacer()
+                Button("-0.5s") {
+                    repository.setLyricsOffset(for: track.id, seconds: offset - 0.5)
+                }
+                .font(SnoozyTypography.caption(11, bold: true))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .liquidGlassSurface(cornerRadius: 10, glassMode: repository.preferences.glassMode, tintColor: .white, variant: .ultraClear)
+
+                Button("+0.5s") {
+                    repository.setLyricsOffset(for: track.id, seconds: offset + 0.5)
+                }
+                .font(SnoozyTypography.caption(11, bold: true))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .liquidGlassSurface(cornerRadius: 10, glassMode: repository.preferences.glassMode, tintColor: .white, variant: .ultraClear)
+
+                if abs(offset) >= 0.05 {
+                    Button("Reset") {
+                        repository.setLyricsOffset(for: track.id, seconds: 0.0)
+                    }
+                    .font(SnoozyTypography.caption(11, bold: true))
+                    .foregroundStyle(theme.accent)
+                }
+            }
+
+            LiquidGlassThumblessSlider(
+                value: Binding(
+                    get: { offset },
+                    set: { repository.setLyricsOffset(for: track.id, seconds: ($0 * 2.0).rounded() / 2.0) }
+                ),
+                range: -5.0...5.0,
+                neutralValue: 0.0,
+                tickCount: 21,
+                restingHeight: 5,
+                activeHeight: 11,
+                fillColor: theme.accent,
+                trackColor: Color.white.opacity(0.18),
+                enableMomentum: false
+            )
+        }
+    }
+
+    private func lyricsScrollContent(lyrics: ParsedLyrics, activeIdx: Int?, offset: Double) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 18) {
+                    ForEach(lyrics.lines) { line in
+                        lyricsLineButton(
+                            line: line,
+                            isCurrent: activeIdx == line.id,
+                            isSynchronized: lyrics.isSynchronized,
+                            offset: offset
+                        )
+                    }
+                }
+                .padding(.vertical, 24)
+            }
+            .onChange(of: activeIdx) { _, newIdx in
+                if let newIdx {
+                    withAnimation(.spring(response: 0.40, dampingFraction: 0.82)) {
+                        proxy.scrollTo(newIdx, anchor: .center)
+                    }
+                }
+            }
+        }
+    }
+
+    private func lyricsLineButton(
+        line: LyricsLine,
+        isCurrent: Bool,
+        isSynchronized: Bool,
+        offset: Double
+    ) -> some View {
+        let fontSize: CGFloat = isCurrent ? 25.0 : 20.0
+        let textColor: Color = isCurrent ? .white : Color.white.opacity(0.38)
+        let blurRadius: CGFloat = (isCurrent || !isSynchronized) ? 0.0 : 0.4
+        let scale: CGFloat = isCurrent ? 1.0 : 0.96
+
+        return Button {
+            if let t = line.timeSeconds {
+                playback.seek(to: max(0.0, t + offset))
+            }
+        } label: {
+            Text(line.text)
+                .font(SnoozyTypography.display(fontSize))
+                .foregroundStyle(textColor)
+                .blur(radius: blurRadius)
+                .scaleEffect(scale, anchor: .leading)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
+                .animation(.spring(response: 0.34, dampingFraction: 0.80), value: isCurrent)
+        }
+        .buttonStyle(.plain)
+        .id(line.id)
+    }
+
+    private var emptyLyricsView: some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "quote.bubble")
+                .font(.system(size: 36, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.45))
+            Text("No Local Lyrics Available")
+                .font(SnoozyTypography.headline(17))
+                .foregroundStyle(.white)
+            Text("Place a matching .lrc file next to this song in On My iPhone > Snoozy or embed USLT/SYLT tags.")
+                .font(SnoozyTypography.footnote(13))
+                .foregroundStyle(Color.white.opacity(0.66))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 18)
+            Spacer()
+        }
     }
 
     private func inlineQueueView(for track: Track) -> some View {
