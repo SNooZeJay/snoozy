@@ -73,13 +73,13 @@ public struct SettingsScreen: View {
                     .foregroundStyle(theme.inkMuted)
 
                 HStack(spacing: 8) {
-                    ForEach(GlassMode.allCases, id: \.self) { mode in
+                    ForEach(GlassMode.allCases, id: \.self) { (mode: GlassMode) in
                         let selected = (prefs.glassMode == mode)
                         let shortLabel: String = {
                             switch mode {
                             case .liquidGlass: return "Liquid Glass"
-                            case .frostedMaterial: return "Frosted"
-                            case .reducedTransparency: return "Solid"
+                            case .frosted: return "Frosted"
+                            case .reduceTransparency: return "Solid"
                             }
                         }()
                         Button {
