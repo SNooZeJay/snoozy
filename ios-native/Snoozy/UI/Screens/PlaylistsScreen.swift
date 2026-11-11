@@ -29,11 +29,49 @@ public struct PlaylistsScreen: View {
         let byId = Dictionary(uniqueKeysWithValues: repository.tracks.map { ($0.id, $0) })
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    Text("\(SnoozyFormat.countLabel(repository.playlists.count, "playlist", "playlists")) · saved on this iPhone")
-                        .font(SnoozyTypography.footnote(13))
-                        .foregroundStyle(theme.inkMuted)
-                    Spacer()
+                HStack(alignment: .center, spacing: 12) {
+                    SnoozyBrandIconView(size: 40)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Playlists")
+                            .font(SnoozyTypography.display(30))
+                            .foregroundStyle(theme.ink)
+
+                        Text("\(SnoozyFormat.countLabel(repository.playlists.count, "playlist", "playlists")) · saved on this iPhone")
+                            .font(SnoozyTypography.footnote(12))
+                            .foregroundStyle(theme.inkMuted)
+                    }
+
+                    Spacer(minLength: 6)
+
+                    SnoozyGlassEffectContainer(spacing: 6) {
+                        HStack(spacing: 6) {
+                            if !repository.playlists.isEmpty {
+                                LiquidGlassIconButton(
+                                    systemImage: gridMode ? "list.bullet" : "square.grid.2x2",
+                                    accessibilityLabel: gridMode ? "Show playlist list" : "Show playlist grid",
+                                    size: 40,
+                                    theme: theme,
+                                    preferences: repository.preferences
+                                ) {
+                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.80)) {
+                                        gridMode.toggle()
+                                    }
+                                }
+                            }
+
+                            LiquidGlassIconButton(
+                                systemImage: "plus",
+                                accessibilityLabel: "New playlist",
+                                size: 40,
+                                theme: theme,
+                                preferences: repository.preferences
+                            ) {
+                                newPlaylistName = ""
+                                showCreateAlert = true
+                            }
+                        }
+                    }
                 }
 
                 if repository.playlists.isEmpty {
@@ -45,33 +83,10 @@ public struct PlaylistsScreen: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, playback.activeTrack != nil ? 172 : 108)
+            .padding(.top, 10)
+            .padding(.bottom, playback.activeTrack != nil ? 176 : 112)
         }
-        .navigationTitle("Playlists")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                if !repository.playlists.isEmpty {
-                    Button {
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.80)) {
-                            gridMode.toggle()
-                        }
-                    } label: {
-                        Image(systemName: gridMode ? "list.bullet" : "square.grid.2x2")
-                    }
-                    .accessibilityLabel(gridMode ? "Show playlist list" : "Show playlist grid")
-                }
-
-                Button {
-                    newPlaylistName = ""
-                    showCreateAlert = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("New playlist")
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .alert("New Playlist", isPresented: $showCreateAlert) {
             TextField("Playlist name", text: $newPlaylistName)
             Button("Cancel", role: .cancel) {}
@@ -141,9 +156,11 @@ public struct PlaylistsScreen: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(theme.surface)
+        .liquidGlassSurface(
+            cornerRadius: 24,
+            glassMode: repository.preferences.glassMode,
+            refractionIntensity: repository.preferences.refractionIntensity,
+            tintColor: theme.accent
         )
     }
 

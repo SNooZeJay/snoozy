@@ -66,6 +66,19 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         updateNowPlayingInfo()
     }
 
+    public func prepareInitialTrackIfNeeded(_ track: Track, queue: [Track]) {
+        guard activeTrack == nil else { return }
+        let ordered = queue.isEmpty ? [track] : queue
+        self.queueTracks = ordered
+        self.queueIndex = ordered.firstIndex(where: { $0.id == track.id }) ?? 0
+        self.activeTrack = track
+        self.positionSeconds = 0.0
+        self.durationSeconds = track.duration
+        preparePlayer(for: track, seekTo: 0.0, autoPlay: false)
+        loadAuxiliaryTrackData(for: track)
+        persistSession()
+    }
+
     public func playTrack(
         _ track: Track,
         queue: [Track] = [],

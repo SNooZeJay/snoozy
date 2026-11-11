@@ -1,5 +1,37 @@
+import CoreText
 import SwiftUI
 import UIKit
+
+public enum SnoozyFontRegistrar {
+    private static var didRegister: Bool = false
+
+    public static func registerBundledFontsIfNeeded() {
+        guard !didRegister else { return }
+        didRegister = true
+
+        let fontFileNames = [
+            "atkinson_hyperlegible_400",
+            "atkinson_hyperlegible_700",
+            "bricolage_grotesque_500",
+            "bricolage_grotesque_600"
+        ]
+
+        for name in fontFileNames {
+            if let url = Bundle.main.url(forResource: name, withExtension: "ttf") {
+                CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+            } else if let subUrl = Bundle.main.url(forResource: name, withExtension: "ttf", subdirectory: "Fonts") {
+                CTFontManagerRegisterFontsForURL(subUrl as CFURL, .process, nil)
+            }
+        }
+
+        if let resourceURL = Bundle.main.resourceURL,
+           let enumerator = FileManager.default.enumerator(at: resourceURL, includingPropertiesForKeys: nil) {
+            for case let fileURL as URL in enumerator where fileURL.pathExtension.lowercased() == "ttf" {
+                CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, nil)
+            }
+        }
+    }
+}
 
 public struct SnoozyThemeColors: Sendable {
     public let accent: Color
@@ -48,14 +80,14 @@ public struct SnoozyThemeColors: Sendable {
             return SnoozyThemeColors(
                 accent: resolvedAccent,
                 accentStrong: resolvedStrong,
-                accentInk: Color(red: 0.925, green: 0.992, blue: 0.961),
-                background: Color(red: 0.02, green: 0.03, blue: 0.04),
-                groupedBackground: Color(red: 0.04, green: 0.05, blue: 0.07),
-                surface: Color(red: 0.11, green: 0.11, blue: 0.12).opacity(0.66),
-                surfaceRaised: Color(red: 0.17, green: 0.17, blue: 0.19).opacity(0.74),
+                accentInk: Color(red: 0.94, green: 1.0, blue: 0.97),
+                background: Color(red: 0.024, green: 0.039, blue: 0.055),
+                groupedBackground: Color(red: 0.039, green: 0.063, blue: 0.086),
+                surface: Color(red: 0.08, green: 0.12, blue: 0.15).opacity(0.68),
+                surfaceRaised: Color(red: 0.12, green: 0.17, blue: 0.21).opacity(0.78),
                 ink: .white,
-                inkMuted: Color(red: 0.92, green: 0.92, blue: 0.96).opacity(0.66),
-                inkFaint: Color(red: 0.92, green: 0.92, blue: 0.96).opacity(0.40),
+                inkMuted: Color(red: 0.88, green: 0.93, blue: 0.95).opacity(0.72),
+                inkFaint: Color(red: 0.88, green: 0.93, blue: 0.95).opacity(0.45),
                 danger: Color(red: 1.0, green: 0.271, blue: 0.227),
                 ember: Color(red: 1.0, green: 0.624, blue: 0.039),
                 isDark: true
@@ -65,13 +97,13 @@ public struct SnoozyThemeColors: Sendable {
                 accent: resolvedAccent,
                 accentStrong: resolvedStrong,
                 accentInk: .white,
-                background: Color(red: 0.949, green: 0.949, blue: 0.969),
-                groupedBackground: Color(red: 0.949, green: 0.949, blue: 0.969),
-                surface: Color.white.opacity(0.72),
-                surfaceRaised: Color.white.opacity(0.86),
-                ink: Color(red: 0.06, green: 0.07, blue: 0.09),
-                inkMuted: Color(red: 0.24, green: 0.24, blue: 0.26).opacity(0.68),
-                inkFaint: Color(red: 0.24, green: 0.24, blue: 0.26).opacity(0.42),
+                background: Color(red: 0.941, green: 0.965, blue: 0.957),
+                groupedBackground: Color(red: 0.918, green: 0.949, blue: 0.941),
+                surface: Color.white.opacity(0.76),
+                surfaceRaised: Color.white.opacity(0.88),
+                ink: Color(red: 0.04, green: 0.08, blue: 0.10),
+                inkMuted: Color(red: 0.18, green: 0.25, blue: 0.28).opacity(0.72),
+                inkFaint: Color(red: 0.18, green: 0.25, blue: 0.28).opacity(0.46),
                 danger: Color(red: 1.0, green: 0.231, blue: 0.188),
                 ember: Color(red: 1.0, green: 0.584, blue: 0.0),
                 isDark: false
@@ -82,6 +114,7 @@ public struct SnoozyThemeColors: Sendable {
 
 public enum SnoozyTypography {
     public static func display(_ size: CGFloat = 30) -> Font {
+        SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         if UIFont(name: "BricolageGrotesque-SemiBold", size: size) != nil {
             return .custom("BricolageGrotesque-SemiBold", size: size)
         }
@@ -89,6 +122,7 @@ public enum SnoozyTypography {
     }
 
     public static func title(_ size: CGFloat = 21) -> Font {
+        SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         if UIFont(name: "BricolageGrotesque-Medium", size: size) != nil {
             return .custom("BricolageGrotesque-Medium", size: size)
         }
@@ -96,6 +130,7 @@ public enum SnoozyTypography {
     }
 
     public static func headline(_ size: CGFloat = 17) -> Font {
+        SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         if UIFont(name: "AtkinsonHyperlegible-Bold", size: size) != nil {
             return .custom("AtkinsonHyperlegible-Bold", size: size)
         }
@@ -103,6 +138,7 @@ public enum SnoozyTypography {
     }
 
     public static func body(_ size: CGFloat = 15, bold: Bool = false) -> Font {
+        SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         let name = bold ? "AtkinsonHyperlegible-Bold" : "AtkinsonHyperlegible-Regular"
         if UIFont(name: name, size: size) != nil {
             return .custom(name, size: size)
@@ -111,6 +147,7 @@ public enum SnoozyTypography {
     }
 
     public static func footnote(_ size: CGFloat = 13) -> Font {
+        SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         if UIFont(name: "AtkinsonHyperlegible-Regular", size: size) != nil {
             return .custom("AtkinsonHyperlegible-Regular", size: size)
         }
@@ -118,6 +155,7 @@ public enum SnoozyTypography {
     }
 
     public static func caption(_ size: CGFloat = 11, bold: Bool = false) -> Font {
+        SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         let name = bold ? "AtkinsonHyperlegible-Bold" : "AtkinsonHyperlegible-Regular"
         if UIFont(name: name, size: size) != nil {
             return .custom(name, size: size)

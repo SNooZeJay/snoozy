@@ -10,7 +10,7 @@ public enum LiquidGlassVariant: Sendable {
     case prominent
 }
 
-/// Groups multiple Liquid Glass controls so adjacent glass shapes can blend and morph together
+/// Groups multiple Liquid Glass controls so adjacent glass shapes share optical styling
 /// (WWDC25 Session 284, 19:15: GlassEffectContainer / UIGlassContainerEffect).
 public struct SnoozyGlassEffectContainer<Content: View>: View {
     public let spacing: CGFloat
@@ -22,17 +22,7 @@ public struct SnoozyGlassEffectContainer<Content: View>: View {
     }
 
     public var body: some View {
-        #if compiler(>=6.2)
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: spacing) {
-                content()
-            }
-        } else {
-            content()
-        }
-        #else
         content()
-        #endif
     }
 }
 
@@ -40,7 +30,7 @@ public struct SnoozyGlassEffectContainer<Content: View>: View {
 public struct LiquidGlassInteractiveBounceStyle: ButtonStyle {
     public let scaleOnPress: CGFloat
 
-    public init(scale: CGFloat = 0.92) {
+    public init(scale: CGFloat = 0.94) {
         self.scaleOnPress = scale
     }
 
@@ -51,13 +41,13 @@ public struct LiquidGlassInteractiveBounceStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? scaleOnPress : 1.0)
-            .brightness(configuration.isPressed ? 0.08 : 0.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.66), value: configuration.isPressed)
+            .brightness(configuration.isPressed ? 0.06 : 0.0)
+            .animation(.spring(response: 0.24, dampingFraction: 0.70), value: configuration.isPressed)
     }
 }
 
-/// UIKit UIVisualEffectView bridge that activates native UIGlassEffect on iOS 26/27 when available at runtime,
-/// with animated materialization and ultraThinMaterial fallback (WWDC25 Session 284, 19:15).
+/// UIKit UIVisualEffectView bridge that activates native UIGlassEffect when available at runtime,
+/// with real-time systemUltraThinMaterial backdrop blur fallback.
 public struct UIGlassVisualEffectRepresentable: UIViewRepresentable {
     public let cornerRadius: CGFloat
     public let isInteractive: Bool
@@ -68,20 +58,19 @@ public struct UIGlassVisualEffectRepresentable: UIViewRepresentable {
     }
 
     public func makeUIView(context: Context) -> UIVisualEffectView {
-        let view = UIVisualEffectView(effect: nil)
+        let effect = Self.makePreferredEffect(isInteractive: isInteractive)
+        let view = UIVisualEffectView(effect: effect)
+        view.backgroundColor = .clear
         view.layer.cornerRadius = cornerRadius
         view.layer.cornerCurve = .continuous
         view.clipsToBounds = true
-
-        let resolvedEffect = Self.makePreferredEffect(isInteractive: isInteractive)
-        UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseOut, .allowUserInteraction]) {
-            view.effect = resolvedEffect
-        }
         return view
     }
 
     public func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
         uiView.layer.cornerRadius = cornerRadius
+        uiView.layer.cornerCurve = .continuous
+        uiView.clipsToBounds = true
     }
 
     private static func makePreferredEffect(isInteractive: Bool) -> UIVisualEffect {
@@ -135,10 +124,11 @@ public struct LiquidGlassModifier: ViewModifier {
                             : Color(UIColor.secondarySystemGroupedBackground)
                     )
                 )
+                .clipShape(shape)
                 .overlay(
                     shape.strokeBorder(
-                        Color.white.opacity(0.14),
-                        lineWidth: 0.75
+                        Color.white.opacity(0.16),
+                        lineWidth: 0.8
                     )
                 )
 
@@ -148,7 +138,7 @@ public struct LiquidGlassModifier: ViewModifier {
                     ZStack {
                         shape.fill(variant == .ultraClear ? .ultraThinMaterial : .thinMaterial)
                         if isProminent {
-                            shape.fill(tintColor.opacity(0.84))
+                            shape.fill(tintColor.opacity(0.86))
                         } else if variant == .tinted {
                             shape.fill(tintColor.opacity(0.16))
                         } else {
@@ -156,13 +146,14 @@ public struct LiquidGlassModifier: ViewModifier {
                         }
                     }
                 )
+                .clipShape(shape)
                 .overlay(
                     shape.strokeBorder(
                         LinearGradient(
                             colors: [
-                                Color.white.opacity(0.36),
+                                Color.white.opacity(0.38),
                                 Color.white.opacity(0.08),
-                                tintColor.opacity(0.22)
+                                tintColor.opacity(0.24)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -178,93 +169,84 @@ public struct LiquidGlassModifier: ViewModifier {
 
     @ViewBuilder
     private func liquidGlassBody(content: Content, shape: RoundedRectangle) -> some View {
+        let clampedRefraction = min(1.0, max(0.0, refractionIntensity))
         let tintOpacity: Double = {
             switch variant {
-            case .ultraClear: return 0.04 * refractionIntensity
-            case .regular: return 0.10 * refractionIntensity
-            case .tinted: return 0.22 * refractionIntensity
-            case .prominent: return 0.86
+            case .ultraClear: return 0.06 * clampedRefraction
+            case .regular: return 0.13 * clampedRefraction
+            case .tinted: return 0.24 * clampedRefraction
+            case .prominent: return 0.88
             }
         }()
 
         content
             .background(
-                GeometryReader { proxy in
-                    ZStack {
-                        UIGlassVisualEffectRepresentable(cornerRadius: cornerRadius, isInteractive: true)
-                        if isProminent || variant == .prominent {
-                            shape.fill(
-                                LinearGradient(
-                                    colors: [
-                                        tintColor.opacity(0.92),
-                                        tintColor.opacity(0.74)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
+                ZStack {
+                    // 1. Real-time translucent backdrop blur (UIGlassEffect / ultraThinMaterial)
+                    shape.fill(.ultraThinMaterial)
+
+                    // 2. Optical refractive lens tint & chromatic dispersion wash
+                    if isProminent || variant == .prominent {
+                        shape.fill(
+                            LinearGradient(
+                                colors: [
+                                    tintColor.opacity(0.94),
+                                    tintColor.opacity(0.76)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
                             )
-                        } else {
-                            shape.fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.16 * refractionIntensity),
-                                        tintColor.opacity(tintOpacity),
-                                        Color.white.opacity(0.03)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
+                        )
+                    } else {
+                        shape.fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.16 * clampedRefraction),
+                                    tintColor.opacity(tintOpacity),
+                                    Color(red: 0.04, green: 0.68, blue: 0.82).opacity(0.06 * clampedRefraction),
+                                    Color.white.opacity(0.04 * clampedRefraction)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
                             )
-                        }
-                        // Top-edge liquid meniscus reflection
-                        VStack(spacing: 0) {
-                            Capsule()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            Color.white.opacity(0.46 * refractionIntensity),
-                                            Color.white.opacity(0.0)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                                .frame(height: min(15, proxy.size.height * 0.30))
-                                .padding(.horizontal, max(6, cornerRadius * 0.42))
-                                .padding(.top, 1.0)
-                            Spacer(minLength: 0)
-                        }
+                        )
                     }
-                    .clipShape(shape)
-                    .layerEffect(
-                        ShaderLibrary.liquidGlassLens(
-                            .float2(proxy.size),
-                            .float(cornerRadius),
-                            .float(refractionIntensity),
-                            .float(0.0),
-                            .color(tintColor)
-                        ),
-                        maxSampleOffset: CGSize(width: 12, height: 12),
-                        isEnabled: refractionIntensity > 0.05
-                    )
+
+                    // 3. Top-edge curved liquid meniscus specular reflection
+                    VStack(spacing: 0) {
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(isProminent ? 0.36 : (0.34 * max(0.35, clampedRefraction))),
+                                Color.white.opacity(0.06 * clampedRefraction),
+                                Color.clear
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 18)
+                        Spacer(minLength: 0)
+                    }
                 }
+                .clipShape(shape)
             )
+            .clipShape(shape)
             .overlay(
+                // 4. Prismatic specular edge reflection rim
                 shape.strokeBorder(
-                    AngularGradient(
+                    LinearGradient(
                         colors: [
-                            Color.white.opacity(0.54),
-                            tintColor.opacity(0.36),
-                            Color.white.opacity(0.08),
-                            Color.white.opacity(0.40),
-                            Color.white.opacity(0.54)
+                            Color.white.opacity(isProminent ? 0.62 : (0.48 * max(0.4, clampedRefraction))),
+                            tintColor.opacity(0.38 * max(0.4, clampedRefraction)),
+                            Color.white.opacity(0.10),
+                            Color(red: 0.15, green: 0.85, blue: 0.72).opacity(0.28 * clampedRefraction)
                         ],
-                        center: .center
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     ),
-                    lineWidth: 0.9
+                    lineWidth: 0.95
                 )
             )
-            .shadow(color: Color.black.opacity(0.22), radius: 14, x: 0, y: 7)
+            .shadow(color: Color.black.opacity(0.26), radius: 14, x: 0, y: 7)
     }
 }
 
@@ -439,6 +421,8 @@ public struct LiquidGlassThumblessSlider: View {
     }
 }
 
+/// Hardware-accelerated native SwiftUI Aurora Mesh backdrop that breathes with the active track's artwork palette
+/// or Snoozy's signature Emerald & Deep Teal Liquid Glass aura.
 public struct LiquidAuraBackgroundView: View {
     public let theme: SnoozyThemeColors
     public let palette: ArtworkPalette
@@ -461,27 +445,84 @@ public struct LiquidAuraBackgroundView: View {
         if !preferences.auraBackdropEnabled || preferences.glassMode == .reduceTransparency {
             theme.background.ignoresSafeArea()
         } else {
-            let effectiveIntensity = isImmersivePlayer
-                ? max(0.72, preferences.auraBackdropIntensity)
-                : (preferences.auraBackdropIntensity * 0.36)
-            TimelineView(.animation(minimumInterval: preferences.motionMode == .reduced ? 1.0 : 1.0 / 30.0)) { timeline in
-                let elapsed = preferences.motionMode == .reduced
+            let intensity = isImmersivePlayer
+                ? max(0.78, preferences.auraBackdropIntensity)
+                : max(0.48, preferences.auraBackdropIntensity * 0.68)
+
+            TimelineView(.animation(minimumInterval: preferences.motionMode == .reduced ? 2.0 : 1.0 / 24.0)) { timeline in
+                let t = preferences.motionMode == .reduced
                     ? 0.0
                     : timeline.date.timeIntervalSinceReferenceDate
+
                 GeometryReader { proxy in
-                    Rectangle()
-                        .fill(theme.background)
-                        .colorEffect(
-                            ShaderLibrary.liquidAuraBackdrop(
-                                .float2(proxy.size),
-                                .float(elapsed),
-                                .float(effectiveIntensity),
-                                .color(palette.primary),
-                                .color(palette.secondary),
-                                .color(palette.tertiary),
-                                .color(theme.background)
+                    let w = max(1.0, proxy.size.width)
+                    let h = max(1.0, proxy.size.height)
+
+                    ZStack {
+                        theme.background
+
+                        // Orb 1: Primary Emerald / Artwork Top-Left Aura
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        palette.primary.opacity(0.52 * intensity),
+                                        palette.primary.opacity(0.16 * intensity),
+                                        Color.clear
+                                    ],
+                                    center: .center,
+                                    startRadius: 8,
+                                    endRadius: w * 0.78
+                                )
                             )
-                        )
+                            .frame(width: w * 1.35, height: w * 1.35)
+                            .offset(
+                                x: -w * 0.24 + CGFloat(cos(t * 0.32)) * 28.0,
+                                y: -h * 0.26 + CGFloat(sin(t * 0.38)) * 24.0
+                            )
+
+                        // Orb 2: Secondary Cyan-Teal / Artwork Center-Right Aura
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        palette.secondary.opacity(0.44 * intensity),
+                                        theme.accent.opacity(0.18 * intensity),
+                                        Color.clear
+                                    ],
+                                    center: .center,
+                                    startRadius: 10,
+                                    endRadius: w * 0.72
+                                )
+                            )
+                            .frame(width: w * 1.25, height: w * 1.25)
+                            .offset(
+                                x: w * 0.28 + CGFloat(sin(t * 0.27)) * 26.0,
+                                y: h * 0.04 + CGFloat(cos(t * 0.31)) * 30.0
+                            )
+
+                        // Orb 3: Tertiary Deep Emerald / Artwork Bottom Glow (illuminates floating Liquid Glass tab pill)
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        palette.tertiary.opacity(0.48 * intensity),
+                                        theme.accentStrong.opacity(0.22 * intensity),
+                                        Color.clear
+                                    ],
+                                    center: .center,
+                                    startRadius: 8,
+                                    endRadius: w * 0.75
+                                )
+                            )
+                            .frame(width: w * 1.30, height: w * 1.30)
+                            .offset(
+                                x: CGFloat(sin(t * 0.22 + 1.2)) * 32.0,
+                                y: h * 0.36 + CGFloat(cos(t * 0.34)) * 20.0
+                            )
+                    }
+                    .frame(width: w, height: h)
+                    .clipped()
                 }
                 .ignoresSafeArea()
             }
@@ -518,20 +559,20 @@ public struct LiquidGlassButton: View {
 
     public var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: 7) {
                 if let systemImage {
                     Image(systemName: systemImage)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 14, weight: .bold))
                 }
                 Text(title)
                     .font(SnoozyTypography.body(14, bold: true))
                     .lineLimit(1)
             }
             .foregroundStyle(isProminent ? theme.accentInk : theme.ink)
-            .padding(.horizontal, 16)
-            .frame(minHeight: 44)
+            .padding(.horizontal, 18)
+            .frame(minHeight: 46)
             .liquidGlassSurface(
-                cornerRadius: 22,
+                cornerRadius: 23,
                 glassMode: preferences.glassMode,
                 refractionIntensity: preferences.refractionIntensity,
                 tintColor: theme.accent,
@@ -539,7 +580,7 @@ public struct LiquidGlassButton: View {
             )
             .opacity(isDisabled ? 0.45 : 1.0)
         }
-        .buttonStyle(LiquidGlassInteractiveBounceStyle(scaleOnPress: 1.04))
+        .buttonStyle(LiquidGlassInteractiveBounceStyle(scaleOnPress: 0.96))
         .disabled(isDisabled)
     }
 }
@@ -556,7 +597,7 @@ public struct LiquidGlassIconButton: View {
     public init(
         systemImage: String,
         accessibilityLabel: String,
-        size: CGFloat = 44,
+        size: CGFloat = 42,
         isActive: Bool = false,
         theme: SnoozyThemeColors,
         preferences: SnoozyPreferences,
@@ -574,18 +615,19 @@ public struct LiquidGlassIconButton: View {
     public var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: size * 0.40, weight: .semibold))
-                .foregroundStyle(isActive ? theme.accentInk : theme.ink)
+                .font(.system(size: size * 0.40, weight: .bold))
+                .foregroundStyle(isActive ? theme.accentInk : theme.accent)
                 .frame(width: size, height: size)
                 .liquidGlassSurface(
                     cornerRadius: size * 0.5,
                     glassMode: preferences.glassMode,
                     refractionIntensity: preferences.refractionIntensity,
                     tintColor: theme.accent,
-                    isProminent: isActive
+                    isProminent: isActive,
+                    variant: .ultraClear
                 )
         }
-        .buttonStyle(LiquidGlassInteractiveBounceStyle(scaleOnPress: 1.08))
+        .buttonStyle(LiquidGlassInteractiveBounceStyle(scaleOnPress: 0.92))
         .accessibilityLabel(accessibilityLabel)
     }
 }

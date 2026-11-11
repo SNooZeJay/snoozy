@@ -61,34 +61,14 @@ public struct HomeScreen: View {
                     favoritesSection
                     playlistsSection
                     browseYourMusicSection
+                    importQuickActionsCard
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, playback.activeTrack != nil ? 172 : 108)
+            .padding(.top, 10)
+            .padding(.bottom, playback.activeTrack != nil ? 176 : 112)
         }
-        .navigationTitle("Home")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button(action: onImportFiles) {
-                    Image(systemName: "doc.badge.plus")
-                }
-                .accessibilityLabel("Import audio files")
-
-                Button(action: onImportFolder) {
-                    Image(systemName: "folder.badge.plus")
-                }
-                .accessibilityLabel("Import music folder")
-
-                Button {
-                    Task { await repository.scanLibrary() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .accessibilityLabel("Scan Snoozy folder")
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .alert("Clear recently played?", isPresented: $showClearRecentsAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) {
@@ -100,19 +80,95 @@ public struct HomeScreen: View {
     }
 
     private var headerSection: some View {
-        HStack(alignment: .center, spacing: 10) {
-            SnoozyBrandIconView(size: 32)
+        HStack(alignment: .center, spacing: 12) {
+            SnoozyBrandIconView(size: 44)
 
-            Text(
-                repository.isScanning
-                    ? "Scanning On My iPhone > Snoozy…"
-                    : "\(SnoozyFormat.countLabel(repository.tracks.count, "song", "songs")) · \(SnoozyFormat.countLabel(repository.albums.count, "album", "albums")) on this iPhone"
-            )
-            .font(SnoozyTypography.footnote(13))
-            .foregroundStyle(theme.inkMuted)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Home")
+                    .font(SnoozyTypography.display(30))
+                    .foregroundStyle(theme.ink)
 
-            Spacer()
+                Text(
+                    repository.isScanning
+                        ? "Scanning On My iPhone > Snoozy…"
+                        : "\(SnoozyFormat.countLabel(repository.tracks.count, "song", "songs")) · \(SnoozyFormat.countLabel(repository.albums.count, "album", "albums")) on this iPhone"
+                )
+                .font(SnoozyTypography.footnote(12))
+                .foregroundStyle(theme.inkMuted)
+                .lineLimit(1)
+            }
+
+            Spacer(minLength: 6)
+
+            SnoozyGlassEffectContainer(spacing: 6) {
+                HStack(spacing: 6) {
+                    LiquidGlassIconButton(
+                        systemImage: "doc.badge.plus",
+                        accessibilityLabel: "Import audio files",
+                        size: 40,
+                        theme: theme,
+                        preferences: repository.preferences,
+                        action: onImportFiles
+                    )
+                    LiquidGlassIconButton(
+                        systemImage: "folder.badge.plus",
+                        accessibilityLabel: "Import music folder",
+                        size: 40,
+                        theme: theme,
+                        preferences: repository.preferences,
+                        action: onImportFolder
+                    )
+                    LiquidGlassIconButton(
+                        systemImage: "arrow.clockwise",
+                        accessibilityLabel: "Scan Snoozy folder",
+                        size: 40,
+                        theme: theme,
+                        preferences: repository.preferences
+                    ) {
+                        Task { await repository.scanLibrary() }
+                    }
+                }
+            }
         }
+    }
+
+    private var importQuickActionsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "waveform.badge.plus")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(theme.accent)
+                Text("Add Local Music from iPhone Files")
+                    .font(SnoozyTypography.body(14, bold: true))
+                    .foregroundStyle(theme.ink)
+                Spacer()
+            }
+            HStack(spacing: 10) {
+                LiquidGlassButton(
+                    title: "Import Songs",
+                    systemImage: "doc.badge.plus",
+                    isProminent: true,
+                    theme: theme,
+                    preferences: repository.preferences,
+                    action: onImportFiles
+                )
+                LiquidGlassButton(
+                    title: "Import Folder",
+                    systemImage: "folder.badge.plus",
+                    isProminent: false,
+                    theme: theme,
+                    preferences: repository.preferences,
+                    action: onImportFolder
+                )
+            }
+        }
+        .padding(16)
+        .liquidGlassSurface(
+            cornerRadius: 22,
+            glassMode: repository.preferences.glassMode,
+            refractionIntensity: repository.preferences.refractionIntensity,
+            tintColor: theme.accent
+        )
     }
 
     private var emptyLibraryCard: some View {
@@ -161,9 +217,11 @@ public struct HomeScreen: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(theme.surface)
+        .liquidGlassSurface(
+            cornerRadius: 24,
+            glassMode: repository.preferences.glassMode,
+            refractionIntensity: repository.preferences.refractionIntensity,
+            tintColor: theme.accent
         )
     }
 

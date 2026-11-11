@@ -1,6 +1,23 @@
 import SwiftUI
 import UIKit
 
+public enum SnoozyBrandAssetLoader {
+    public static func loadBrandLogoImage() -> UIImage? {
+        if let named = UIImage(named: "SnoozyBrandLogo") {
+            return named
+        }
+        if let path = Bundle.main.path(forResource: "SnoozyBrandLogo", ofType: "png"),
+           let img = UIImage(contentsOfFile: path) {
+            return img
+        }
+        if let iconPath = Bundle.main.path(forResource: "AppIcon60x60@3x", ofType: "png"),
+           let img = UIImage(contentsOfFile: iconPath) {
+            return img
+        }
+        return nil
+    }
+}
+
 public struct SnoozyBrandIconView: View {
     public let size: CGFloat
 
@@ -9,37 +26,69 @@ public struct SnoozyBrandIconView: View {
     }
 
     public var body: some View {
-        let cornerRadius = size * 0.225
+        let cornerRadius = size * 0.23
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
         Group {
-            if let brandImage = UIImage(named: "SnoozyBrandLogo") {
+            if let brandImage = SnoozyBrandAssetLoader.loadBrandLogoImage() {
                 Image(uiImage: brandImage)
                     .resizable()
                     .interpolation(.high)
                     .antialiased(true)
-                    .scaledToFit()
+                    .scaledToFill()
             } else {
                 ZStack {
                     shape.fill(
                         LinearGradient(
                             colors: [
-                                Color(red: 0.000, green: 0.008, blue: 0.059),
-                                Color(red: 0.051, green: 0.184, blue: 0.161),
-                                Color(red: 0.133, green: 0.447, blue: 0.357)
+                                Color(red: 0.01, green: 0.04, blue: 0.08),
+                                Color(red: 0.03, green: 0.19, blue: 0.15),
+                                Color(red: 0.08, green: 0.38, blue: 0.29)
                             ],
                             startPoint: .bottomLeading,
                             endPoint: .topTrailing
                         )
                     )
+                    Circle()
+                        .fill(Color(red: 0.063, green: 0.725, blue: 0.506).opacity(0.32))
+                        .frame(width: size * 0.65, height: size * 0.65)
+                        .blur(radius: size * 0.14)
+                        .offset(x: size * 0.12, y: -size * 0.10)
+
                     Image(systemName: "music.note")
-                        .font(.system(size: size * 0.46, weight: .bold))
-                        .foregroundStyle(Color(red: 0.925, green: 0.992, blue: 0.961))
+                        .font(.system(size: size * 0.48, weight: .bold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [
+                                    Color.white,
+                                    Color(red: 0.65, green: 0.98, blue: 0.86),
+                                    Color(red: 0.35, green: 0.85, blue: 0.95)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .shadow(color: Color.black.opacity(0.45), radius: size * 0.08, x: 0, y: size * 0.05)
                 }
             }
         }
         .frame(width: size, height: size)
         .clipShape(shape)
+        .overlay(
+            shape.strokeBorder(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.46),
+                        Color(red: 0.063, green: 0.725, blue: 0.506).opacity(0.35),
+                        Color.white.opacity(0.10)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 0.9
+            )
+        )
+        .shadow(color: Color.black.opacity(0.35), radius: 8, x: 0, y: 4)
         .accessibilityLabel("Snoozy Emerald Liquid Glass icon")
     }
 }
@@ -107,25 +156,27 @@ public struct SnoozyArtworkView: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .interpolation(.high)
+                    .antialiased(true)
                     .scaledToFill()
-            } else if let brandImage = UIImage(named: "SnoozyBrandLogo") {
+            } else if let brandImage = SnoozyBrandAssetLoader.loadBrandLogoImage() {
                 Image(uiImage: brandImage)
                     .resizable()
                     .interpolation(.high)
+                    .antialiased(true)
                     .scaledToFill()
             } else {
                 ZStack {
                     LinearGradient(
                         colors: [
-                            Color(red: 0.000, green: 0.008, blue: 0.059),
-                            Color(red: 0.051, green: 0.184, blue: 0.161),
-                            Color(red: 0.133, green: 0.447, blue: 0.357)
+                            Color(red: 0.01, green: 0.04, blue: 0.08),
+                            Color(red: 0.04, green: 0.20, blue: 0.16),
+                            Color(red: 0.10, green: 0.42, blue: 0.32)
                         ],
                         startPoint: .bottomLeading,
                         endPoint: .topTrailing
                     )
                     Image(systemName: "music.note")
-                        .font(.system(size: (size ?? 120) * 0.38, weight: .bold))
+                        .font(.system(size: (size ?? 120) * 0.40, weight: .bold))
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [
@@ -145,7 +196,7 @@ public struct SnoozyArtworkView: View {
             shape.strokeBorder(
                 LinearGradient(
                     colors: [
-                        Color.white.opacity(0.36),
+                        Color.white.opacity(0.38),
                         Color.white.opacity(0.08)
                     ],
                     startPoint: .topLeading,

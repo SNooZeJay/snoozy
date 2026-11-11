@@ -14,9 +14,21 @@ public struct SettingsScreen: View {
         let prefs = repository.preferences
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                Text("iOS 27 Liquid Glass · iPhone 13 mini edition")
-                    .font(SnoozyTypography.footnote(13))
-                    .foregroundStyle(theme.inkMuted)
+                HStack(alignment: .center, spacing: 12) {
+                    SnoozyBrandIconView(size: 40)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Settings")
+                            .font(SnoozyTypography.display(30))
+                            .foregroundStyle(theme.ink)
+
+                        Text("iOS 27 Liquid Glass · iPhone 13 mini edition")
+                            .font(SnoozyTypography.footnote(12))
+                            .foregroundStyle(theme.inkMuted)
+                    }
+
+                    Spacer()
+                }
 
                 liquidGlassCard(prefs: prefs)
                 appearanceCard(prefs: prefs)
@@ -24,11 +36,10 @@ public struct SettingsScreen: View {
                 diagnosticsCard(prefs: prefs)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, playback.activeTrack != nil ? 168 : 104)
+            .padding(.top, 10)
+            .padding(.bottom, playback.activeTrack != nil ? 176 : 112)
         }
-        .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(.large)
+        .toolbar(.hidden, for: .navigationBar)
         .alert("Clear listening history?", isPresented: $showClearHistoryAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) {
@@ -56,23 +67,43 @@ public struct SettingsScreen: View {
                     .foregroundStyle(theme.ink)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Surface Material")
                     .font(SnoozyTypography.caption(12, bold: true))
                     .foregroundStyle(theme.inkMuted)
 
-                Picker(
-                    "Surface Material",
-                    selection: Binding(
-                        get: { prefs.glassMode },
-                        set: { mode in repository.updatePreferences { $0.glassMode = mode } }
-                    )
-                ) {
+                HStack(spacing: 8) {
                     ForEach(GlassMode.allCases, id: \.self) { mode in
-                        Text(mode.label).tag(mode)
+                        let selected = (prefs.glassMode == mode)
+                        let shortLabel: String = {
+                            switch mode {
+                            case .liquidGlass: return "Liquid Glass"
+                            case .frostedMaterial: return "Frosted"
+                            case .reducedTransparency: return "Solid"
+                            }
+                        }()
+                        Button {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.80)) {
+                                repository.updatePreferences { $0.glassMode = mode }
+                            }
+                        } label: {
+                            Text(shortLabel)
+                                .font(SnoozyTypography.caption(12, bold: true))
+                                .foregroundStyle(selected ? theme.accentInk : theme.ink)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 36)
+                                .liquidGlassSurface(
+                                    cornerRadius: 18,
+                                    glassMode: prefs.glassMode,
+                                    refractionIntensity: prefs.refractionIntensity,
+                                    tintColor: theme.accent,
+                                    isProminent: selected,
+                                    variant: .ultraClear
+                                )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-                .pickerStyle(.segmented)
             }
 
             if prefs.glassMode == .liquidGlass {

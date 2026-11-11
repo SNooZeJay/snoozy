@@ -205,74 +205,62 @@ public struct RootScaffoldView: View {
                 )
 
                 NavigationStack(path: $navPath) {
-                    ZStack {
-                        if let neighbor = neighborSwipeTab, navPath.isEmpty {
-                            let neighborOffset: CGFloat = horizontalSwipeTranslation < 0
-                                ? (screenWidth + horizontalSwipeTranslation)
-                                : (-screenWidth + horizontalSwipeTranslation)
-
-                            tabContentView(for: neighbor)
-                                .offset(x: neighborOffset)
-                                .allowsHitTesting(false)
+                    tabContentView(for: selectedTab)
+                        .offset(x: navPath.isEmpty ? (horizontalSwipeTranslation * 0.14) : 0)
+                        .navigationDestination(for: NavigationDestination.self) { destination in
+                            switch destination {
+                            case .album(let key):
+                                AlbumDetailScreen(
+                                    albumKey: key,
+                                    repository: repository,
+                                    playback: playback,
+                                    theme: theme,
+                                    onOpenArtist: { navPath.append(NavigationDestination.artist($0)) },
+                                    onSelectTrackForMenu: { menuTrack = $0 }
+                                )
+                            case .artist(let name):
+                                ArtistDetailScreen(
+                                    artistName: name,
+                                    repository: repository,
+                                    playback: playback,
+                                    theme: theme,
+                                    onOpenAlbum: { navPath.append(NavigationDestination.album($0)) },
+                                    onSelectTrackForMenu: { menuTrack = $0 }
+                                )
+                            case .genre(let genre):
+                                GenreDetailScreen(
+                                    genreName: genre,
+                                    repository: repository,
+                                    playback: playback,
+                                    theme: theme,
+                                    onSelectTrackForMenu: { menuTrack = $0 }
+                                )
+                            case .playlist(let id):
+                                PlaylistDetailScreen(
+                                    playlistId: id,
+                                    repository: repository,
+                                    playback: playback,
+                                    theme: theme
+                                )
+                            case .folder(let folderName):
+                                FolderDetailScreen(
+                                    folderName: folderName,
+                                    repository: repository,
+                                    playback: playback,
+                                    theme: theme,
+                                    onSelectTrackForMenu: { menuTrack = $0 }
+                                )
+                            }
                         }
-
-                        tabContentView(for: selectedTab)
-                            .offset(x: navPath.isEmpty ? horizontalSwipeTranslation : 0)
-                    }
-                    .navigationDestination(for: NavigationDestination.self) { destination in
-                        switch destination {
-                        case .album(let key):
-                            AlbumDetailScreen(
-                                albumKey: key,
-                                repository: repository,
-                                playback: playback,
-                                theme: theme,
-                                onOpenArtist: { navPath.append(NavigationDestination.artist($0)) },
-                                onSelectTrackForMenu: { menuTrack = $0 }
-                            )
-                        case .artist(let name):
-                            ArtistDetailScreen(
-                                artistName: name,
-                                repository: repository,
-                                playback: playback,
-                                theme: theme,
-                                onOpenAlbum: { navPath.append(NavigationDestination.album($0)) },
-                                onSelectTrackForMenu: { menuTrack = $0 }
-                            )
-                        case .genre(let genre):
-                            GenreDetailScreen(
-                                genreName: genre,
-                                repository: repository,
-                                playback: playback,
-                                theme: theme,
-                                onSelectTrackForMenu: { menuTrack = $0 }
-                            )
-                        case .playlist(let id):
-                            PlaylistDetailScreen(
-                                playlistId: id,
-                                repository: repository,
-                                playback: playback,
-                                theme: theme
-                            )
-                        case .folder(let folderName):
-                            FolderDetailScreen(
-                                folderName: folderName,
-                                repository: repository,
-                                playback: playback,
-                                theme: theme,
-                                onSelectTrackForMenu: { menuTrack = $0 }
-                            )
-                        }
-                    }
                 }
                 .simultaneousGesture(
-                    DragGesture(minimumDistance: 18)
+                    DragGesture(minimumDistance: 24)
                         .onChanged { value in
                             let dx = value.translation.width
                             let dy = value.translation.height
 
-                            // 1. Horizontal Instagram-style swipe across root tabs when navigation stack is at root
-                            if navPath.isEmpty && (isHorizontalSwiping || (abs(dx) > abs(dy) * 1.35 && abs(dx) > 16)) {
+                            // 1. Clean horizontal swipe across root tabs when navigation stack is at root
+                            if navPath.isEmpty && (isHorizontalSwiping || (abs(dx) > abs(dy) * 1.85 && abs(dx) > 26 && abs(dy) < 28)) {
                                 if !isHorizontalSwiping {
                                     isHorizontalSwiping = true
                                     if isTabBarMinimized {
@@ -289,12 +277,12 @@ public struct RootScaffoldView: View {
                             }
 
                             // 2. Vertical scroll-based tab bar minimization
-                            guard !isHorizontalSwiping, abs(dy) > abs(dx) * 1.3 else { return }
-                            if dy < -28 && !isTabBarMinimized {
+                            guard !isHorizontalSwiping, abs(dy) > abs(dx) * 1.5 else { return }
+                            if dy < -34 && !isTabBarMinimized {
                                 withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
                                     isTabBarMinimized = true
                                 }
-                            } else if dy > 24 && isTabBarMinimized {
+                            } else if dy > 28 && isTabBarMinimized {
                                 withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
                                     isTabBarMinimized = false
                                 }
@@ -312,7 +300,7 @@ public struct RootScaffoldView: View {
                             let nextTab = RootTab.from(index: targetIdx)
                             let didChange = (nextTab != selectedTab)
 
-                            withAnimation(.interpolatingSpring(mass: 1.0, stiffness: 265, damping: 26)) {
+                            withAnimation(.interpolatingSpring(mass: 1.0, stiffness: 280, damping: 26)) {
                                 selectedTab = nextTab
                                 horizontalSwipeTranslation = 0.0
                                 isHorizontalSwiping = false
@@ -329,6 +317,7 @@ public struct RootScaffoldView: View {
                     .padding(.bottom, 8)
             }
         }
+        .tint(theme.accent)
         .preferredColorScheme(
             repository.preferences.themeMode == .system
                 ? nil

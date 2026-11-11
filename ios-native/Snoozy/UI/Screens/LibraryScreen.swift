@@ -76,45 +76,10 @@ public struct LibraryScreen: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, playback.activeTrack != nil ? 172 : 108)
+            .padding(.top, 10)
+            .padding(.bottom, playback.activeTrack != nil ? 176 : 112)
         }
-        .navigationTitle(selectedTab == .overview ? "Library" : (selectedTab == .songs ? "All Songs" : selectedTab.rawValue))
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            if selectedTab != .overview {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        withAnimation(.spring(response: 0.30, dampingFraction: 0.80)) {
-                            selectedTab = .overview
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                            Text("Library")
-                        }
-                    }
-                    .accessibilityLabel("Back to Library Overview")
-                }
-            }
-
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                if selectedTab == .playlists || selectedTab == .overview {
-                    Button {
-                        newPlaylistName = ""
-                        showNewPlaylistAlert = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityLabel("Create playlist")
-                }
-
-                Button(action: onImportFiles) {
-                    Image(systemName: "doc.badge.plus")
-                }
-                .accessibilityLabel("Import songs")
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .confirmationDialog("Sort songs by", isPresented: $showSongSortDialog, titleVisibility: .visible) {
             ForEach(SongSort.allCases, id: \.self) { sort in
                 Button(sort.label) {
@@ -142,10 +107,61 @@ public struct LibraryScreen: View {
 
     private var headerRow: some View {
         HStack(alignment: .center, spacing: 10) {
-            Text(countSubtitle)
-                .font(SnoozyTypography.footnote(13))
-                .foregroundStyle(theme.inkMuted)
-            Spacer()
+            if selectedTab != .overview {
+                LiquidGlassIconButton(
+                    systemImage: "chevron.left",
+                    accessibilityLabel: "Back to Library Overview",
+                    size: 40,
+                    theme: theme,
+                    preferences: repository.preferences
+                ) {
+                    withAnimation(.spring(response: 0.30, dampingFraction: 0.80)) {
+                        selectedTab = .overview
+                    }
+                }
+            } else {
+                SnoozyBrandIconView(size: 40)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(selectedTab == .overview ? "Library" : (selectedTab == .songs ? "All Songs" : selectedTab.rawValue))
+                    .font(SnoozyTypography.display(30))
+                    .foregroundStyle(theme.ink)
+                    .lineLimit(1)
+
+                Text(countSubtitle)
+                    .font(SnoozyTypography.footnote(12))
+                    .foregroundStyle(theme.inkMuted)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 6)
+
+            SnoozyGlassEffectContainer(spacing: 6) {
+                HStack(spacing: 6) {
+                    if selectedTab == .playlists || selectedTab == .overview {
+                        LiquidGlassIconButton(
+                            systemImage: "plus",
+                            accessibilityLabel: "Create playlist",
+                            size: 40,
+                            theme: theme,
+                            preferences: repository.preferences
+                        ) {
+                            newPlaylistName = ""
+                            showNewPlaylistAlert = true
+                        }
+                    }
+
+                    LiquidGlassIconButton(
+                        systemImage: "doc.badge.plus",
+                        accessibilityLabel: "Import songs",
+                        size: 40,
+                        theme: theme,
+                        preferences: repository.preferences,
+                        action: onImportFiles
+                    )
+                }
+            }
         }
     }
 
@@ -808,9 +824,11 @@ public struct LibraryScreen: View {
         }
         .frame(maxWidth: .infinity)
         .padding(24)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(theme.surface)
+        .liquidGlassSurface(
+            cornerRadius: 22,
+            glassMode: repository.preferences.glassMode,
+            refractionIntensity: repository.preferences.refractionIntensity,
+            tintColor: theme.accent
         )
     }
 }

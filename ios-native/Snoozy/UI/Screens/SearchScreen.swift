@@ -99,7 +99,10 @@ public struct SearchScreen: View {
 
     public var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 18) {
+                headerRow
+                liquidGlassSearchBar
+
                 if !trimmedQuery.isEmpty {
                     scopeFilterRow
                 }
@@ -114,21 +117,68 @@ public struct SearchScreen: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, playback.activeTrack != nil ? 172 : 108)
+            .padding(.top, 10)
+            .padding(.bottom, playback.activeTrack != nil ? 176 : 112)
         }
-        .navigationTitle("Search")
-        .navigationBarTitleDisplayMode(.large)
-        .searchable(
-            text: $query,
-            placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Your Local Songs, Artists, Albums, Playlists"
-        )
-        .onSubmit(of: .search) {
-            if !trimmedQuery.isEmpty {
-                repository.addRecentSearch(trimmedQuery)
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var headerRow: some View {
+        HStack(alignment: .center, spacing: 12) {
+            SnoozyBrandIconView(size: 40)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Search")
+                    .font(SnoozyTypography.display(30))
+                    .foregroundStyle(theme.ink)
+
+                Text("Instant offline search across \(SnoozyFormat.countLabel(repository.tracks.count, "song", "songs"))")
+                    .font(SnoozyTypography.footnote(12))
+                    .foregroundStyle(theme.inkMuted)
+            }
+
+            Spacer()
+        }
+    }
+
+    private var liquidGlassSearchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(theme.accent)
+
+            TextField("Songs, artists, albums, playlists, folders…", text: $query)
+                .font(SnoozyTypography.body(15))
+                .foregroundStyle(theme.ink)
+                .submitLabel(.search)
+                .onSubmit {
+                    if !trimmedQuery.isEmpty {
+                        repository.addRecentSearch(trimmedQuery)
+                    }
+                }
+
+            if !query.isEmpty {
+                Button {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) {
+                        query = ""
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(theme.inkMuted)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
             }
         }
+        .padding(.horizontal, 14)
+        .frame(height: 48)
+        .liquidGlassSurface(
+            cornerRadius: 16,
+            glassMode: repository.preferences.glassMode,
+            refractionIntensity: repository.preferences.refractionIntensity,
+            tintColor: theme.accent
+        )
     }
 
     private var scopeFilterRow: some View {
@@ -147,18 +197,12 @@ public struct SearchScreen: View {
                                 .foregroundStyle(isSelected ? theme.accentInk : theme.ink)
                                 .padding(.horizontal, 14)
                                 .frame(height: 34)
-                                .background(
-                                    Group {
-                                        if isSelected {
-                                            Capsule().fill(theme.accent)
-                                        }
-                                    }
-                                )
                                 .liquidGlassSurface(
                                     cornerRadius: 17,
                                     glassMode: repository.preferences.glassMode,
-                                    refractionIntensity: repository.preferences.refractionIntensity * 0.7,
-                                    tintColor: isSelected ? theme.accent : .white,
+                                    refractionIntensity: repository.preferences.refractionIntensity,
+                                    tintColor: theme.accent,
+                                    isProminent: isSelected,
                                     variant: .ultraClear
                                 )
                         }

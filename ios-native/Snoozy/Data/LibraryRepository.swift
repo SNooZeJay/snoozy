@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 @MainActor
 public final class LibraryRepository: ObservableObject {
@@ -63,24 +64,163 @@ public final class LibraryRepository: ObservableObject {
         }
     }
 
+    public func seedShowcaseLibraryIfNeeded() async {
+        let seedKey = "snoozy.hasSeededShowcaseLibrary.v1"
+        guard !UserDefaults.standard.bool(forKey: seedKey), rawTracks.isEmpty else { return }
+        UserDefaults.standard.set(true, forKey: seedKey)
+        await createSampleSynthTrack()
+    }
+
     public func createSampleSynthTrack() async {
-        let sampleURL = store.documentsURL.appendingPathComponent("Snoozy Liquid Glass Demo.wav")
-        if !FileManager.default.fileExists(atPath: sampleURL.path) {
-            if let data = Self.generateStereoChordWav(durationSeconds: 18.0) {
-                try? data.write(to: sampleURL, options: .atomic)
-            }
-            let lrcURL = store.documentsURL.appendingPathComponent("Snoozy Liquid Glass Demo.lrc")
-            let sampleLrc = """
-            [ti:Snoozy Liquid Glass Demo]
-            [ar:Snoozy Synth Engine]
-            [00:00.20]Welcome to Snoozy on iPhone 13 mini
-            [00:04.00]Real-time iOS 27 Liquid Glass refraction
-            [00:08.50]Drop your FLAC, MP3, WAV, or M4A files in the Files app
-            [00:13.00]Pure offline playback with zero subscriptions
-            """
-            try? sampleLrc.data(using: .utf8)?.write(to: lrcURL, options: .atomic)
+        struct ShowcaseSpec {
+            let fileBase: String
+            let title: String
+            let artist: String
+            let album: String
+            let genre: String
+            let year: String
+            let trackNumber: Int
+            let chords: [Double]
+            let lrc: String
+            let topColor: UIColor
+            let bottomColor: UIColor
+            let accentColor: UIColor
         }
+
+        let specs: [ShowcaseSpec] = [
+            ShowcaseSpec(
+                fileBase: "Liquid Glass Prelude",
+                title: "Liquid Glass Prelude",
+                artist: "Snoozy Audio Lab",
+                album: "Prismatic Sessions",
+                genre: "Ambient",
+                year: "2026",
+                trackNumber: 1,
+                chords: [220.0, 277.18, 329.63, 415.30, 493.88],
+                lrc: """
+                [ti:Liquid Glass Prelude]
+                [ar:Snoozy Audio Lab]
+                [00:00.20]Welcome to Snoozy on iPhone 13 mini
+                [00:04.20]Optical Liquid Glass refraction in real time
+                [00:08.50]Drop FLAC, MP3, WAV, or M4A songs in the Files app
+                [00:13.00]Pure offline playback with zero subscriptions
+                """,
+                topColor: UIColor(red: 0.04, green: 0.36, blue: 0.28, alpha: 1.0),
+                bottomColor: UIColor(red: 0.02, green: 0.08, blue: 0.12, alpha: 1.0),
+                accentColor: UIColor(red: 0.16, green: 0.88, blue: 0.64, alpha: 1.0)
+            ),
+            ShowcaseSpec(
+                fileBase: "Emerald Refraction",
+                title: "Emerald Refraction",
+                artist: "Snoozy Audio Lab",
+                album: "Prismatic Sessions",
+                genre: "Electronic",
+                year: "2026",
+                trackNumber: 2,
+                chords: [196.0, 246.94, 293.66, 369.99, 440.0],
+                lrc: """
+                [ti:Emerald Refraction]
+                [ar:Snoozy Audio Lab]
+                [00:00.20]Specular highlights glide across floating glass
+                [00:04.50]Swipe horizontally across the bottom pill to switch tabs
+                [00:09.00]Tap the mini-player to open full-screen Now Playing
+                [00:13.00]100% local audio engine built for iOS
+                """,
+                topColor: UIColor(red: 0.06, green: 0.30, blue: 0.44, alpha: 1.0),
+                bottomColor: UIColor(red: 0.02, green: 0.06, blue: 0.14, alpha: 1.0),
+                accentColor: UIColor(red: 0.22, green: 0.78, blue: 0.94, alpha: 1.0)
+            ),
+            ShowcaseSpec(
+                fileBase: "Midnight Obsidian",
+                title: "Midnight Obsidian",
+                artist: "Velvet Horizon",
+                album: "Nocturne Offline",
+                genre: "Chillout",
+                year: "2026",
+                trackNumber: 1,
+                chords: [174.61, 220.0, 261.63, 329.63, 392.0],
+                lrc: """
+                [ti:Midnight Obsidian]
+                [ar:Velvet Horizon]
+                [00:00.20]Deep obsidian contrast for late-night listening
+                [00:04.50]Synced LRC lyrics scroll smoothly with your music
+                [00:09.00]Organize playlists, folders, albums, and favorites
+                [00:13.00]Your personal music collection, always offline
+                """,
+                topColor: UIColor(red: 0.18, green: 0.14, blue: 0.38, alpha: 1.0),
+                bottomColor: UIColor(red: 0.03, green: 0.04, blue: 0.09, alpha: 1.0),
+                accentColor: UIColor(red: 0.48, green: 0.62, blue: 0.96, alpha: 1.0)
+            )
+        ]
+
+        var artworkPathsByFileBase: [String: String] = [:]
+        for spec in specs {
+            let wavURL = store.documentsURL.appendingPathComponent("\(spec.fileBase).wav")
+            if !FileManager.default.fileExists(atPath: wavURL.path) {
+                if let data = Self.generateStereoChordWav(durationSeconds: 17.0, frequencies: spec.chords) {
+                    try? data.write(to: wavURL, options: .atomic)
+                }
+            }
+            let lrcURL = store.documentsURL.appendingPathComponent("\(spec.fileBase).lrc")
+            if !FileManager.default.fileExists(atPath: lrcURL.path) {
+                try? spec.lrc.data(using: .utf8)?.write(to: lrcURL, options: .atomic)
+            }
+            let artURL = store.artworkCacheURL.appendingPathComponent("showcase-\(spec.fileBase.lowercased().replacingOccurrences(of: " ", with: "-")).png")
+            if !FileManager.default.fileExists(atPath: artURL.path) {
+                if let pngData = Self.renderShowcaseCoverPNG(
+                    title: spec.album,
+                    subtitle: spec.artist,
+                    topColor: spec.topColor,
+                    bottomColor: spec.bottomColor,
+                    accentColor: spec.accentColor
+                ) {
+                    try? pngData.write(to: artURL, options: .atomic)
+                }
+            }
+            if FileManager.default.fileExists(atPath: artURL.path) {
+                artworkPathsByFileBase[spec.fileBase] = artURL.path
+            }
+        }
+
         await scanLibrary()
+
+        let updated = store.update { state in
+            var seededIds: [String] = []
+            for spec in specs {
+                let relPath = "\(spec.fileBase).wav"
+                guard let track = state.scannedTracks.first(where: { $0.relativePath == relPath }) else { continue }
+                seededIds.append(track.id)
+                state.trackOverrides[track.id] = TrackOverride(
+                    trackId: track.id,
+                    title: spec.title,
+                    artist: spec.artist,
+                    album: spec.album,
+                    albumArtist: spec.artist,
+                    genre: spec.genre,
+                    year: spec.year,
+                    trackNumber: spec.trackNumber,
+                    descriptionText: "Snoozy Offline Showcase Track",
+                    artworkPath: artworkPathsByFileBase[spec.fileBase]
+                )
+            }
+            for id in seededIds.reversed() {
+                state.recents = PlaybackQueueOps.pushRecent(current: state.recents, trackId: id)
+            }
+            if let firstId = seededIds.first, !state.favoriteTrackIds.contains(firstId) {
+                state.favoriteTrackIds.insert(firstId, at: 0)
+            }
+            if state.playlists.isEmpty, !seededIds.isEmpty {
+                state.playlists.append(
+                    Playlist(
+                        id: "playlist-showcase-liquid-glass",
+                        name: "Liquid Glass Sessions",
+                        trackIds: seededIds,
+                        createdAt: Int64(Date().timeIntervalSince1970 * 1000)
+                    )
+                )
+            }
+        }
+        applyPersistedState(updated)
     }
 
     public var sortedSongs: [Track] {
@@ -470,7 +610,10 @@ public final class LibraryRepository: ObservableObject {
         return built.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
-    private static func generateStereoChordWav(durationSeconds: Double) -> Data? {
+    private static func generateStereoChordWav(
+        durationSeconds: Double,
+        frequencies: [Double] = [220.0, 277.18, 329.63, 415.30, 493.88]
+    ) -> Data? {
         let sampleRate = 44_100
         let totalSamples = Int(durationSeconds * Double(sampleRate))
         let numChannels: UInt16 = 2
@@ -503,8 +646,7 @@ public final class LibraryRepository: ObservableObject {
         var dataSizeLE = dataSize.littleEndian
         data.append(Data(bytes: &dataSizeLE, count: 4))
 
-        // Warm emerald ambient pad (Fmaj9 / Em7 progression)
-        let freqs = [220.0, 277.18, 329.63, 415.30, 493.88]
+        let freqs = frequencies.isEmpty ? [220.0, 277.18, 329.63, 415.30, 493.88] : frequencies
         var pcm = [Int16](repeating: 0, count: totalSamples * 2)
         for i in 0..<totalSamples {
             let t = Double(i) / Double(sampleRate)
@@ -529,6 +671,88 @@ public final class LibraryRepository: ObservableObject {
             data.append(ptr)
         }
         return data
+    }
+
+    private static func renderShowcaseCoverPNG(
+        title: String,
+        subtitle: String,
+        topColor: UIColor,
+        bottomColor: UIColor,
+        accentColor: UIColor
+    ) -> Data? {
+        let size = CGSize(width: 512, height: 512)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1.0
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let image = renderer.image { ctx in
+            let cg = ctx.cgContext
+            let rect = CGRect(origin: .zero, size: size)
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+
+            if let bgGrad = CGGradient(
+                colorsSpace: colorSpace,
+                colors: [topColor.cgColor, bottomColor.cgColor] as CFArray,
+                locations: [0.0, 1.0]
+            ) {
+                cg.drawLinearGradient(
+                    bgGrad,
+                    start: CGPoint(x: 0, y: 0),
+                    end: CGPoint(x: size.width, y: size.height),
+                    options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+                )
+            }
+
+            if let orbGrad = CGGradient(
+                colorsSpace: colorSpace,
+                colors: [accentColor.withAlphaComponent(0.45).cgColor, accentColor.withAlphaComponent(0.0).cgColor] as CFArray,
+                locations: [0.0, 1.0]
+            ) {
+                cg.drawRadialGradient(
+                    orbGrad,
+                    startCenter: CGPoint(x: size.width * 0.72, y: size.height * 0.28),
+                    startRadius: 10,
+                    endCenter: CGPoint(x: size.width * 0.72, y: size.height * 0.28),
+                    endRadius: size.width * 0.62,
+                    options: []
+                )
+            }
+
+            cg.setStrokeColor(UIColor.white.withAlphaComponent(0.14).cgColor)
+            cg.setLineWidth(1.5)
+            cg.strokeEllipse(in: CGRect(x: 76, y: 54, width: 360, height: 360))
+            cg.strokeEllipse(in: CGRect(x: 116, y: 94, width: 280, height: 280))
+
+            if let brand = SnoozyBrandAssetLoader.loadBrandLogoImage() {
+                let logoRect = CGRect(x: 156, y: 110, width: 200, height: 200)
+                let clipPath = UIBezierPath(roundedRect: logoRect, cornerRadius: 46)
+                cg.saveGState()
+                clipPath.addClip()
+                brand.draw(in: logoRect)
+                cg.restoreGState()
+            }
+
+            let titleFont = UIFont(name: "BricolageGrotesque-SemiBold", size: 30) ?? UIFont.systemFont(ofSize: 30, weight: .bold)
+            let subFont = UIFont(name: "AtkinsonHyperlegible-Bold", size: 17) ?? UIFont.systemFont(ofSize: 17, weight: .semibold)
+
+            let titleStyle = NSMutableParagraphStyle()
+            titleStyle.alignment = .left
+
+            let titleAttrs: [NSAttributedString.Key: Any] = [
+                .font: titleFont,
+                .foregroundColor: UIColor.white,
+                .paragraphStyle: titleStyle
+            ]
+            let subAttrs: [NSAttributedString.Key: Any] = [
+                .font: subFont,
+                .foregroundColor: accentColor,
+                .paragraphStyle: titleStyle
+            ]
+
+            (subtitle.uppercased() as NSString).draw(in: CGRect(x: 36, y: 392, width: rect.width - 72, height: 26), withAttributes: subAttrs)
+            (title as NSString).draw(in: CGRect(x: 36, y: 420, width: rect.width - 72, height: 48), withAttributes: titleAttrs)
+        }
+        return image.pngData()
     }
 }
 
