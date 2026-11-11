@@ -67,4 +67,53 @@ final class PlaybackQueueOpsTests: XCTestCase {
         XCTAssertEqual(SnoozyFormat.formatRemainingClock(elapsed: 84, duration: 245), "-2:41")
         XCTAssertEqual(SnoozyFormat.formatRemainingClock(elapsed: 250, duration: 245), "-0:00")
     }
+
+    func testRootTabSwipeMathContinuousProgressAndSettle() {
+        // Swiping left (-150 pt on a 300 pt width) from tab 1 moves indicator halfway toward tab 2 (1.5)
+        let midProgress = RootTabSwipeMath.continuousProgress(
+            currentIndex: 1,
+            tabCount: 5,
+            translationWidth: -150,
+            containerWidth: 300
+        )
+        XCTAssertEqual(midProgress, 1.5, accuracy: 0.001)
+
+        // Swiping right at index 0 applies rubber-band damping instead of exceeding bounds
+        let overscrollLeft = RootTabSwipeMath.continuousProgress(
+            currentIndex: 0,
+            tabCount: 5,
+            translationWidth: 150,
+            containerWidth: 300
+        )
+        XCTAssertLessThan(overscrollLeft, 0.0)
+        XCTAssertGreaterThan(overscrollLeft, -0.25)
+
+        // Completed swipe left (> 28% of width) advances to next tab
+        let settledNext = RootTabSwipeMath.resolveSwipeTargetIndex(
+            currentIndex: 1,
+            tabCount: 5,
+            translationWidth: -110,
+            predictedEndTranslationWidth: -140,
+            containerWidth: 300
+        )
+        XCTAssertEqual(settledNext, 2)
+
+        // Incomplete swipe (< 28% of width and low velocity) returns to original tab
+        let incomplete = RootTabSwipeMath.resolveSwipeTargetIndex(
+            currentIndex: 2,
+            tabCount: 5,
+            translationWidth: -40,
+            predictedEndTranslationWidth: -60,
+            containerWidth: 300
+        )
+        XCTAssertEqual(incomplete, 2)
+
+        // Pill scrub progress maps touch X across pill width to tab index space
+        let pillScrub = RootTabSwipeMath.pillScrubProgress(
+            locationX: 150,
+            pillWidth: 300,
+            tabCount: 5
+        )
+        XCTAssertEqual(pillScrub, 2.0, accuracy: 0.001)
+    }
 }

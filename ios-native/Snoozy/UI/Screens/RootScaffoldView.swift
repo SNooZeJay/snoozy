@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 public enum RootTab: String, CaseIterable, Identifiable, Sendable {
     case home
@@ -8,6 +9,23 @@ public enum RootTab: String, CaseIterable, Identifiable, Sendable {
     case settings
 
     public var id: String { rawValue }
+
+    public var index: Int {
+        switch self {
+        case .home: return 0
+        case .library: return 1
+        case .playlists: return 2
+        case .search: return 3
+        case .settings: return 4
+        }
+    }
+
+    public static func from(index: Int) -> RootTab {
+        let all = Self.allCases
+        guard !all.isEmpty else { return .home }
+        let clamped = min(max(0, index), all.count - 1)
+        return all[clamped]
+    }
 
     public var label: String {
         switch self {
@@ -30,6 +48,72 @@ public enum RootTab: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+public enum RootTabSwipeMath {
+    /// Computes the continuous floating indicator position (0 ... tabCount - 1) from a horizontal swipe gesture.
+    /// Applies smooth rubber-band resistance when swiping past the first or last tab.
+    public static func continuousProgress(
+        currentIndex: Int,
+        tabCount: Int,
+        translationWidth: Double,
+        containerWidth: Double
+    ) -> Double {
+        let safeWidth = max(1.0, containerWidth)
+        let maxIdx = Double(max(0, tabCount - 1))
+        let delta = -translationWidth / safeWidth
+        let raw = Double(currentIndex) + delta
+        if raw < 0.0 {
+            return raw * 0.22
+        } else if raw > maxIdx {
+            return maxIdx + (raw - maxIdx) * 0.22
+        }
+        return raw
+    }
+
+    /// Resolves which tab index the navigation should settle into when a horizontal swipe gesture ends.
+    /// Returns `currentIndex` if the swipe is incomplete.
+    public static func resolveSwipeTargetIndex(
+        currentIndex: Int,
+        tabCount: Int,
+        translationWidth: Double,
+        predictedEndTranslationWidth: Double,
+        containerWidth: Double
+    ) -> Int {
+        guard tabCount > 1 else { return 0 }
+        let safeWidth = max(1.0, containerWidth)
+        let normalizedDrag = -translationWidth / safeWidth
+        let normalizedPredicted = -predictedEndTranslationWidth / safeWidth
+
+        let distanceThreshold = 0.26
+        let velocityThreshold = 0.46
+
+        var target = currentIndex
+        if normalizedDrag >= distanceThreshold || (normalizedDrag > 0.06 && normalizedPredicted >= velocityThreshold) {
+            target = currentIndex + 1
+        } else if normalizedDrag <= -distanceThreshold || (normalizedDrag < -0.06 && normalizedPredicted <= -velocityThreshold) {
+            target = currentIndex - 1
+        }
+        return min(max(0, target), tabCount - 1)
+    }
+
+    /// Maps a horizontal touch location inside the floating Liquid Glass pill to continuous tab index space.
+    public static func pillScrubProgress(
+        locationX: Double,
+        pillWidth: Double,
+        tabCount: Int
+    ) -> Double {
+        guard tabCount > 1 else { return 0.0 }
+        let safeWidth = max(1.0, pillWidth)
+        let maxIdx = Double(tabCount - 1)
+        let raw = (locationX / safeWidth) * Double(tabCount) - 0.5
+        if raw < 0.0 {
+            return raw * 0.18
+        } else if raw > maxIdx {
+            return maxIdx + (raw - maxIdx) * 0.18
+        }
+        return raw
+    }
+}
+
 public enum NavigationDestination: Hashable {
     case album(String)
     case artist(String)
@@ -48,6 +132,11 @@ public struct RootScaffoldView: View {
     @State private var selectedLibraryTab: LibraryTab = .overview
     @State private var navPath = NavigationPath()
     @State private var isTabBarMinimized: Bool = false
+
+    // Instagram-inspired interactive horizontal swipe + pill scrub state
+    @State private var horizontalSwipeTranslation: CGFloat = 0.0
+    @State private var isHorizontalSwiping: Bool = false
+    @State private var pillScrubProgressValue: Double? = nil
 
     @State private var showFullPlayer: Bool = false
     @State private var menuTrack: Track? = nil
@@ -77,16 +166,59 @@ public struct RootScaffoldView: View {
         )
     }
 
-    public var body: some View {
-        ZStack(alignment: .bottom) {
-            LiquidAuraBackgroundView(
-                theme: theme,
-                palette: playback.activePalette,
-                preferences: repository.preferences
+    private func effectiveIndicatorProgress(screenWidth: CGFloat) -> Double {
+        if let pillProgress = pillScrubProgressValue {
+            return pillProgress
+        }
+        if isHorizontalSwiping || abs(horizontalSwipeTranslation) > 0.5 {
+            return RootTabSwipeMath.continuousProgress(
+                currentIndex: selectedTab.index,
+                tabCount: RootTab.allCases.count,
+                translationWidth: Double(horizontalSwipeTranslation),
+                containerWidth: Double(max(1.0, screenWidth))
             )
+        }
+        return Double(selectedTab.index)
+    }
 
-            NavigationStack(path: $navPath) {
-                currentTabContent
+    private var neighborSwipeTab: RootTab? {
+        guard abs(horizontalSwipeTranslation) > 1.0 else { return nil }
+        let currentIdx = selectedTab.index
+        if horizontalSwipeTranslation < 0, currentIdx + 1 < RootTab.allCases.count {
+            return RootTab.from(index: currentIdx + 1)
+        } else if horizontalSwipeTranslation > 0, currentIdx - 1 >= 0 {
+            return RootTab.from(index: currentIdx - 1)
+        }
+        return nil
+    }
+
+    public var body: some View {
+        GeometryReader { proxy in
+            let screenWidth = max(1.0, proxy.size.width)
+            let indicatorProgress = effectiveIndicatorProgress(screenWidth: screenWidth)
+
+            ZStack(alignment: .bottom) {
+                LiquidAuraBackgroundView(
+                    theme: theme,
+                    palette: playback.activePalette,
+                    preferences: repository.preferences
+                )
+
+                NavigationStack(path: $navPath) {
+                    ZStack {
+                        if let neighbor = neighborSwipeTab, navPath.isEmpty {
+                            let neighborOffset: CGFloat = horizontalSwipeTranslation < 0
+                                ? (screenWidth + horizontalSwipeTranslation)
+                                : (-screenWidth + horizontalSwipeTranslation)
+
+                            tabContentView(for: neighbor)
+                                .offset(x: neighborOffset)
+                                .allowsHitTesting(false)
+                        }
+
+                        tabContentView(for: selectedTab)
+                            .offset(x: navPath.isEmpty ? horizontalSwipeTranslation : 0)
+                    }
                     .navigationDestination(for: NavigationDestination.self) { destination in
                         switch destination {
                         case .album(let key):
@@ -132,28 +264,70 @@ public struct RootScaffoldView: View {
                             )
                         }
                     }
-            }
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 22)
-                    .onChanged { value in
-                        let dy = value.translation.height
-                        let dx = abs(value.translation.width)
-                        guard abs(dy) > dx * 1.3 else { return }
-                        if dy < -28 && !isTabBarMinimized {
-                            withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
-                                isTabBarMinimized = true
+                }
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 18)
+                        .onChanged { value in
+                            let dx = value.translation.width
+                            let dy = value.translation.height
+
+                            // 1. Horizontal Instagram-style swipe across root tabs when navigation stack is at root
+                            if navPath.isEmpty && (isHorizontalSwiping || (abs(dx) > abs(dy) * 1.35 && abs(dx) > 16)) {
+                                if !isHorizontalSwiping {
+                                    isHorizontalSwiping = true
+                                    if isTabBarMinimized {
+                                        withAnimation(.spring(response: 0.30, dampingFraction: 0.82)) {
+                                            isTabBarMinimized = false
+                                        }
+                                    }
+                                }
+                                let currentIdx = selectedTab.index
+                                let isOverscrollingLeft = (currentIdx == 0 && dx > 0)
+                                let isOverscrollingRight = (currentIdx == RootTab.allCases.count - 1 && dx < 0)
+                                horizontalSwipeTranslation = (isOverscrollingLeft || isOverscrollingRight) ? (dx * 0.24) : dx
+                                return
                             }
-                        } else if dy > 24 && isTabBarMinimized {
-                            withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
-                                isTabBarMinimized = false
+
+                            // 2. Vertical scroll-based tab bar minimization
+                            guard !isHorizontalSwiping, abs(dy) > abs(dx) * 1.3 else { return }
+                            if dy < -28 && !isTabBarMinimized {
+                                withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
+                                    isTabBarMinimized = true
+                                }
+                            } else if dy > 24 && isTabBarMinimized {
+                                withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
+                                    isTabBarMinimized = false
+                                }
                             }
                         }
-                    }
-            )
+                        .onEnded { value in
+                            guard isHorizontalSwiping else { return }
+                            let targetIdx = RootTabSwipeMath.resolveSwipeTargetIndex(
+                                currentIndex: selectedTab.index,
+                                tabCount: RootTab.allCases.count,
+                                translationWidth: Double(value.translation.width),
+                                predictedEndTranslationWidth: Double(value.predictedEndTranslation.width),
+                                containerWidth: Double(screenWidth)
+                            )
+                            let nextTab = RootTab.from(index: targetIdx)
+                            let didChange = (nextTab != selectedTab)
 
-            bottomChromeContainer
-                .padding(.horizontal, 12)
-                .padding(.bottom, 4)
+                            withAnimation(.interpolatingSpring(mass: 1.0, stiffness: 265, damping: 26)) {
+                                selectedTab = nextTab
+                                horizontalSwipeTranslation = 0.0
+                                isHorizontalSwiping = false
+                            }
+
+                            if didChange {
+                                triggerSelectionHaptic()
+                            }
+                        }
+                )
+
+                bottomChromeContainer(indicatorProgress: indicatorProgress)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 8)
+            }
         }
         .preferredColorScheme(
             repository.preferences.themeMode == .system
@@ -217,8 +391,8 @@ public struct RootScaffoldView: View {
     }
 
     @ViewBuilder
-    private var currentTabContent: some View {
-        switch selectedTab {
+    private func tabContentView(for tab: RootTab) -> some View {
+        switch tab {
         case .home:
             HomeScreen(
                 repository: repository,
@@ -228,7 +402,9 @@ public struct RootScaffoldView: View {
                 onOpenPlaylist: { navPath.append(NavigationDestination.playlist($0)) },
                 onOpenLibraryCategory: { category in
                     selectedLibraryTab = category
-                    selectedTab = .library
+                    withAnimation(.interpolatingSpring(mass: 1.0, stiffness: 265, damping: 26)) {
+                        selectedTab = .library
+                    }
                 },
                 onImportFiles: { showFileImporter = true },
                 onImportFolder: { showFolderImporter = true },
@@ -266,7 +442,9 @@ public struct RootScaffoldView: View {
                 onOpenPlaylist: { navPath.append(NavigationDestination.playlist($0)) },
                 onOpenLibraryCategory: { category in
                     selectedLibraryTab = category
-                    selectedTab = .library
+                    withAnimation(.interpolatingSpring(mass: 1.0, stiffness: 265, damping: 26)) {
+                        selectedTab = .library
+                    }
                 },
                 onSelectTrackForMenu: { menuTrack = $0 }
             )
@@ -282,7 +460,7 @@ public struct RootScaffoldView: View {
     }
 
     // WWDC25 Session 284 (1:55): Floating Liquid Glass Tab Bar with Scroll Minimization and Inline Mini-Player Accessory
-    private var bottomChromeContainer: some View {
+    private func bottomChromeContainer(indicatorProgress: Double) -> some View {
         let progress = playback.durationSeconds > 0
             ? min(1.0, max(0.0, playback.positionSeconds / playback.durationSeconds))
             : 0.0
@@ -328,7 +506,7 @@ public struct RootScaffoldView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
 
-                    floatingLiquidGlassTabBar
+                    floatingLiquidGlassTabBar(indicatorProgress: indicatorProgress)
                 }
             }
         }
@@ -365,55 +543,195 @@ public struct RootScaffoldView: View {
         .accessibilityLabel("Expand navigation tab bar (\(selectedTab.label))")
     }
 
-    private var floatingLiquidGlassTabBar: some View {
-        HStack(spacing: 4) {
-            ForEach(RootTab.allCases) { tab in
-                let isSelected = (selectedTab == tab)
-                Button {
-                    withAnimation(.spring(response: 0.30, dampingFraction: 0.78)) {
-                        if selectedTab == tab {
-                            navPath = NavigationPath()
-                            if tab == .library {
-                                selectedLibraryTab = .overview
+    /// Floating pill-shaped Liquid Glass navigation bar with Instagram-inspired continuous indicator motion.
+    private func floatingLiquidGlassTabBar(indicatorProgress: Double) -> some View {
+        let tabs = RootTab.allCases
+        let tabCount = tabs.count
+        let horizontalInset: CGFloat = 6.0
+        let pillHeight: CGFloat = 62.0
+        let indicatorHeight: CGFloat = 50.0
+
+        return GeometryReader { geo in
+            let innerWidth = max(1.0, geo.size.width - horizontalInset * 2.0)
+            let slotWidth = innerWidth / CGFloat(max(1, tabCount))
+
+            // Fractional distance between adjacent tabs (0.0 at rest on a tab, 0.5 midway between tabs)
+            let fractional = abs(indicatorProgress - indicatorProgress.rounded())
+            let dropletStretchWidth = CGFloat(sin(fractional * .pi)) * 10.0
+            let dropletScaleY = 1.0 - CGFloat(sin(fractional * .pi)) * 0.045
+
+            let indicatorWidth = max(24.0, slotWidth + dropletStretchWidth)
+            let indicatorCenterX = horizontalInset + (CGFloat(indicatorProgress) + 0.5) * slotWidth
+
+            ZStack(alignment: .leading) {
+                // 1. Continuous Gliding Physical Liquid Glass Indicator Capsule
+                glidingIndicatorCapsule(width: indicatorWidth, height: indicatorHeight)
+                    .scaleEffect(x: 1.0, y: dropletScaleY)
+                    .position(x: indicatorCenterX, y: pillHeight * 0.5)
+
+                // 2. Interactive Tab Items Synchronized with Gliding Indicator
+                HStack(spacing: 0) {
+                    ForEach(tabs) { tab in
+                        let distance = abs(indicatorProgress - Double(tab.index))
+                        let proximity = max(0.0, min(1.0, 1.0 - distance))
+                        let isFocused = (proximity > 0.55)
+
+                        Button {
+                            selectTabWithSpring(tab)
+                        } label: {
+                            VStack(spacing: 3) {
+                                Image(systemName: tab.systemImage)
+                                    .font(.system(size: 17, weight: isFocused ? .bold : .medium))
+                                    .scaleEffect(1.0 + CGFloat(proximity) * 0.08)
+                                Text(tab.label)
+                                    .font(SnoozyTypography.caption(10, bold: isFocused))
                             }
-                        } else {
-                            selectedTab = tab
+                            .foregroundStyle(isFocused ? theme.accentInk : theme.ink.opacity(0.68 + 0.25 * proximity))
+                            .frame(width: slotWidth, height: indicatorHeight)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(tab.label)
                     }
-                } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: tab.systemImage)
-                            .font(.system(size: 17, weight: isSelected ? .bold : .medium))
-                        Text(tab.label)
-                            .font(SnoozyTypography.caption(10, bold: isSelected))
-                    }
-                    .foregroundStyle(isSelected ? theme.accentInk : theme.inkMuted)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(
-                        Group {
-                            if isSelected {
-                                Capsule()
-                                    .fill(theme.accent)
-                                    .shadow(color: theme.accent.opacity(0.42), radius: 8, x: 0, y: 3)
-                            }
-                        }
-                    )
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(LiquidGlassInteractiveBounceStyle(scale: 0.92))
-                .accessibilityLabel(tab.label)
+                .padding(.horizontal, horizontalInset)
             }
+            .frame(width: geo.size.width, height: pillHeight)
+            .contentShape(Capsule())
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 10)
+                    .onChanged { value in
+                        guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                        let progress = RootTabSwipeMath.pillScrubProgress(
+                            locationX: Double(value.location.x - horizontalInset),
+                            pillWidth: Double(innerWidth),
+                            tabCount: tabCount
+                        )
+                        pillScrubProgressValue = progress
+
+                        let hoveredTab = RootTab.from(index: Int(progress.rounded()))
+                        if hoveredTab != selectedTab {
+                            selectedTab = hoveredTab
+                            triggerSelectionHaptic()
+                        }
+                    }
+                    .onEnded { value in
+                        guard pillScrubProgressValue != nil else { return }
+                        let finalProgress = RootTabSwipeMath.pillScrubProgress(
+                            locationX: Double(value.location.x - horizontalInset),
+                            pillWidth: Double(innerWidth),
+                            tabCount: tabCount
+                        )
+                        let targetTab = RootTab.from(index: Int(finalProgress.rounded()))
+                        let didChange = (targetTab != selectedTab)
+
+                        withAnimation(.interpolatingSpring(mass: 1.0, stiffness: 280, damping: 26)) {
+                            selectedTab = targetTab
+                            pillScrubProgressValue = nil
+                        }
+                        if didChange {
+                            triggerSelectionHaptic()
+                        }
+                    }
+            )
         }
-        .padding(.horizontal, 6)
-        .frame(height: 60)
+        .frame(height: pillHeight)
         .liquidGlassSurface(
-            cornerRadius: 30,
+            cornerRadius: pillHeight * 0.5,
             glassMode: repository.preferences.glassMode,
             refractionIntensity: repository.preferences.refractionIntensity,
             tintColor: theme.accent,
             variant: .ultraClear
         )
-        .shadow(color: Color.black.opacity(theme.isDark ? 0.36 : 0.14), radius: 16, x: 0, y: 8)
+        .overlay(
+            // Physical top rim specular highlight + subtle bottom reflection
+            Capsule()
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(theme.isDark ? 0.42 : 0.68),
+                            Color.white.opacity(theme.isDark ? 0.08 : 0.18),
+                            Color.white.opacity(theme.isDark ? 0.20 : 0.36)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.9
+                )
+                .allowsHitTesting(false)
+        )
+        .shadow(color: Color.black.opacity(theme.isDark ? 0.38 : 0.15), radius: 18, x: 0, y: 8)
+        .shadow(color: Color.black.opacity(theme.isDark ? 0.20 : 0.08), radius: 5, x: 0, y: 2)
+    }
+
+    private func glidingIndicatorCapsule(width: CGFloat, height: CGFloat) -> some View {
+        ZStack {
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            theme.accent.opacity(theme.isDark ? 0.92 : 0.95),
+                            theme.accent.opacity(theme.isDark ? 0.78 : 0.85)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+
+            // Subtle physical glass top highlight inside the gliding droplet
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.34),
+                            Color.white.opacity(0.06),
+                            Color.clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .padding(1)
+
+            // Crisp continuous specular rim around the active droplet
+            Capsule()
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.52),
+                            Color.white.opacity(0.14)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 0.85
+                )
+        }
+        .frame(width: width, height: height)
+        .shadow(color: theme.accent.opacity(0.24), radius: 7, x: 0, y: 3)
+    }
+
+    private func selectTabWithSpring(_ tab: RootTab) {
+        let didChange = (selectedTab != tab)
+        withAnimation(.interpolatingSpring(mass: 1.0, stiffness: 270, damping: 26)) {
+            if selectedTab == tab {
+                navPath = NavigationPath()
+                if tab == .library {
+                    selectedLibraryTab = .overview
+                }
+            } else {
+                selectedTab = tab
+            }
+            horizontalSwipeTranslation = 0.0
+            pillScrubProgressValue = nil
+        }
+        if didChange {
+            triggerSelectionHaptic()
+        }
+    }
+
+    private func triggerSelectionHaptic() {
+        guard repository.preferences.hapticsEnabled else { return }
+        UISelectionFeedbackGenerator().selectionChanged()
     }
 }
