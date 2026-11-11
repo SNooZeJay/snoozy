@@ -79,6 +79,7 @@ private fun iconFor(key: NavKey): ImageVector = when (key) {
     NavKey.Library -> SnoozyIcons.Library
     NavKey.Playlists -> SnoozyIcons.Playlists
     NavKey.Settings -> SnoozyIcons.Settings
+    is NavKey.Album, is NavKey.Artist, is NavKey.Genre -> SnoozyIcons.Music
 }
 
 private fun emptyTitleFor(key: NavKey): String = when (key) {
@@ -87,4 +88,5 @@ private fun emptyTitleFor(key: NavKey): String = when (key) {
     NavKey.Library -> "Library comes next"
     NavKey.Playlists -> "Playlists come next"
     NavKey.Settings -> "Settings come after playback"
+    is NavKey.Album, is NavKey.Artist, is NavKey.Genre -> "Nothing here yet"
 }

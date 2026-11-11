@@ -14,6 +14,7 @@ import compose.icons.feathericons.Download
 import compose.icons.feathericons.Edit3
 import compose.icons.feathericons.Heart
 import compose.icons.feathericons.Home
+import compose.icons.feathericons.Grid
 import compose.icons.feathericons.Info
 import compose.icons.feathericons.Layers
 import compose.icons.feathericons.List
@@ -65,6 +66,7 @@ object SnoozyIcons {
     val Check: ImageVector = FeatherIcons.Check
     val Trash: ImageVector = FeatherIcons.Trash2
     val Edit: ImageVector = FeatherIcons.Edit3
+    val Grid: ImageVector = FeatherIcons.Grid
 }
 
 /** Maps Glasmio's semantic system names onto Feather so no SF Symbol asset ships. */

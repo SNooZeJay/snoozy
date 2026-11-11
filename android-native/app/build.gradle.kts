@@ -75,6 +75,7 @@ dependencies {
     implementation("com.tencent:mmkv:2.4.3")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation("io.coil-kt.coil3:coil-compose:3.6.3")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")

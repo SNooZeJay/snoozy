@@ -10,6 +10,7 @@ import com.snoozy.app.data.mmkv.SnoozyStores
 import com.snoozy.app.data.mmkv.StoreFailureException
 import com.snoozy.app.data.model.Album
 import com.snoozy.app.data.model.MetadataCacheEntry
+import com.snoozy.app.data.model.PlayHistoryEntry
 import com.snoozy.app.data.model.Playlist
 import com.snoozy.app.data.model.Track
 import com.snoozy.app.data.scan.LibraryScanner
@@ -35,7 +36,10 @@ class LibraryRepository(
         val albums: List<Album> = emptyList(),
         val playlists: List<Playlist> = emptyList(),
         val recents: List<String> = emptyList(),
+        val history: List<PlayHistoryEntry> = emptyList(),
         val favoriteTrackIds: Set<String> = emptySet(),
+        val songSort: SongSort = SongSort.Title,
+        val albumSort: AlbumSort = AlbumSort.Title,
         val hasPermission: Boolean = false,
         val scanning: Boolean = false,
         val error: String? = null,
@@ -145,11 +149,32 @@ class LibraryRepository(
             albums = buildAlbums(merged),
             playlists = stores.playlists(),
             recents = stores.recents(),
+            history = databases.playHistory(),
             favoriteTrackIds = merged
                 .filter { it.uri in favoriteIdentities }
                 .mapTo(HashSet()) { it.id },
+            songSort = SongSort.fromStored(stores.songSort()),
+            albumSort = AlbumSort.fromStored(stores.albumSort()),
             hasPermission = permission,
         )
+    }
+
+    suspend fun setSongSort(sort: SongSort) = withContext(Dispatchers.IO) {
+        if (!stores.saveSongSort(sort.storageValue)) {
+            Log.w(TAG, "Could not persist song sort")
+        }
+        _state.update { it.copy(songSort = sort) }
+    }
+
+    suspend fun setAlbumSort(sort: AlbumSort) = withContext(Dispatchers.IO) {
+        if (!stores.saveAlbumSort(sort.storageValue)) {
+            Log.w(TAG, "Could not persist album sort")
+        }
+        _state.update { it.copy(albumSort = sort) }
+    }
+
+    fun clearError() {
+        _state.update { it.copy(error = null) }
     }
 
     private fun copyImport(uri: Uri, directory: File, filename: String): File? {

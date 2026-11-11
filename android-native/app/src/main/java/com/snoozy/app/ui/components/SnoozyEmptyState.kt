@@ -23,6 +23,7 @@ fun SnoozyEmptyState(
     title: String,
     message: String,
     modifier: Modifier = Modifier,
+    action: (@Composable () -> Unit)? = null,
 ) {
     val colors = LocalGlassColors.current
     Column(
@@ -34,5 +35,9 @@ fun SnoozyEmptyState(
         Text(title, style = IosTypography.headline, color = colors.content, textAlign = TextAlign.Center)
         Spacer(Modifier.height(6.dp))
         Text(message, style = IosTypography.subheadline, color = colors.secondaryContent, textAlign = TextAlign.Center)
+        if (action != null) {
+            Spacer(Modifier.height(16.dp))
+            action()
+        }
     }
 }

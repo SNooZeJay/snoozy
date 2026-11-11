@@ -44,7 +44,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             SnoozyTheme {
                 GlasmioIconProvider(resolver = SnoozyIconResolver) {
-                    SnoozyApp(onExit = ::finish)
+                    SnoozyApp(
+                        repository = (application as SnoozyApplication).container.repository,
+                        onExit = ::finish,
+                    )
                 }
             }
         }
