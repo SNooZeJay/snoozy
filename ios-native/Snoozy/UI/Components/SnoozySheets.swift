@@ -120,6 +120,7 @@ public struct TrackActionsSheetView: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .presentationCornerRadius(32)
     }
 
     private func sheetActionRow(icon: String, title: String, action: @escaping () -> Void) -> some View {
@@ -255,6 +256,8 @@ public struct AddToPlaylistSheetView: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(32)
     }
 }
 
@@ -356,6 +359,9 @@ public struct AddSongsToPlaylistSheetView: View {
                 }
             }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(32)
     }
 }
 
@@ -468,6 +474,9 @@ public struct QueueSheetView: View {
                 }
             }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(32)
     }
 }
 
@@ -491,36 +500,53 @@ public struct LyricsSheetView: View {
 
         NavigationStack {
             VStack(spacing: 12) {
-                HStack(spacing: 10) {
-                    Text(String(format: "Offset: %+.1fs", offset))
-                        .font(SnoozyTypography.caption(12, bold: true))
-                        .foregroundStyle(theme.inkMuted)
-                    Spacer()
-                    Button("-0.5s") {
-                        repository.setLyricsOffset(for: track.id, seconds: offset - 0.5)
-                    }
-                    .font(SnoozyTypography.caption(12, bold: true))
-                    .foregroundStyle(theme.accent)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .liquidGlassSurface(cornerRadius: 12, glassMode: preferences.glassMode, tintColor: theme.accent)
-
-                    Button("+0.5s") {
-                        repository.setLyricsOffset(for: track.id, seconds: offset + 0.5)
-                    }
-                    .font(SnoozyTypography.caption(12, bold: true))
-                    .foregroundStyle(theme.accent)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .liquidGlassSurface(cornerRadius: 12, glassMode: preferences.glassMode, tintColor: theme.accent)
-
-                    if abs(offset) >= 0.05 {
-                        Button("Reset") {
-                            repository.setLyricsOffset(for: track.id, seconds: 0.0)
+                VStack(spacing: 8) {
+                    HStack(spacing: 10) {
+                        Text(String(format: "Offset: %+.1fs", offset))
+                            .font(SnoozyTypography.caption(12, bold: true))
+                            .foregroundStyle(theme.inkMuted)
+                        Spacer()
+                        Button("-0.5s") {
+                            repository.setLyricsOffset(for: track.id, seconds: offset - 0.5)
                         }
                         .font(SnoozyTypography.caption(12, bold: true))
-                        .foregroundStyle(theme.inkMuted)
+                        .foregroundStyle(theme.accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .liquidGlassSurface(cornerRadius: 12, glassMode: preferences.glassMode, tintColor: theme.accent)
+
+                        Button("+0.5s") {
+                            repository.setLyricsOffset(for: track.id, seconds: offset + 0.5)
+                        }
+                        .font(SnoozyTypography.caption(12, bold: true))
+                        .foregroundStyle(theme.accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .liquidGlassSurface(cornerRadius: 12, glassMode: preferences.glassMode, tintColor: theme.accent)
+
+                        if abs(offset) >= 0.05 {
+                            Button("Reset") {
+                                repository.setLyricsOffset(for: track.id, seconds: 0.0)
+                            }
+                            .font(SnoozyTypography.caption(12, bold: true))
+                            .foregroundStyle(theme.inkMuted)
+                        }
                     }
+
+                    LiquidGlassThumblessSlider(
+                        value: Binding(
+                            get: { offset },
+                            set: { repository.setLyricsOffset(for: track.id, seconds: ($0 * 2.0).rounded() / 2.0) }
+                        ),
+                        range: -5.0...5.0,
+                        neutralValue: 0.0,
+                        tickCount: 21,
+                        restingHeight: 5,
+                        activeHeight: 11,
+                        fillColor: theme.accent,
+                        trackColor: theme.inkFaint.opacity(0.35),
+                        enableMomentum: false
+                    )
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -586,6 +612,9 @@ public struct LyricsSheetView: View {
                 }
             }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(32)
     }
 }
 
@@ -669,6 +698,9 @@ public struct TrackMetadataEditSheetView: View {
                 }
             }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(32)
     }
 
     private func fieldRow(label: String, text: Binding<String>) -> some View {

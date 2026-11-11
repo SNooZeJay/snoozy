@@ -2,9 +2,9 @@ import SwiftUI
 
 public enum RootTab: String, CaseIterable, Identifiable, Sendable {
     case home
-    case search
     case library
     case playlists
+    case search
     case settings
 
     public var id: String { rawValue }
@@ -12,9 +12,9 @@ public enum RootTab: String, CaseIterable, Identifiable, Sendable {
     public var label: String {
         switch self {
         case .home: return "Home"
-        case .search: return "Search"
         case .library: return "Library"
         case .playlists: return "Playlists"
+        case .search: return "Search"
         case .settings: return "Settings"
         }
     }
@@ -22,9 +22,9 @@ public enum RootTab: String, CaseIterable, Identifiable, Sendable {
     public var systemImage: String {
         switch self {
         case .home: return "house.fill"
-        case .search: return "magnifyingglass"
-        case .library: return "music.note.house.fill"
+        case .library: return "square.stack.fill"
         case .playlists: return "music.note.list"
+        case .search: return "magnifyingglass"
         case .settings: return "gearshape.fill"
         }
     }
@@ -35,16 +35,19 @@ public enum NavigationDestination: Hashable {
     case artist(String)
     case genre(String)
     case playlist(String)
+    case folder(String)
 }
 
 public struct RootScaffoldView: View {
     @ObservedObject public var repository: LibraryRepository
     @ObservedObject public var playback: PlaybackController
     @Environment(\.colorScheme) private var systemColorScheme
+    @Namespace private var artworkNamespace
 
     @State private var selectedTab: RootTab = .home
-    @State private var selectedLibraryTab: LibraryTab = .songs
+    @State private var selectedLibraryTab: LibraryTab = .overview
     @State private var navPath = NavigationPath()
+    @State private var isTabBarMinimized: Bool = false
 
     @State private var showFullPlayer: Bool = false
     @State private var menuTrack: Track? = nil
@@ -92,6 +95,7 @@ public struct RootScaffoldView: View {
                                 repository: repository,
                                 playback: playback,
                                 theme: theme,
+                                onOpenArtist: { navPath.append(NavigationDestination.artist($0)) },
                                 onSelectTrackForMenu: { menuTrack = $0 }
                             )
                         case .artist(let name):
@@ -118,33 +122,38 @@ public struct RootScaffoldView: View {
                                 playback: playback,
                                 theme: theme
                             )
+                        case .folder(let folderName):
+                            FolderDetailScreen(
+                                folderName: folderName,
+                                repository: repository,
+                                playback: playback,
+                                theme: theme,
+                                onSelectTrackForMenu: { menuTrack = $0 }
+                            )
                         }
                     }
             }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 22)
+                    .onChanged { value in
+                        let dy = value.translation.height
+                        let dx = abs(value.translation.width)
+                        guard abs(dy) > dx * 1.3 else { return }
+                        if dy < -28 && !isTabBarMinimized {
+                            withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
+                                isTabBarMinimized = true
+                            }
+                        } else if dy > 24 && isTabBarMinimized {
+                            withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
+                                isTabBarMinimized = false
+                            }
+                        }
+                    }
+            )
 
-            VStack(spacing: 8) {
-                if let active = playback.activeTrack {
-                    let progress = playback.durationSeconds > 0
-                        ? min(1.0, max(0.0, playback.positionSeconds / playback.durationSeconds))
-                        : 0.0
-                    SnoozyMiniPlayerView(
-                        track: active,
-                        isPlaying: playback.isPlaying,
-                        progress: progress,
-                        theme: theme,
-                        preferences: repository.preferences,
-                        onOpenPlayer: { showFullPlayer = true },
-                        onTogglePlay: { playback.togglePlayback() },
-                        onNext: { playback.next() }
-                    )
-                    .padding(.horizontal, 12)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
-                floatingLiquidGlassTabBar
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 4)
-            }
+            bottomChromeContainer
+                .padding(.horizontal, 12)
+                .padding(.bottom, 4)
         }
         .preferredColorScheme(
             repository.preferences.themeMode == .system
@@ -156,6 +165,7 @@ public struct RootScaffoldView: View {
                 repository: repository,
                 playback: playback,
                 theme: theme,
+                artworkNamespace: artworkNamespace,
                 onClose: { showFullPlayer = false },
                 onOpenArtist: { artist in
                     navPath.append(NavigationDestination.artist(artist))
@@ -215,21 +225,13 @@ public struct RootScaffoldView: View {
                 playback: playback,
                 theme: theme,
                 onOpenAlbum: { navPath.append(NavigationDestination.album($0)) },
-                onOpenLibraryAlbums: {
-                    selectedLibraryTab = .albums
+                onOpenPlaylist: { navPath.append(NavigationDestination.playlist($0)) },
+                onOpenLibraryCategory: { category in
+                    selectedLibraryTab = category
                     selectedTab = .library
                 },
                 onImportFiles: { showFileImporter = true },
-                onImportFolder: { showFolderImporter = true }
-            )
-        case .search:
-            SearchScreen(
-                repository: repository,
-                playback: playback,
-                theme: theme,
-                onOpenAlbum: { navPath.append(NavigationDestination.album($0)) },
-                onOpenArtist: { navPath.append(NavigationDestination.artist($0)) },
-                onOpenGenre: { navPath.append(NavigationDestination.genre($0)) },
+                onImportFolder: { showFolderImporter = true },
                 onSelectTrackForMenu: { menuTrack = $0 }
             )
         case .library:
@@ -241,6 +243,8 @@ public struct RootScaffoldView: View {
                 onOpenAlbum: { navPath.append(NavigationDestination.album($0)) },
                 onOpenArtist: { navPath.append(NavigationDestination.artist($0)) },
                 onOpenGenre: { navPath.append(NavigationDestination.genre($0)) },
+                onOpenPlaylist: { navPath.append(NavigationDestination.playlist($0)) },
+                onOpenFolder: { navPath.append(NavigationDestination.folder($0)) },
                 onImportFiles: { showFileImporter = true },
                 onSelectTrackForMenu: { menuTrack = $0 }
             )
@@ -250,6 +254,21 @@ public struct RootScaffoldView: View {
                 playback: playback,
                 theme: theme,
                 onOpenPlaylist: { navPath.append(NavigationDestination.playlist($0)) }
+            )
+        case .search:
+            SearchScreen(
+                repository: repository,
+                playback: playback,
+                theme: theme,
+                onOpenAlbum: { navPath.append(NavigationDestination.album($0)) },
+                onOpenArtist: { navPath.append(NavigationDestination.artist($0)) },
+                onOpenGenre: { navPath.append(NavigationDestination.genre($0)) },
+                onOpenPlaylist: { navPath.append(NavigationDestination.playlist($0)) },
+                onOpenLibraryCategory: { category in
+                    selectedLibraryTab = category
+                    selectedTab = .library
+                },
+                onSelectTrackForMenu: { menuTrack = $0 }
             )
         case .settings:
             SettingsScreen(
@@ -262,6 +281,90 @@ public struct RootScaffoldView: View {
         }
     }
 
+    // WWDC25 Session 284 (1:55): Floating Liquid Glass Tab Bar with Scroll Minimization and Inline Mini-Player Accessory
+    private var bottomChromeContainer: some View {
+        let progress = playback.durationSeconds > 0
+            ? min(1.0, max(0.0, playback.positionSeconds / playback.durationSeconds))
+            : 0.0
+
+        return SnoozyGlassEffectContainer(spacing: 8) {
+            if isTabBarMinimized {
+                HStack(spacing: 8) {
+                    minimizedTabPillButton
+
+                    if let active = playback.activeTrack {
+                        SnoozyMiniPlayerView(
+                            track: active,
+                            isPlaying: playback.isPlaying,
+                            progress: progress,
+                            theme: theme,
+                            preferences: repository.preferences,
+                            artworkNamespace: artworkNamespace,
+                            onOpenPlayer: { showFullPlayer = true },
+                            onTogglePlay: { playback.togglePlayback() },
+                            onNext: { playback.next() },
+                            onPrevious: { playback.previous() }
+                        )
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    } else {
+                        Spacer()
+                    }
+                }
+            } else {
+                VStack(spacing: 8) {
+                    if let active = playback.activeTrack {
+                        SnoozyMiniPlayerView(
+                            track: active,
+                            isPlaying: playback.isPlaying,
+                            progress: progress,
+                            theme: theme,
+                            preferences: repository.preferences,
+                            artworkNamespace: artworkNamespace,
+                            onOpenPlayer: { showFullPlayer = true },
+                            onTogglePlay: { playback.togglePlayback() },
+                            onNext: { playback.next() },
+                            onPrevious: { playback.previous() }
+                        )
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+
+                    floatingLiquidGlassTabBar
+                }
+            }
+        }
+    }
+
+    private var minimizedTabPillButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+                isTabBarMinimized = false
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: selectedTab.systemImage)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(theme.accent)
+                if playback.activeTrack == nil {
+                    Text(selectedTab.label)
+                        .font(SnoozyTypography.caption(12, bold: true))
+                        .foregroundStyle(theme.ink)
+                }
+            }
+            .padding(.horizontal, playback.activeTrack == nil ? 16 : 0)
+            .frame(minWidth: 56, minHeight: 56)
+            .liquidGlassSurface(
+                cornerRadius: 28,
+                glassMode: repository.preferences.glassMode,
+                refractionIntensity: repository.preferences.refractionIntensity,
+                tintColor: theme.accent,
+                variant: .ultraClear
+            )
+            .shadow(color: Color.black.opacity(theme.isDark ? 0.36 : 0.14), radius: 14, x: 0, y: 6)
+        }
+        .buttonStyle(LiquidGlassInteractiveBounceStyle(scale: 0.90))
+        .accessibilityLabel("Expand navigation tab bar (\(selectedTab.label))")
+    }
+
     private var floatingLiquidGlassTabBar: some View {
         HStack(spacing: 4) {
             ForEach(RootTab.allCases) { tab in
@@ -270,6 +373,9 @@ public struct RootScaffoldView: View {
                     withAnimation(.spring(response: 0.30, dampingFraction: 0.78)) {
                         if selectedTab == tab {
                             navPath = NavigationPath()
+                            if tab == .library {
+                                selectedLibraryTab = .overview
+                            }
                         } else {
                             selectedTab = tab
                         }
@@ -289,23 +395,25 @@ public struct RootScaffoldView: View {
                             if isSelected {
                                 Capsule()
                                     .fill(theme.accent)
-                                    .shadow(color: theme.accent.opacity(0.45), radius: 8, x: 0, y: 3)
+                                    .shadow(color: theme.accent.opacity(0.42), radius: 8, x: 0, y: 3)
                             }
                         }
                     )
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(LiquidGlassInteractiveBounceStyle(scale: 0.92))
                 .accessibilityLabel(tab.label)
             }
         }
         .padding(.horizontal, 6)
-        .frame(height: 62)
+        .frame(height: 60)
         .liquidGlassSurface(
-            cornerRadius: 31,
+            cornerRadius: 30,
             glassMode: repository.preferences.glassMode,
             refractionIntensity: repository.preferences.refractionIntensity,
-            tintColor: theme.accent
+            tintColor: theme.accent,
+            variant: .ultraClear
         )
+        .shadow(color: Color.black.opacity(theme.isDark ? 0.36 : 0.14), radius: 16, x: 0, y: 8)
     }
 }

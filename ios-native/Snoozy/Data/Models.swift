@@ -52,6 +52,27 @@ public struct Track: Identifiable, Codable, Equatable, Hashable, Sendable {
             .lowercased()
         return "\(normalizedTitle.isEmpty ? "unknown album" : normalizedTitle)::\(effectiveArtist.isEmpty ? "unknown artist" : effectiveArtist)"
     }
+
+    public var folderName: String {
+        let normalized = relativePath.replacingOccurrences(of: "\\", with: "/")
+        let parts = normalized.split(separator: "/").map(String.init)
+        guard parts.count > 1 else { return "Snoozy Root" }
+        return parts.dropLast().joined(separator: "/")
+    }
+
+    public var audioFormatBadge: String {
+        let ext = (relativePath as NSString).pathExtension.uppercased()
+        return ext.isEmpty ? "AUDIO" : ext
+    }
+
+    public var isLosslessFormat: Bool {
+        switch audioFormatBadge {
+        case "FLAC", "WAV", "ALAC", "AIFF", "AIF", "CAF":
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 public struct Album: Identifiable, Codable, Equatable, Hashable, Sendable {
@@ -237,13 +258,33 @@ public enum AlbumSort: String, Codable, CaseIterable, Sendable {
 }
 
 public enum LibraryTab: String, CaseIterable, Identifiable, Sendable {
-    case songs = "Songs"
-    case albums = "Albums"
+    case overview = "Overview"
+    case playlists = "Playlists"
     case artists = "Artists"
+    case albums = "Albums"
+    case songs = "Songs"
+    case folders = "Folders"
     case genres = "Genres"
     case favorites = "Favorites"
 
     public var id: String { rawValue }
+
+    public var systemImage: String {
+        switch self {
+        case .overview: return "square.grid.2x2.fill"
+        case .playlists: return "music.note.list"
+        case .artists: return "music.mic"
+        case .albums: return "square.stack.fill"
+        case .songs: return "music.note"
+        case .folders: return "folder.fill"
+        case .genres: return "guitars.fill"
+        case .favorites: return "star.fill"
+        }
+    }
+
+    public static var appleMusicCategories: [LibraryTab] {
+        [.playlists, .artists, .albums, .songs, .folders, .genres, .favorites]
+    }
 }
 
 public enum ThemeMode: String, Codable, CaseIterable, Sendable {

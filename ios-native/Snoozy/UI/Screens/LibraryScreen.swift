@@ -8,46 +8,67 @@ public struct LibraryScreen: View {
     public let onOpenAlbum: (String) -> Void
     public let onOpenArtist: (String) -> Void
     public let onOpenGenre: (String) -> Void
+    public let onOpenPlaylist: (String) -> Void
+    public let onOpenFolder: (String) -> Void
     public let onImportFiles: () -> Void
     public let onSelectTrackForMenu: (Track) -> Void
 
     @State private var albumGridMode: Bool = true
     @State private var showSongSortDialog: Bool = false
     @State private var showAlbumSortDialog: Bool = false
+    @State private var showNewPlaylistAlert: Bool = false
+    @State private var newPlaylistName: String = ""
+
+    public init(
+        repository: LibraryRepository,
+        playback: PlaybackController,
+        selectedTab: Binding<LibraryTab>,
+        theme: SnoozyThemeColors,
+        onOpenAlbum: @escaping (String) -> Void,
+        onOpenArtist: @escaping (String) -> Void,
+        onOpenGenre: @escaping (String) -> Void,
+        onOpenPlaylist: @escaping (String) -> Void = { _ in },
+        onOpenFolder: @escaping (String) -> Void = { _ in },
+        onImportFiles: @escaping () -> Void,
+        onSelectTrackForMenu: @escaping (Track) -> Void
+    ) {
+        self.repository = repository
+        self.playback = playback
+        self._selectedTab = selectedTab
+        self.theme = theme
+        self.onOpenAlbum = onOpenAlbum
+        self.onOpenArtist = onOpenArtist
+        self.onOpenGenre = onOpenGenre
+        self.onOpenPlaylist = onOpenPlaylist
+        self.onOpenFolder = onOpenFolder
+        self.onImportFiles = onImportFiles
+        self.onSelectTrackForMenu = onSelectTrackForMenu
+    }
 
     public var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Library")
-                            .font(SnoozyTypography.display(28))
-                            .foregroundStyle(theme.ink)
-                        Text(SnoozyFormat.countLabel(repository.tracks.count, "song", "songs"))
-                            .font(SnoozyTypography.footnote(13))
-                            .foregroundStyle(theme.inkMuted)
-                    }
-                    Spacer()
-                    LiquidGlassIconButton(
-                        systemImage: "doc.badge.plus",
-                        accessibilityLabel: "Import songs",
-                        theme: theme,
-                        preferences: repository.preferences,
-                        action: onImportFiles
-                    )
+            VStack(alignment: .leading, spacing: 18) {
+                headerRow
+
+                categoryFilterPills
+
+                if selectedTab != .overview {
+                    toolbarRow
                 }
 
-                segmentedTabs
-
-                toolbarRow
-
                 switch selectedTab {
+                case .overview:
+                    appleMusicLibraryOverview
                 case .songs:
                     songsList
                 case .albums:
                     albumsContent
                 case .artists:
                     artistsList
+                case .playlists:
+                    playlistsList
+                case .folders:
+                    foldersList
                 case .genres:
                     genresList
                 case .favorites:
@@ -55,8 +76,44 @@ public struct LibraryScreen: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, playback.activeTrack != nil ? 168 : 104)
+            .padding(.top, 6)
+            .padding(.bottom, playback.activeTrack != nil ? 172 : 108)
+        }
+        .navigationTitle(selectedTab == .overview ? "Library" : (selectedTab == .songs ? "All Songs" : selectedTab.rawValue))
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            if selectedTab != .overview {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        withAnimation(.spring(response: 0.30, dampingFraction: 0.80)) {
+                            selectedTab = .overview
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                            Text("Library")
+                        }
+                    }
+                    .accessibilityLabel("Back to Library Overview")
+                }
+            }
+
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if selectedTab == .playlists || selectedTab == .overview {
+                    Button {
+                        newPlaylistName = ""
+                        showNewPlaylistAlert = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Create playlist")
+                }
+
+                Button(action: onImportFiles) {
+                    Image(systemName: "doc.badge.plus")
+                }
+                .accessibilityLabel("Import songs")
+            }
         }
         .confirmationDialog("Sort songs by", isPresented: $showSongSortDialog, titleVisibility: .visible) {
             ForEach(SongSort.allCases, id: \.self) { sort in
@@ -72,66 +129,170 @@ public struct LibraryScreen: View {
                 }
             }
         }
-    }
-
-    private var segmentedTabs: some View {
-        HStack(spacing: 2) {
-            ForEach(LibraryTab.allCases) { tab in
-                let isSelected = (tab == selectedTab)
-                Button {
-                    withAnimation(.spring(response: 0.27, dampingFraction: 0.78)) {
-                        selectedTab = tab
-                    }
-                } label: {
-                    Text(tab.rawValue)
-                        .font(SnoozyTypography.caption(12, bold: true))
-                        .foregroundStyle(isSelected ? theme.accentInk : theme.inkMuted)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 36)
-                        .background(
-                            Group {
-                                if isSelected {
-                                    Capsule()
-                                        .fill(theme.accent)
-                                        .shadow(color: theme.accent.opacity(0.40), radius: 6, x: 0, y: 2)
-                                }
-                            }
-                        )
-                        .contentShape(Rectangle())
+        .alert("New Playlist", isPresented: $showNewPlaylistAlert) {
+            TextField("Playlist name", text: $newPlaylistName)
+            Button("Cancel", role: .cancel) {}
+            Button("Create") {
+                if let id = repository.createPlaylist(name: newPlaylistName) {
+                    onOpenPlaylist(id)
                 }
-                .buttonStyle(.plain)
             }
         }
-        .padding(4)
-        .frame(height: 44)
-        .liquidGlassSurface(
-            cornerRadius: 22,
-            glassMode: repository.preferences.glassMode,
-            refractionIntensity: repository.preferences.refractionIntensity,
-            tintColor: theme.accent
-        )
     }
 
-    private var toolbarRow: some View {
-        HStack {
+    private var headerRow: some View {
+        HStack(alignment: .center, spacing: 10) {
             Text(countSubtitle)
                 .font(SnoozyTypography.footnote(13))
                 .foregroundStyle(theme.inkMuted)
             Spacer()
+        }
+    }
+
+    private var categoryFilterPills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            SnoozyGlassEffectContainer(spacing: 6) {
+                HStack(spacing: 6) {
+                    ForEach(LibraryTab.allCases) { tab in
+                        let isSelected = (tab == selectedTab)
+                        Button {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.80)) {
+                                selectedTab = tab
+                            }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: tab.systemImage)
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text(tab == .songs ? "All Songs" : tab.rawValue)
+                                    .font(SnoozyTypography.caption(12, bold: true))
+                            }
+                            .foregroundStyle(isSelected ? theme.accentInk : theme.ink)
+                            .padding(.horizontal, 12)
+                            .frame(height: 34)
+                            .liquidGlassSurface(
+                                cornerRadius: 17,
+                                glassMode: repository.preferences.glassMode,
+                                refractionIntensity: repository.preferences.refractionIntensity,
+                                tintColor: theme.accent,
+                                isProminent: isSelected,
+                                variant: .ultraClear
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    // Apple Music Library Root Overview: Category List + Recently Added 2-Column Grid
+    private var appleMusicLibraryOverview: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
+                ForEach(Array(LibraryTab.appleMusicCategories.enumerated()), id: \.element.id) { index, category in
+                    VStack(spacing: 0) {
+                        if index > 0 {
+                            Rectangle()
+                                .fill(Color.white.opacity(theme.isDark ? 0.08 : 0.14))
+                                .frame(height: 0.5)
+                                .padding(.leading, 52)
+                        }
+                        Button {
+                            withAnimation(.spring(response: 0.30, dampingFraction: 0.80)) {
+                                selectedTab = category
+                            }
+                        } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: category.systemImage)
+                                    .font(.system(size: 19, weight: .semibold))
+                                    .foregroundStyle(theme.accent)
+                                    .frame(width: 26)
+                                Text(category == .songs ? "Songs" : category.rawValue)
+                                    .font(SnoozyTypography.body(18, bold: false))
+                                    .foregroundStyle(theme.ink)
+                                Spacer()
+                                Text(categoryBadgeCount(for: category))
+                                    .font(SnoozyTypography.footnote(13))
+                                    .foregroundStyle(theme.inkMuted)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(theme.inkFaint)
+                            }
+                            .padding(.horizontal, 14)
+                            .frame(height: 50)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            if !repository.recentlyAddedAlbums.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Recently Added")
+                        .font(SnoozyTypography.title(21))
+                        .foregroundStyle(theme.ink)
+
+                    albumGrid(albums: repository.recentlyAddedAlbums)
+                }
+            }
+        }
+    }
+
+    private func categoryBadgeCount(for tab: LibraryTab) -> String {
+        switch tab {
+        case .overview: return ""
+        case .playlists: return "\(repository.playlists.count)"
+        case .artists: return "\(repository.artistNames.count)"
+        case .albums: return "\(repository.albums.count)"
+        case .songs: return "\(repository.tracks.count)"
+        case .folders: return "\(repository.folderNames.count)"
+        case .genres: return "\(repository.genreNames.count)"
+        case .favorites: return "\(repository.favoriteTracks.count)"
+        }
+    }
+
+    private var toolbarRow: some View {
+        HStack {
             switch selectedTab {
             case .songs:
-                LiquidGlassButton(
-                    title: "Sort · \(repository.songSort.label)",
-                    systemImage: "arrow.up.arrow.down",
+                SnoozyCollectionActionsRow(
+                    playLabel: "Play all songs",
+                    shuffleLabel: "Shuffle all songs",
+                    isEnabled: !repository.sortedSongs.isEmpty,
                     theme: theme,
-                    preferences: repository.preferences
-                ) {
-                    showSongSortDialog = true
-                }
+                    preferences: repository.preferences,
+                    onPlay: {
+                        let songs = repository.sortedSongs
+                        if let first = songs.first {
+                            playback.playTrack(first, queue: songs, shuffleOverride: false)
+                        }
+                    },
+                    onShuffle: {
+                        let shuffled = repository.sortedSongs.shuffled()
+                        if let first = shuffled.first {
+                            playback.playTrack(first, queue: shuffled, shuffleOverride: true)
+                        }
+                    },
+                    trailing: AnyView(
+                        LiquidGlassIconButton(
+                            systemImage: "arrow.up.arrow.down",
+                            accessibilityLabel: "Sort songs (\(repository.songSort.label))",
+                            size: 46,
+                            theme: theme,
+                            preferences: repository.preferences
+                        ) {
+                            showSongSortDialog = true
+                        }
+                    )
+                )
+
             case .albums:
                 HStack(spacing: 8) {
+                    Text("Sorted by \(repository.albumSort.label)")
+                        .font(SnoozyTypography.footnote(13))
+                        .foregroundStyle(theme.inkMuted)
+                    Spacer()
                     LiquidGlassButton(
                         title: "Sort · \(repository.albumSort.label)",
                         systemImage: "arrow.up.arrow.down",
@@ -149,20 +310,28 @@ public struct LibraryScreen: View {
                         albumGridMode.toggle()
                     }
                 }
+
             case .favorites:
-                if !repository.favoriteTracks.isEmpty {
-                    LiquidGlassButton(
-                        title: "Shuffle",
-                        systemImage: "shuffle",
-                        theme: theme,
-                        preferences: repository.preferences
-                    ) {
+                SnoozyCollectionActionsRow(
+                    playLabel: "Play favorites",
+                    shuffleLabel: "Shuffle favorites",
+                    isEnabled: !repository.favoriteTracks.isEmpty,
+                    theme: theme,
+                    preferences: repository.preferences,
+                    onPlay: {
+                        let favs = repository.favoriteTracks
+                        if let first = favs.first {
+                            playback.playTrack(first, queue: favs, shuffleOverride: false)
+                        }
+                    },
+                    onShuffle: {
                         let shuffled = repository.favoriteTracks.shuffled()
                         if let first = shuffled.first {
                             playback.playTrack(first, queue: shuffled, shuffleOverride: true)
                         }
                     }
-                }
+                )
+
             default:
                 EmptyView()
             }
@@ -171,12 +340,18 @@ public struct LibraryScreen: View {
 
     private var countSubtitle: String {
         switch selectedTab {
+        case .overview:
+            return "\(SnoozyFormat.countLabel(repository.tracks.count, "song", "songs")) · Local Library"
         case .songs:
-            return SnoozyFormat.countLabel(repository.sortedSongs.count, "song", "songs")
+            return "\(SnoozyFormat.countLabel(repository.sortedSongs.count, "song", "songs")) · Sorted by \(repository.songSort.label)"
         case .albums:
             return SnoozyFormat.countLabel(repository.sortedAlbums.count, "album", "albums")
         case .artists:
             return SnoozyFormat.countLabel(repository.artistNames.count, "artist", "artists")
+        case .playlists:
+            return SnoozyFormat.countLabel(repository.playlists.count, "playlist", "playlists")
+        case .folders:
+            return SnoozyFormat.countLabel(repository.folderNames.count, "folder", "folders")
         case .genres:
             return SnoozyFormat.countLabel(repository.genreNames.count, "genre", "genres")
         case .favorites:
@@ -199,19 +374,18 @@ public struct LibraryScreen: View {
                     ForEach(Array(songs.enumerated()), id: \.element.id) { index, track in
                         SnoozyTrackRowView(
                             track: track,
-                            subtitle: track.artist,
+                            subtitle: "\(track.artist) · \(track.album)",
                             isActive: playback.activeTrack?.id == track.id,
                             isFavorite: repository.isFavorite(track.id),
                             showTopSeparator: index > 0,
                             isGrouped: true,
                             theme: theme,
                             preferences: repository.preferences,
-                            onTap: {
-                                playback.playTrack(track, queue: songs)
-                            },
-                            onMenu: {
-                                onSelectTrackForMenu(track)
-                            }
+                            onTap: { playback.playTrack(track, queue: songs) },
+                            onMenu: { onSelectTrackForMenu(track) },
+                            onPlayNext: { playback.playNext(track) },
+                            onAddToQueue: { playback.addToQueue(track) },
+                            onToggleFavorite: { repository.toggleFavorite(track.id) }
                         )
                     }
                 }
@@ -224,45 +398,12 @@ public struct LibraryScreen: View {
         let albums = repository.sortedAlbums
         if albums.isEmpty {
             emptySectionCard(
-                icon: "square.stack.3d.up",
+                icon: "square.stack.fill",
                 title: "No albums yet",
                 message: "Albums appear automatically as soon as your songs are indexed."
             )
         } else if albumGridMode {
-            let cols = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
-            LazyVGrid(columns: cols, spacing: 12) {
-                ForEach(albums) { album in
-                    Button {
-                        onOpenAlbum(album.id)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 6) {
-                            SnoozyArtworkView(
-                                artworkPath: album.artworkPath,
-                                size: 150,
-                                cornerRadius: 18,
-                                theme: theme
-                            )
-                            .frame(maxWidth: .infinity)
-                            Text(album.title)
-                                .font(SnoozyTypography.body(14, bold: true))
-                                .foregroundStyle(theme.ink)
-                                .lineLimit(1)
-                            Text(album.artist)
-                                .font(SnoozyTypography.footnote(12))
-                                .foregroundStyle(theme.inkMuted)
-                                .lineLimit(1)
-                        }
-                        .padding(10)
-                        .liquidGlassSurface(
-                            cornerRadius: 22,
-                            glassMode: repository.preferences.glassMode,
-                            refractionIntensity: repository.preferences.refractionIntensity * 0.8,
-                            tintColor: theme.accent
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+            albumGrid(albums: albums)
         } else {
             SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
                 LazyVStack(spacing: 0) {
@@ -270,22 +411,22 @@ public struct LibraryScreen: View {
                         VStack(spacing: 0) {
                             if index > 0 {
                                 Rectangle()
-                                    .fill(Color.white.opacity(theme.isDark ? 0.10 : 0.14))
+                                    .fill(Color.white.opacity(theme.isDark ? 0.09 : 0.14))
                                     .frame(height: 0.5)
-                                    .padding(.leading, 70)
+                                    .padding(.leading, 74)
                             }
                             Button {
                                 onOpenAlbum(album.id)
                             } label: {
                                 HStack(spacing: 12) {
-                                    SnoozyArtworkView(artworkPath: album.artworkPath, size: 46, cornerRadius: 12, theme: theme)
+                                    SnoozyArtworkView(artworkPath: album.artworkPath, size: 50, cornerRadius: 10, theme: theme)
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(album.title)
-                                            .font(SnoozyTypography.body(15, bold: true))
+                                            .font(SnoozyTypography.body(16, bold: true))
                                             .foregroundStyle(theme.ink)
                                             .lineLimit(1)
                                         Text(album.artist)
-                                            .font(SnoozyTypography.footnote(12))
+                                            .font(SnoozyTypography.footnote(13))
                                             .foregroundStyle(theme.inkMuted)
                                             .lineLimit(1)
                                     }
@@ -300,11 +441,62 @@ public struct LibraryScreen: View {
                                         .foregroundStyle(theme.inkFaint)
                                 }
                                 .padding(.horizontal, 12)
-                                .frame(minHeight: 60)
+                                .frame(minHeight: 64)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    private func albumGrid(albums: [Album]) -> some View {
+        let cols = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
+        let tracksById = Dictionary(uniqueKeysWithValues: repository.tracks.map { ($0.id, $0) })
+        return LazyVGrid(columns: cols, spacing: 18) {
+            ForEach(albums) { album in
+                let albumTracks = album.trackIds.compactMap { tracksById[$0] }
+                Button {
+                    onOpenAlbum(album.id)
+                } label: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        SnoozyArtworkView(
+                            artworkPath: album.artworkPath,
+                            size: 164,
+                            cornerRadius: 14,
+                            theme: theme
+                        )
+                        .shadow(color: Color.black.opacity(0.24), radius: 8, x: 0, y: 4)
+                        .frame(maxWidth: .infinity)
+
+                        Text(album.title)
+                            .font(SnoozyTypography.body(14, bold: true))
+                            .foregroundStyle(theme.ink)
+                            .lineLimit(1)
+                        Text(album.artist)
+                            .font(SnoozyTypography.footnote(12))
+                            .foregroundStyle(theme.inkMuted)
+                            .lineLimit(1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button {
+                        if let first = albumTracks.first {
+                            playback.playTrack(first, queue: albumTracks, shuffleOverride: false)
+                        }
+                    } label: {
+                        Label("Play Album", systemImage: "play.fill")
+                    }
+                    Button {
+                        let shuffled = albumTracks.shuffled()
+                        if let first = shuffled.first {
+                            playback.playTrack(first, queue: shuffled, shuffleOverride: true)
+                        }
+                    } label: {
+                        Label("Shuffle Album", systemImage: "shuffle")
                     }
                 }
             }
@@ -316,7 +508,7 @@ public struct LibraryScreen: View {
         let names = repository.artistNames
         if names.isEmpty {
             emptySectionCard(
-                icon: "person.fill",
+                icon: "music.mic",
                 title: "No artists yet",
                 message: "Artists appear when songs with artist tags are indexed."
             )
@@ -324,35 +516,180 @@ public struct LibraryScreen: View {
             SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(names.enumerated()), id: \.element) { index, name in
+                        let artistTracks = repository.tracksForArtist(name)
+                        let sampleArtwork = artistTracks.compactMap(\.artworkPath).first
                         VStack(spacing: 0) {
                             if index > 0 {
                                 Rectangle()
-                                    .fill(Color.white.opacity(theme.isDark ? 0.10 : 0.14))
+                                    .fill(Color.white.opacity(theme.isDark ? 0.09 : 0.14))
                                     .frame(height: 0.5)
-                                    .padding(.leading, 66)
+                                    .padding(.leading, 68)
                             }
                             Button {
                                 onOpenArtist(name)
                             } label: {
                                 HStack(spacing: 12) {
-                                    Circle()
-                                        .fill(theme.accent.opacity(0.20))
-                                        .frame(width: 42, height: 42)
-                                        .overlay(
-                                            Image(systemName: "person.fill")
-                                                .foregroundStyle(theme.accent)
+                                    if let sampleArtwork {
+                                        SnoozyArtworkView(
+                                            artworkPath: sampleArtwork,
+                                            size: 44,
+                                            cornerRadius: 22,
+                                            theme: theme
                                         )
-                                    Text(name)
-                                        .font(SnoozyTypography.body(15, bold: true))
-                                        .foregroundStyle(theme.ink)
-                                        .lineLimit(1)
+                                    } else {
+                                        Circle()
+                                            .fill(theme.accent.opacity(0.18))
+                                            .frame(width: 44, height: 44)
+                                            .overlay(
+                                                Image(systemName: "music.mic")
+                                                    .foregroundStyle(theme.accent)
+                                            )
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(name)
+                                            .font(SnoozyTypography.body(16, bold: true))
+                                            .foregroundStyle(theme.ink)
+                                            .lineLimit(1)
+                                        Text(SnoozyFormat.countLabel(artistTracks.count, "song", "songs"))
+                                            .font(SnoozyTypography.footnote(12))
+                                            .foregroundStyle(theme.inkMuted)
+                                    }
                                     Spacer()
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 13, weight: .semibold))
                                         .foregroundStyle(theme.inkFaint)
                                 }
                                 .padding(.horizontal, 12)
-                                .frame(minHeight: 56)
+                                .frame(minHeight: 58)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var playlistsList: some View {
+        let byId = Dictionary(uniqueKeysWithValues: repository.tracks.map { ($0.id, $0) })
+        if repository.playlists.isEmpty {
+            VStack(spacing: 12) {
+                emptySectionCard(
+                    icon: "music.note.list",
+                    title: "No playlists yet",
+                    message: "Create a personal playlist for your local songs."
+                )
+                LiquidGlassButton(
+                    title: "New Playlist",
+                    systemImage: "plus",
+                    isProminent: true,
+                    theme: theme,
+                    preferences: repository.preferences
+                ) {
+                    newPlaylistName = ""
+                    showNewPlaylistAlert = true
+                }
+            }
+        } else {
+            SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(repository.playlists.enumerated()), id: \.element.id) { index, playlist in
+                        let tracks = playlist.trackIds.compactMap { byId[$0] }
+                        VStack(spacing: 0) {
+                            if index > 0 {
+                                Rectangle()
+                                    .fill(Color.white.opacity(theme.isDark ? 0.09 : 0.14))
+                                    .frame(height: 0.5)
+                                    .padding(.leading, 74)
+                            }
+                            Button {
+                                onOpenPlaylist(playlist.id)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    SnoozyPlaylistCollageView(
+                                        artworkPaths: tracks.map(\.artworkPath),
+                                        size: 50,
+                                        cornerRadius: 10,
+                                        theme: theme
+                                    )
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(playlist.name)
+                                            .font(SnoozyTypography.body(16, bold: true))
+                                            .foregroundStyle(theme.ink)
+                                            .lineLimit(1)
+                                        Text(SnoozyFormat.countLabel(tracks.count, "song", "songs"))
+                                            .font(SnoozyTypography.footnote(12))
+                                            .foregroundStyle(theme.inkMuted)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(theme.inkFaint)
+                                }
+                                .padding(.horizontal, 12)
+                                .frame(minHeight: 64)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var foldersList: some View {
+        let folders = repository.folderNames
+        if folders.isEmpty {
+            emptySectionCard(
+                icon: "folder.fill",
+                title: "No local folders yet",
+                message: "Organize your audio files into folders inside On My iPhone > Snoozy in the iPhone Files app."
+            )
+        } else {
+            SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(folders.enumerated()), id: \.element) { index, folder in
+                        let folderTracks = repository.tracksForFolder(folder)
+                        VStack(spacing: 0) {
+                            if index > 0 {
+                                Rectangle()
+                                    .fill(Color.white.opacity(theme.isDark ? 0.09 : 0.14))
+                                    .frame(height: 0.5)
+                                    .padding(.leading, 68)
+                            }
+                            Button {
+                                onOpenFolder(folder)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(theme.accent.opacity(0.18))
+                                        .frame(width: 44, height: 44)
+                                        .overlay(
+                                            Image(systemName: "folder.fill")
+                                                .font(.system(size: 18, weight: .semibold))
+                                                .foregroundStyle(theme.accent)
+                                        )
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(folder)
+                                            .font(SnoozyTypography.body(16, bold: true))
+                                            .foregroundStyle(theme.ink)
+                                            .lineLimit(1)
+                                        Text("\(SnoozyFormat.countLabel(folderTracks.count, "song", "songs")) · On My iPhone > Snoozy")
+                                            .font(SnoozyTypography.footnote(12))
+                                            .foregroundStyle(theme.inkMuted)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(theme.inkFaint)
+                                }
+                                .padding(.horizontal, 12)
+                                .frame(minHeight: 60)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -376,10 +713,11 @@ public struct LibraryScreen: View {
             SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(genres.enumerated()), id: \.element) { index, genre in
+                        let genreTracks = repository.tracksForGenre(genre)
                         VStack(spacing: 0) {
                             if index > 0 {
                                 Rectangle()
-                                    .fill(Color.white.opacity(theme.isDark ? 0.10 : 0.14))
+                                    .fill(Color.white.opacity(theme.isDark ? 0.09 : 0.14))
                                     .frame(height: 0.5)
                                     .padding(.leading, 66)
                             }
@@ -388,23 +726,28 @@ public struct LibraryScreen: View {
                             } label: {
                                 HStack(spacing: 12) {
                                     Circle()
-                                        .fill(theme.accent.opacity(0.20))
+                                        .fill(theme.accent.opacity(0.18))
                                         .frame(width: 42, height: 42)
                                         .overlay(
                                             Image(systemName: "guitars.fill")
                                                 .foregroundStyle(theme.accent)
                                         )
-                                    Text(genre)
-                                        .font(SnoozyTypography.body(15, bold: true))
-                                        .foregroundStyle(theme.ink)
-                                        .lineLimit(1)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(genre)
+                                            .font(SnoozyTypography.body(16, bold: true))
+                                            .foregroundStyle(theme.ink)
+                                            .lineLimit(1)
+                                        Text(SnoozyFormat.countLabel(genreTracks.count, "song", "songs"))
+                                            .font(SnoozyTypography.footnote(12))
+                                            .foregroundStyle(theme.inkMuted)
+                                    }
                                     Spacer()
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 13, weight: .semibold))
                                         .foregroundStyle(theme.inkFaint)
                                 }
                                 .padding(.horizontal, 12)
-                                .frame(minHeight: 56)
+                                .frame(minHeight: 58)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -420,9 +763,9 @@ public struct LibraryScreen: View {
         return Group {
             if favs.isEmpty {
                 emptySectionCard(
-                    icon: "heart",
+                    icon: "star.fill",
                     title: "No favorites yet",
-                    message: "Tap a song's menu or the heart icon in the player to favorite it."
+                    message: "Tap the star icon in Now Playing or a song's context menu to favorite it."
                 )
             } else {
                 SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
@@ -430,19 +773,18 @@ public struct LibraryScreen: View {
                         ForEach(Array(favs.enumerated()), id: \.element.id) { index, track in
                             SnoozyTrackRowView(
                                 track: track,
-                                subtitle: track.artist,
+                                subtitle: "\(track.artist) · \(track.album)",
                                 isActive: playback.activeTrack?.id == track.id,
                                 isFavorite: true,
                                 showTopSeparator: index > 0,
                                 isGrouped: true,
                                 theme: theme,
                                 preferences: repository.preferences,
-                                onTap: {
-                                    playback.playTrack(track, queue: favs)
-                                },
-                                onMenu: {
-                                    onSelectTrackForMenu(track)
-                                }
+                                onTap: { playback.playTrack(track, queue: favs) },
+                                onMenu: { onSelectTrackForMenu(track) },
+                                onPlayNext: { playback.playNext(track) },
+                                onAddToQueue: { playback.addToQueue(track) },
+                                onToggleFavorite: { repository.toggleFavorite(track.id) }
                             )
                         }
                     }
@@ -466,11 +808,9 @@ public struct LibraryScreen: View {
         }
         .frame(maxWidth: .infinity)
         .padding(24)
-        .liquidGlassSurface(
-            cornerRadius: 26,
-            glassMode: repository.preferences.glassMode,
-            refractionIntensity: repository.preferences.refractionIntensity,
-            tintColor: theme.accent
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(theme.surface)
         )
     }
 }

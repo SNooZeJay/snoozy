@@ -135,6 +135,11 @@ public enum SnoozyFormat {
         return String(format: "%d:%02d", mins, secs)
     }
 
+    public static func formatRemainingClock(elapsed: Double, duration: Double) -> String {
+        let remaining = max(0.0, (duration.isFinite ? duration : 0.0) - (elapsed.isFinite ? elapsed : 0.0))
+        return "-\(formatClock(remaining))"
+    }
+
     public static func formatDuration(_ seconds: Double) -> String {
         guard seconds.isFinite, seconds > 0 else { return "0 min" }
         let totalMins = max(1, Int((seconds / 60.0).rounded()))

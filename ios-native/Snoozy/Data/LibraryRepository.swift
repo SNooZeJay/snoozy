@@ -123,6 +123,11 @@ public final class LibraryRepository: ObservableObject {
         return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
+    public var folderNames: [String] {
+        let names = Set(tracks.map(\.folderName))
+        return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
     public var favoriteTracks: [Track] {
         tracks.filter { favoriteTrackIds.contains($0.id) }
     }
@@ -130,6 +135,24 @@ public final class LibraryRepository: ObservableObject {
     public var recentTracks: [Track] {
         let byId = Dictionary(uniqueKeysWithValues: tracks.map { ($0.id, $0) })
         return Array(recents.compactMap { byId[$0] }.prefix(12))
+    }
+
+    public var recentlyPlayedAlbums: [Album] {
+        let albumsByKey = Dictionary(uniqueKeysWithValues: albums.map { ($0.id, $0) })
+        var seen = Set<String>()
+        var result: [Album] = []
+        for track in recentTracks {
+            let key = track.albumKey
+            if !seen.contains(key), let album = albumsByKey[key] {
+                seen.insert(key)
+                result.append(album)
+            }
+        }
+        return Array(result.prefix(10))
+    }
+
+    public var recentlyAddedAlbums: [Album] {
+        Array(albums.sorted { $0.addedAt > $1.addedAt }.prefix(12))
     }
 
     public var mostPlayedTracks: [PlayedTrackSummary] {
@@ -158,6 +181,10 @@ public final class LibraryRepository: ObservableObject {
 
     public func tracksForGenre(_ genre: String) -> [Track] {
         tracks.filter { ($0.genre ?? "").caseInsensitiveCompare(genre) == .orderedSame }
+    }
+
+    public func tracksForFolder(_ folder: String) -> [Track] {
+        tracks.filter { $0.folderName.caseInsensitiveCompare(folder) == .orderedSame }
     }
 
     public func setSongSort(_ sort: SongSort) {

@@ -14,14 +14,9 @@ public struct SettingsScreen: View {
         let prefs = repository.preferences
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Settings")
-                        .font(SnoozyTypography.display(28))
-                        .foregroundStyle(theme.ink)
-                    Text("iOS 27 Liquid Glass · iPhone 13 mini edition")
-                        .font(SnoozyTypography.footnote(13))
-                        .foregroundStyle(theme.inkMuted)
-                }
+                Text("iOS 27 Liquid Glass · iPhone 13 mini edition")
+                    .font(SnoozyTypography.footnote(13))
+                    .foregroundStyle(theme.inkMuted)
 
                 liquidGlassCard(prefs: prefs)
                 appearanceCard(prefs: prefs)
@@ -29,9 +24,11 @@ public struct SettingsScreen: View {
                 diagnosticsCard(prefs: prefs)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 12)
+            .padding(.top, 6)
             .padding(.bottom, playback.activeTrack != nil ? 168 : 104)
         }
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.large)
         .alert("Clear listening history?", isPresented: $showClearHistoryAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) {

@@ -18,6 +18,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     @Published public private(set) var repeatMode: RepeatState = .off
     @Published public private(set) var shuffle: Bool = false
     @Published public private(set) var playbackRate: Double = 1.0
+    @Published public private(set) var volume: Double = 1.0
     @Published public private(set) var activeLyrics: ParsedLyrics? = nil
     @Published public private(set) var activePalette: ArtworkPalette = .emeraldDefault
     @Published public var playbackError: String? = nil
@@ -311,6 +312,12 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         updateNowPlayingInfo()
     }
 
+    public func setVolume(_ newVolume: Double) {
+        let clamped = min(1.0, max(0.0, newVolume))
+        volume = clamped
+        audioPlayer?.volume = Float(clamped)
+    }
+
     nonisolated public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in
             self.handleTrackFinished()
@@ -385,6 +392,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             player.delegate = self
             player.enableRate = true
             player.rate = Float(playbackRate)
+            player.volume = Float(volume)
             player.prepareToPlay()
             if player.duration > 0 {
                 durationSeconds = player.duration
