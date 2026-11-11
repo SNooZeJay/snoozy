@@ -24,6 +24,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+import kotlin.random.Random
 
 class LibraryRepository(
     private val context: Context,
@@ -157,6 +158,63 @@ class LibraryRepository(
             albumSort = AlbumSort.fromStored(stores.albumSort()),
             hasPermission = permission,
         )
+    }
+
+    private suspend fun mutatePlaylists(
+        transform: (List<Playlist>) -> List<Playlist>,
+    ): List<Playlist>? = withContext(Dispatchers.IO) {
+        mutationMutex.withLock {
+            try {
+                val current = stores.playlistsForUpdate()
+                val next = transform(current)
+                if (next !== current && !stores.savePlaylists(next)) {
+                    throw StoreFailureException("Could not save playlists.")
+                }
+                _state.update { it.copy(playlists = next) }
+                next
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.w(TAG, "Playlist write failed", error)
+                _state.update { it.copy(error = "Could not save playlist.") }
+                null
+            }
+        }
+    }
+
+    suspend fun createPlaylist(name: String): String? {
+        if (name.isBlank()) return null
+        val now = System.currentTimeMillis()
+        val id = PlaylistOps.playlistId(now, PlaylistOps.playlistSuffix(Random.nextLong().ushr(1)))
+        return mutatePlaylists { PlaylistOps.create(it, name, id, now) }?.let { id }
+    }
+
+    suspend fun renamePlaylist(id: String, name: String): Boolean =
+        mutatePlaylists { PlaylistOps.rename(it, id, name, System.currentTimeMillis()) } != null
+
+    suspend fun deletePlaylist(id: String): Boolean =
+        mutatePlaylists { PlaylistOps.delete(it, id) } != null
+
+    suspend fun addToPlaylist(id: String, trackId: String): Boolean =
+        mutatePlaylists { PlaylistOps.addTrack(it, id, trackId) } != null
+
+    suspend fun removeFromPlaylist(id: String, trackId: String): Boolean =
+        mutatePlaylists { PlaylistOps.removeTrack(it, id, trackId) } != null
+
+    suspend fun movePlaylistTrack(id: String, from: Int, to: Int): Boolean =
+        mutatePlaylists { PlaylistOps.moveTrack(it, id, from, to) } != null
+
+    suspend fun clearRecents(): Boolean = withContext(Dispatchers.IO) {
+        mutationMutex.withLock {
+            val saved = stores.saveRecents(emptyList())
+            val historyCleared = databases.clearPlayHistory()
+            val sessionsCleared = databases.clearListeningSessions()
+            val ok = saved && historyCleared && sessionsCleared
+            _state.value = loadedState(hasAudioPermission()).let { loaded ->
+                if (ok) loaded else loaded.copy(error = "Could not clear play history.")
+            }
+            ok
+        }
     }
 
     suspend fun setSongSort(sort: SongSort) = withContext(Dispatchers.IO) {

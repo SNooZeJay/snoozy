@@ -72,6 +72,9 @@ class SnoozyStores(context: Context) {
 
     fun playlists(): List<Playlist> = readList(MUSIC, PLAYLISTS, Playlist.serializer())
 
+    fun playlistsForUpdate(): List<Playlist> =
+        readListForUpdate(MUSIC, PLAYLISTS, Playlist.serializer())
+
     fun savePlaylists(playlists: List<Playlist>): Boolean =
         writeJson(MUSIC, PLAYLISTS, ListSerializer(Playlist.serializer()), playlists)
 

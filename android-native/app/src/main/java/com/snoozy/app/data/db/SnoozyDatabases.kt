@@ -106,10 +106,30 @@ class SnoozyDatabases(private val context: Context) {
         )
     }
 
-    private fun open(name: String): SQLiteDatabase? {
-        opened[name]?.let { return it }
+    fun clearPlayHistory(): Boolean = clearTable(PLAY_HISTORY_DB, "play_history")
+
+    fun clearListeningSessions(): Boolean = clearTable(LIBRARY_DB, "listening_sessions")
+
+    private fun clearTable(name: String, table: String): Boolean {
+        synchronized(opened) { opened.remove(name)?.close() }
         val file = File(directory, name)
-        if (!file.exists()) return null
+        if (!file.exists()) return true
+        return try {
+            SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE).use { database ->
+                database.delete(table, null, null)
+                true
+            }
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not clear $table", error)
+            false
+        }
+    }
+
+    private fun open(name: String): SQLiteDatabase? = synchronized(opened) {
+        val cached = opened[name]
+        if (cached != null) return@synchronized cached
+        val file = File(directory, name)
+        if (!file.exists()) return@synchronized null
         val database = try {
             SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY)
         } catch (error: Exception) {
@@ -129,7 +149,7 @@ class SnoozyDatabases(private val context: Context) {
             }
         }
         opened[name] = database
-        return database
+        database
     }
 
     private fun copyForReading(name: String, source: File): File? = try {
