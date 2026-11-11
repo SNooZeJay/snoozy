@@ -30,12 +30,13 @@ import androidx.compose.ui.unit.dp
 import com.snoozy.app.data.library.AlbumSort
 import com.snoozy.app.data.library.SongSort
 import com.snoozy.app.data.library.artistNamesOf
-import com.snoozy.app.data.library.albumKeyFor
 import com.snoozy.app.data.library.favoriteTracks
 import com.snoozy.app.data.library.genresOf
 import com.snoozy.app.data.library.libraryStatus
 import com.snoozy.app.data.library.sortedAlbums
 import com.snoozy.app.data.library.sortedTracks
+import com.snoozy.app.data.model.Track
+import com.snoozy.app.ui.components.AddToPlaylistSheet
 import com.snoozy.app.ui.components.SnoozyAlbumRow
 import com.snoozy.app.ui.components.SnoozyAlbumTile
 import com.snoozy.app.ui.components.SnoozyArtistRow
@@ -44,15 +45,18 @@ import com.snoozy.app.ui.components.SnoozyErrorBanner
 import com.snoozy.app.ui.components.SnoozyGenreRow
 import com.snoozy.app.ui.components.SnoozyGridPage
 import com.snoozy.app.ui.components.SnoozyGroupedRow
+import com.snoozy.app.ui.components.SnoozyIconAction
 import com.snoozy.app.ui.components.SnoozyPermissionEmpty
 import com.snoozy.app.ui.components.SnoozyScanEmpty
 import com.snoozy.app.ui.components.SnoozyTrackRow
+import com.snoozy.app.ui.components.TrackActionsSheet
 import com.snoozy.app.ui.components.libraryHeaderActions
 import com.snoozy.app.ui.components.rememberLibraryActions
 import com.snoozy.app.ui.format.countLabel
 import com.snoozy.app.ui.icons.SnoozyIcons
 import com.snoozy.app.ui.navigation.BindHeader
 import com.snoozy.app.ui.navigation.LocalLibraryRepository
+import com.snoozy.app.ui.navigation.LocalPlaybackController
 import com.snoozy.app.ui.navigation.NavHeaderEntry
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.core.LocalGlassColors
@@ -84,13 +88,17 @@ fun LibraryScreen(
     onOpenGenre: (String) -> Unit,
 ) {
     val repository = LocalLibraryRepository.current
+    val playbackController = LocalPlaybackController.current
     val state by repository.state.collectAsState()
+    val playbackState by playbackController.state.collectAsState()
     val actions = rememberLibraryActions(repository)
     val scope = rememberCoroutineScope()
 
     var albumGrid by rememberSaveable { mutableStateOf(true) }
     var songSortOpen by remember { mutableStateOf(false) }
     var albumSortOpen by remember { mutableStateOf(false) }
+    var menuTrack by remember { mutableStateOf<Track?>(null) }
+    var playlistPickerTrack by remember { mutableStateOf<Track?>(null) }
 
     val songs = remember(state.tracks, state.songSort) {
         sortedTracks(state.tracks, state.songSort)
@@ -183,6 +191,32 @@ fun LibraryScreen(
                             }
                         }
 
+                        LibraryTab.Favorites -> if (favorites.isNotEmpty()) {
+                            GlasmioButton(
+                                onClick = {
+                                    val shuffled = favorites.shuffled()
+                                    if (shuffled.isNotEmpty()) {
+                                        playbackController.playTrack(
+                                            track = shuffled.first(),
+                                            queue = shuffled,
+                                            shuffleOverride = true,
+                                        )
+                                    }
+                                },
+                                size = GlasmioButtonSize.Medium,
+                                modifier = Modifier.heightIn(min = 44.dp).semantics {
+                                    contentDescription = "Shuffle favorites"
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = SnoozyIcons.Shuffle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Text(text = "Shuffle", modifier = Modifier.padding(start = 6.dp))
+                            }
+                        }
+
                         else -> Unit
                     }
                 }
@@ -191,6 +225,11 @@ fun LibraryScreen(
             if (state.error != null) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "library-error") {
                     SnoozyErrorBanner(state.error.orEmpty()) { repository.clearError() }
+                }
+            }
+            if (playbackState.error != null) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "library-playback-error") {
+                    SnoozyErrorBanner(playbackState.error.orEmpty()) { playbackController.clearError() }
                 }
             }
 
@@ -217,8 +256,16 @@ fun LibraryScreen(
                                 SnoozyTrackRow(
                                     track = track,
                                     subtitle = track.artist,
-                                    onClick = { onOpenAlbum(albumKeyFor(track)) },
+                                    active = playbackState.activeTrack?.id == track.id,
+                                    onClick = { playbackController.playTrack(track, songs) },
                                     showTopSeparator = index > 0,
+                                    trailing = {
+                                        SnoozyIconAction(
+                                            icon = SnoozyIcons.More,
+                                            label = "Manage ${track.title}",
+                                            onClick = { menuTrack = track },
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -331,8 +378,16 @@ fun LibraryScreen(
                                 SnoozyTrackRow(
                                     track = track,
                                     subtitle = track.artist,
-                                    onClick = { onOpenAlbum(albumKeyFor(track)) },
+                                    active = playbackState.activeTrack?.id == track.id,
+                                    onClick = { playbackController.playTrack(track, favorites) },
                                     showTopSeparator = index > 0,
+                                    trailing = {
+                                        SnoozyIconAction(
+                                            icon = SnoozyIcons.More,
+                                            label = "Manage ${track.title}",
+                                            onClick = { menuTrack = track },
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -340,6 +395,34 @@ fun LibraryScreen(
                 }
             }
         }
+    }
+
+    menuTrack?.let { selectedTrack ->
+        TrackActionsSheet(
+            track = selectedTrack,
+            onPlayNext = { playbackController.playNext(selectedTrack) },
+            onAddToQueue = { playbackController.addToQueue(selectedTrack) },
+            onAddToPlaylist = { playlistPickerTrack = selectedTrack },
+            onDismiss = { menuTrack = null },
+        )
+    }
+
+    playlistPickerTrack?.let { selectedTrack ->
+        AddToPlaylistSheet(
+            track = selectedTrack,
+            playlists = state.playlists,
+            onAddToPlaylist = { playlistId ->
+                scope.launch { repository.addToPlaylist(playlistId, selectedTrack.id) }
+            },
+            onCreateAndAdd = { name ->
+                val createdId = repository.createPlaylist(name)
+                if (!createdId.isNullOrBlank()) {
+                    repository.addToPlaylist(createdId, selectedTrack.id)
+                }
+                createdId
+            },
+            onDismiss = { playlistPickerTrack = null },
+        )
     }
 
     if (songSortOpen) {

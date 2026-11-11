@@ -1,10 +1,9 @@
 package com.snoozy.app.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -27,6 +26,7 @@ import com.snoozy.app.ui.components.AddSongsSheet
 import com.snoozy.app.ui.components.PlaylistDeleteDialog
 import com.snoozy.app.ui.components.PlaylistNameSheet
 import com.snoozy.app.ui.components.PlaylistTrackActionsSheet
+import com.snoozy.app.ui.components.SnoozyCollectionActions
 import com.snoozy.app.ui.components.SnoozyEmptyState
 import com.snoozy.app.ui.components.SnoozyErrorBanner
 import com.snoozy.app.ui.components.SnoozyGridPage
@@ -40,6 +40,7 @@ import com.snoozy.app.ui.format.formatDuration
 import com.snoozy.app.ui.icons.SnoozyIcons
 import com.snoozy.app.ui.navigation.BindHeader
 import com.snoozy.app.ui.navigation.LocalLibraryRepository
+import com.snoozy.app.ui.navigation.LocalPlaybackController
 import com.snoozy.app.ui.navigation.NavHeaderEntry
 import io.github.neoruaa.glasmio.core.LocalGlassColors
 import io.github.neoruaa.glasmio.scaffold.GlasmioHeaderAction
@@ -56,7 +57,9 @@ fun PlaylistScreen(
     onBack: () -> Unit,
 ) {
     val repository = LocalLibraryRepository.current
+    val playbackController = LocalPlaybackController.current
     val state by repository.state.collectAsState()
+    val playbackState by playbackController.state.collectAsState()
     val scope = rememberCoroutineScope()
     val destructive = LocalGlassColors.current.destructive
 
@@ -134,6 +137,11 @@ fun PlaylistScreen(
                 SnoozyErrorBanner(state.error.orEmpty()) { repository.clearError() }
             }
         }
+        if (playbackState.error != null) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "playlist-playback-error") {
+                SnoozyErrorBanner(playbackState.error.orEmpty()) { playbackController.clearError() }
+            }
+        }
 
         item(span = { GridItemSpan(maxLineSpan) }, key = "playlist-cover") {
             Box(
@@ -145,14 +153,38 @@ fun PlaylistScreen(
         }
 
         item(span = { GridItemSpan(maxLineSpan) }, key = "playlist-actions") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                GlasmioButton(onClick = { addSongsOpen = true }) {
-                    Text("Add songs")
-                }
-            }
+            SnoozyCollectionActions(
+                onPlay = {
+                    if (tracks.isNotEmpty()) {
+                        playbackController.playTrack(
+                            track = tracks.first(),
+                            queue = tracks,
+                            shuffleOverride = false,
+                        )
+                    }
+                },
+                onShuffle = {
+                    val shuffled = tracks.shuffled()
+                    if (shuffled.isNotEmpty()) {
+                        playbackController.playTrack(
+                            track = shuffled.first(),
+                            queue = shuffled,
+                            shuffleOverride = true,
+                        )
+                    }
+                },
+                playLabel = "Play playlist",
+                shuffleLabel = "Shuffle playlist",
+                enabled = tracks.isNotEmpty(),
+                trailing = {
+                    GlasmioButton(
+                        onClick = { addSongsOpen = true },
+                        modifier = Modifier.heightIn(min = 44.dp),
+                    ) {
+                        Text("Add songs")
+                    }
+                },
+            )
         }
 
         if (tracks.isEmpty()) {
@@ -181,7 +213,8 @@ fun PlaylistScreen(
                     SnoozyTrackRow(
                         track = track,
                         subtitle = "${track.artist} \u00B7 ${track.album}",
-                        onClick = null,
+                        active = playbackState.activeTrack?.id == track.id,
+                        onClick = { playbackController.playTrack(track, tracks) },
                         showTopSeparator = index > 0,
                         trailing = {
                             SnoozyIconAction(
@@ -241,6 +274,8 @@ fun PlaylistScreen(
                 scope.launch { repository.removeFromPlaylist(playlist.id, menu.track.id) }
             },
             onDismiss = { songMenu = null },
+            onPlayNext = { playbackController.playNext(menu.track) },
+            onAddToQueue = { playbackController.addToQueue(menu.track) },
         )
     }
 

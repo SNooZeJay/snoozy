@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -13,8 +14,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.snoozy.app.data.library.LibraryRepository
 import com.snoozy.app.ui.components.SnoozyArtwork
+import com.snoozy.app.ui.components.SnoozyCollectionActions
 import com.snoozy.app.ui.components.SnoozyEmptyState
 import com.snoozy.app.ui.components.SnoozyGridPage
 import com.snoozy.app.ui.components.SnoozyGroupedRow
@@ -26,8 +27,8 @@ import com.snoozy.app.ui.format.formatDuration
 import com.snoozy.app.ui.icons.SnoozyIcons
 import com.snoozy.app.ui.navigation.BindHeader
 import com.snoozy.app.ui.navigation.LocalLibraryRepository
+import com.snoozy.app.ui.navigation.LocalPlaybackController
 import com.snoozy.app.ui.navigation.NavHeaderEntry
-import androidx.compose.material3.Text
 import io.github.neoruaa.glasmio.ui.GlasmioButton
 
 @Composable
@@ -37,7 +38,9 @@ fun AlbumScreen(
     headerEntry: NavHeaderEntry,
 ) {
     val repository = LocalLibraryRepository.current
+    val playbackController = LocalPlaybackController.current
     val state by repository.state.collectAsState()
+    val playbackState by playbackController.state.collectAsState()
     val actions = rememberLibraryActions(repository)
 
     val album = remember(state.albums, albumKey) {
@@ -90,6 +93,29 @@ fun AlbumScreen(
                     )
                 }
             }
+            item(span = { GridItemSpan(maxLineSpan) }, key = "album-actions") {
+                SnoozyCollectionActions(
+                    onPlay = {
+                        playbackController.playTrack(
+                            track = tracks.first(),
+                            queue = tracks,
+                            shuffleOverride = false,
+                        )
+                    },
+                    onShuffle = {
+                        val shuffled = tracks.shuffled()
+                        if (shuffled.isNotEmpty()) {
+                            playbackController.playTrack(
+                                track = shuffled.first(),
+                                queue = shuffled,
+                                shuffleOverride = true,
+                            )
+                        }
+                    },
+                    playLabel = "Play album",
+                    shuffleLabel = "Shuffle album",
+                )
+            }
             item(span = { GridItemSpan(maxLineSpan) }, key = "album-tracks-title") {
                 SnoozySectionHeader("Tracks")
             }
@@ -102,7 +128,8 @@ fun AlbumScreen(
                     SnoozyTrackRow(
                         track = track,
                         subtitle = track.artist,
-                        onClick = null,
+                        active = playbackState.activeTrack?.id == track.id,
+                        onClick = { playbackController.playTrack(track, tracks) },
                         showTopSeparator = index > 0,
                     )
                 }

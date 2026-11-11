@@ -4,10 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -17,9 +19,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.snoozy.app.data.library.albumKeyFor
-import com.snoozy.app.data.library.albumTitleFor
 import com.snoozy.app.data.library.libraryStatus
 import com.snoozy.app.data.library.recentlyAdded
 import com.snoozy.app.data.library.topPlayedTracks
@@ -27,6 +29,8 @@ import com.snoozy.app.data.library.tracksForIds
 import com.snoozy.app.ui.components.SnoozyEmptyState
 import com.snoozy.app.ui.components.SnoozyErrorBanner
 import com.snoozy.app.ui.components.SnoozyGridPage
+import com.snoozy.app.ui.components.SnoozyGroupedRow
+import com.snoozy.app.ui.components.SnoozyIconBadge
 import com.snoozy.app.ui.components.SnoozyMediaCard
 import com.snoozy.app.ui.components.SnoozyPermissionEmpty
 import com.snoozy.app.ui.components.SnoozyScanEmpty
@@ -37,6 +41,7 @@ import com.snoozy.app.ui.format.countLabel
 import com.snoozy.app.ui.icons.SnoozyIcons
 import com.snoozy.app.ui.navigation.BindHeader
 import com.snoozy.app.ui.navigation.LocalLibraryRepository
+import com.snoozy.app.ui.navigation.LocalPlaybackController
 import com.snoozy.app.ui.navigation.NavHeaderEntry
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.core.LocalGlassColors
@@ -44,6 +49,7 @@ import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonLayout
 import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonRole
 import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonSpec
 import io.github.neoruaa.glasmio.ui.GlasmioAlertDialog
+import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import kotlinx.coroutines.launch
 
 @Composable
@@ -54,7 +60,9 @@ fun HomeScreen(
     openLibraryAlbums: () -> Unit,
 ) {
     val repository = LocalLibraryRepository.current
+    val playbackController = LocalPlaybackController.current
     val state by repository.state.collectAsState()
+    val playbackState by playbackController.state.collectAsState()
     val actions = rememberLibraryActions(repository)
     val scope = rememberCoroutineScope()
     var clearOpen by remember { mutableStateOf(false) }
@@ -68,6 +76,7 @@ fun HomeScreen(
     val mostPlayed = remember(state.tracks, state.history) {
         topPlayedTracks(state.tracks, state.history, 8)
     }
+    val mostPlayedTracks = remember(mostPlayed) { mostPlayed.map { it.track } }
 
     val title = "Your music"
     val status = libraryStatus(state.hasPermission, state.scanning, state.tracks.size)
@@ -82,6 +91,11 @@ fun HomeScreen(
         if (state.error != null) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "home-error") {
                 SnoozyErrorBanner(state.error.orEmpty()) { repository.clearError() }
+            }
+        }
+        if (playbackState.error != null) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "home-playback-error") {
+                SnoozyErrorBanner(playbackState.error.orEmpty()) { playbackController.clearError() }
             }
         }
 
@@ -133,8 +147,8 @@ fun HomeScreen(
                                     title = track.title,
                                     subtitle = track.artist,
                                     artwork = track.artwork,
-                                    contentDescription = "Open album ${albumTitleFor(track)} by ${track.artist}",
-                                    onClick = { openAlbum(albumKeyFor(track)) },
+                                    contentDescription = "Play ${track.title}",
+                                    onClick = { playbackController.playTrack(track, recentTracks) },
                                 )
                             }
                         }
@@ -175,11 +189,49 @@ fun HomeScreen(
                                     title = played.track.title,
                                     subtitle = countLabel(played.plays, "play", "plays"),
                                     artwork = played.track.artwork,
-                                    contentDescription = "Open album ${albumTitleFor(played.track)} by ${played.track.artist}",
-                                    onClick = { openAlbum(albumKeyFor(played.track)) },
+                                    contentDescription = "Play ${played.track.title}",
+                                    onClick = {
+                                        playbackController.playTrack(played.track, mostPlayedTracks)
+                                    },
                                 )
                             }
                         }
+                    }
+                }
+
+                item(span = { GridItemSpan(maxLineSpan) }, key = "home-library-title") {
+                    SnoozySectionHeader("Library")
+                }
+                item(span = { GridItemSpan(maxLineSpan) }, key = "home-shuffle-all") {
+                    SnoozyGroupedRow(0, 1) {
+                        GlasmioListRow(
+                            title = "Shuffle all songs",
+                            subtitle = "Play a random mix of " +
+                                countLabel(state.tracks.size, "track", "tracks"),
+                            leading = { SnoozyIconBadge(SnoozyIcons.Shuffle) },
+                            trailing = {
+                                Icon(
+                                    imageVector = SnoozyIcons.Play,
+                                    contentDescription = null,
+                                    tint = LocalGlassColors.current.secondaryContent,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                            showDisclosure = false,
+                            modifier = Modifier.semantics {
+                                contentDescription = "Shuffle all songs"
+                            },
+                            onClick = {
+                                val shuffled = state.tracks.shuffled()
+                                if (shuffled.isNotEmpty()) {
+                                    playbackController.playTrack(
+                                        track = shuffled.first(),
+                                        queue = shuffled,
+                                        shuffleOverride = true,
+                                    )
+                                }
+                            },
+                        )
                     }
                 }
             }

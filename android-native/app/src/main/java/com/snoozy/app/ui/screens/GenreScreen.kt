@@ -8,8 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import com.snoozy.app.data.library.albumKeyFor
 import com.snoozy.app.data.library.tracksForGenre
+import com.snoozy.app.ui.components.SnoozyCollectionActions
 import com.snoozy.app.ui.components.SnoozyEmptyState
 import com.snoozy.app.ui.components.SnoozyGridPage
 import com.snoozy.app.ui.components.SnoozyGroupedRow
@@ -20,6 +20,7 @@ import com.snoozy.app.ui.format.countLabel
 import com.snoozy.app.ui.icons.SnoozyIcons
 import com.snoozy.app.ui.navigation.BindHeader
 import com.snoozy.app.ui.navigation.LocalLibraryRepository
+import com.snoozy.app.ui.navigation.LocalPlaybackController
 import com.snoozy.app.ui.navigation.NavHeaderEntry
 import io.github.neoruaa.glasmio.ui.GlasmioButton
 
@@ -31,7 +32,9 @@ fun GenreScreen(
     onOpenAlbum: (String) -> Unit,
 ) {
     val repository = LocalLibraryRepository.current
+    val playbackController = LocalPlaybackController.current
     val state by repository.state.collectAsState()
+    val playbackState by playbackController.state.collectAsState()
     val actions = rememberLibraryActions(repository)
 
     val title = name.ifBlank { "Unknown genre" }
@@ -57,6 +60,30 @@ fun GenreScreen(
                 )
             }
         } else {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "genre-actions") {
+                SnoozyCollectionActions(
+                    onPlay = {
+                        playbackController.playTrack(
+                            track = tracks.first(),
+                            queue = tracks,
+                            shuffleOverride = false,
+                        )
+                    },
+                    onShuffle = {
+                        val shuffled = tracks.shuffled()
+                        if (shuffled.isNotEmpty()) {
+                            playbackController.playTrack(
+                                track = shuffled.first(),
+                                queue = shuffled,
+                                shuffleOverride = true,
+                            )
+                        }
+                    },
+                    playLabel = "Play $title",
+                    shuffleLabel = "Shuffle $title",
+                )
+            }
+
             item(span = { GridItemSpan(maxLineSpan) }, key = "genre-songs-title") {
                 SnoozySectionHeader("Songs")
             }
@@ -69,7 +96,8 @@ fun GenreScreen(
                     SnoozyTrackRow(
                         track = track,
                         subtitle = track.artist,
-                        onClick = { onOpenAlbum(albumKeyFor(track)) },
+                        active = playbackState.activeTrack?.id == track.id,
+                        onClick = { playbackController.playTrack(track, tracks) },
                         showTopSeparator = index > 0,
                     )
                 }

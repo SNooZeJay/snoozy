@@ -8,11 +8,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.unit.dp
-import com.snoozy.app.data.library.albumKeyFor
 import com.snoozy.app.data.library.albumsForArtist
 import com.snoozy.app.data.library.tracksForArtist
 import com.snoozy.app.ui.components.SnoozyAlbumRow
+import com.snoozy.app.ui.components.SnoozyCollectionActions
 import com.snoozy.app.ui.components.SnoozyEmptyState
 import com.snoozy.app.ui.components.SnoozyGridPage
 import com.snoozy.app.ui.components.SnoozyGroupedRow
@@ -23,6 +22,7 @@ import com.snoozy.app.ui.format.countLabel
 import com.snoozy.app.ui.icons.SnoozyIcons
 import com.snoozy.app.ui.navigation.BindHeader
 import com.snoozy.app.ui.navigation.LocalLibraryRepository
+import com.snoozy.app.ui.navigation.LocalPlaybackController
 import com.snoozy.app.ui.navigation.NavHeaderEntry
 import io.github.neoruaa.glasmio.ui.GlasmioButton
 
@@ -34,7 +34,9 @@ fun ArtistScreen(
     onOpenAlbum: (String) -> Unit,
 ) {
     val repository = LocalLibraryRepository.current
+    val playbackController = LocalPlaybackController.current
     val state by repository.state.collectAsState()
+    val playbackState by playbackController.state.collectAsState()
     val actions = rememberLibraryActions(repository)
 
     val title = name.ifBlank { "Unknown artist" }
@@ -64,6 +66,30 @@ fun ArtistScreen(
                 )
             }
         } else {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "artist-actions") {
+                SnoozyCollectionActions(
+                    onPlay = {
+                        playbackController.playTrack(
+                            track = tracks.first(),
+                            queue = tracks,
+                            shuffleOverride = false,
+                        )
+                    },
+                    onShuffle = {
+                        val shuffled = tracks.shuffled()
+                        if (shuffled.isNotEmpty()) {
+                            playbackController.playTrack(
+                                track = shuffled.first(),
+                                queue = shuffled,
+                                shuffleOverride = true,
+                            )
+                        }
+                    },
+                    playLabel = "Play $title",
+                    shuffleLabel = "Shuffle $title",
+                )
+            }
+
             if (albums.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "artist-albums-title") {
                     SnoozySectionHeader("Albums")
@@ -95,7 +121,8 @@ fun ArtistScreen(
                     SnoozyTrackRow(
                         track = track,
                         subtitle = track.album,
-                        onClick = { onOpenAlbum(albumKeyFor(track)) },
+                        active = playbackState.activeTrack?.id == track.id,
+                        onClick = { playbackController.playTrack(track, tracks) },
                         showTopSeparator = index > 0,
                     )
                 }

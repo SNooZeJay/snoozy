@@ -4,7 +4,9 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -14,7 +16,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.scene.Scene
 import com.snoozy.app.data.library.LibraryRepository
+import com.snoozy.app.playback.PlaybackController
+import com.snoozy.app.ui.components.SnoozyMiniPlayer
 import com.snoozy.app.ui.icons.SnoozyIcons
 import com.snoozy.app.ui.screens.AlbumScreen
 import com.snoozy.app.ui.screens.ArtistScreen
@@ -58,7 +64,14 @@ import io.github.neoruaa.glasmio.ui.GlasmioNavigationBar
 import io.github.neoruaa.glasmio.ui.GlasmioTabItem
 
 @Composable
-fun SnoozyApp(repository: LibraryRepository, onExit: () -> Unit) {
+fun SnoozyApp(
+    repository: LibraryRepository,
+    playbackController: PlaybackController,
+    onExit: () -> Unit,
+) {
+    val playbackState by playbackController.state.collectAsState()
+    val hasActiveTrack = playbackState.activeTrack != null
+
     val backStack = rememberSaveable(
         saver = listSaver<SnapshotStateList<String>, String>(
             save = { it.toList() },
@@ -87,7 +100,7 @@ fun SnoozyApp(repository: LibraryRepository, onExit: () -> Unit) {
     val selectedRoot = backStack.asReversed()
         .map(NavKey::fromRoute)
         .firstOrNull { it.isRoot } ?: NavKey.Home
-    val compactProgress = remember { mutableStateOf(0f) }
+    val compactProgress = remember { mutableFloatStateOf(0f) }
 
     val navigateBack: () -> Unit = {
         if (backStack.size > 1) {
@@ -132,7 +145,11 @@ fun SnoozyApp(repository: LibraryRepository, onExit: () -> Unit) {
         headerEntries.keys.retainAll(active)
     }
 
-    CompositionLocalProvider(LocalLibraryRepository provides repository) {
+    CompositionLocalProvider(
+        LocalLibraryRepository provides repository,
+        LocalPlaybackController provides playbackController,
+        LocalHasActiveTrack provides hasActiveTrack,
+    ) {
         GlasmioBackdropProvider(navigationBackdrop) {
             GlasmioNavigationScaffold(
                 motion = headerMotion,
@@ -154,20 +171,34 @@ fun SnoozyApp(repository: LibraryRepository, onExit: () -> Unit) {
                 },
                 contentBackdrop = navigationBackdrop,
                 bottomBar = {
-                    GlasmioNavigationBar(
-                        items = tabItems(selectedRoot),
-                        selectedKey = selectedRoot,
-                        onSelected = selectTab,
-                        onExpand = {},
-                        compactProgress = compactProgress,
-                        compactSize = CompactBottomControlSize,
+                    Column(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
                             .padding(bottom = 8.dp)
                             .navigationBarsPadding(),
-                    )
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        val activeTrack = playbackState.activeTrack
+                        if (activeTrack != null) {
+                            SnoozyMiniPlayer(
+                                track = activeTrack,
+                                isPlaying = playbackState.isPlaying,
+                                onTogglePlay = playbackController::togglePlayback,
+                                onNext = playbackController::next,
+                            )
+                        }
+                        GlasmioNavigationBar(
+                            items = tabItems(selectedRoot),
+                            selectedKey = selectedRoot,
+                            onSelected = selectTab,
+                            onExpand = {},
+                            compactProgress = compactProgress,
+                            compactSize = CompactBottomControlSize,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 },
             ) { headerPadding ->
                 val layoutDirection = LocalLayoutDirection.current
@@ -198,6 +229,8 @@ fun SnoozyApp(repository: LibraryRepository, onExit: () -> Unit) {
                             CompositionLocalProvider(
                                 LocalNavHeaderEntry provides entry,
                                 LocalLibraryRepository provides repository,
+                                LocalPlaybackController provides playbackController,
+                                LocalHasActiveTrack provides hasActiveTrack,
                             ) {
                                 Box(Modifier.fillMaxSize()) {
                                     when (key) {
