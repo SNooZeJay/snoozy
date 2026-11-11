@@ -80,6 +80,9 @@ class SnoozyStores(context: Context) {
 
     fun recents(): List<String> = readList(MUSIC, RECENTS, String.serializer())
 
+    fun recentsForUpdate(): List<String> =
+        readListForUpdate(MUSIC, RECENTS, String.serializer())
+
     fun saveRecents(ids: List<String>): Boolean =
         writeJson(MUSIC, RECENTS, ListSerializer(String.serializer()), ids)
 
@@ -106,6 +109,8 @@ class SnoozyStores(context: Context) {
 
     fun saveQueueIds(ids: List<String>): Boolean =
         writeJson(PLAYBACK, QUEUE_IDS, ListSerializer(String.serializer()), ids)
+
+    fun clearQueueIds(): Boolean = writeStore(PLAYBACK) { it.removeValueForKey(QUEUE_IDS) }
 
     fun repeatMode(): String? = readStore(PLAYBACK, null) { it.decodeString(REPEAT_MODE) }
 

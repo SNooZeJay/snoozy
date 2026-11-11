@@ -1,5 +1,6 @@
 package com.snoozy.app.data.db
 
+import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
@@ -110,6 +111,78 @@ class SnoozyDatabases(private val context: Context) {
 
     fun clearListeningSessions(): Boolean = clearTable(LIBRARY_DB, "listening_sessions")
 
+    fun recordPlayHistory(
+        trackId: String,
+        playedAt: Long,
+        durationListenedMs: Long,
+    ): Boolean {
+        if (trackId.isBlank() || durationListenedMs < 0L) return false
+        return writeDatabase(PLAY_HISTORY_DB, false) { database ->
+            database.execSQL(CREATE_PLAY_HISTORY_SQL)
+            val values = ContentValues().apply {
+                put("track_id", trackId)
+                put("played_at", playedAt)
+                put("duration_listened_ms", durationListenedMs)
+            }
+            database.insert("play_history", null, values) != -1L
+        }
+    }
+
+    fun startListeningSession(trackId: String, startedAt: Long): Long? {
+        if (trackId.isBlank()) return null
+        return writeDatabase(LIBRARY_DB, null) { database ->
+            database.execSQL(CREATE_LISTENING_SESSIONS_SQL)
+            database.execSQL(CREATE_LISTENING_SESSIONS_INDEX_SQL)
+            val values = ContentValues().apply {
+                put("sound_id", trackId)
+                put("started_at", startedAt)
+                put("duration_seconds", 0L)
+            }
+            database.insert("listening_sessions", null, values).takeIf { it > 0L }
+        }
+    }
+
+    fun finishListeningSession(
+        sessionId: Long,
+        endedAt: Long,
+        durationSeconds: Long,
+    ): Boolean {
+        if (sessionId <= 0L) return false
+        return writeDatabase(LIBRARY_DB, false) { database ->
+            database.execSQL(CREATE_LISTENING_SESSIONS_SQL)
+            val values = ContentValues().apply {
+                put("ended_at", endedAt)
+                put("duration_seconds", durationSeconds.coerceAtLeast(0L))
+            }
+            database.update(
+                "listening_sessions",
+                values,
+                "id = ?",
+                arrayOf(sessionId.toString()),
+            ) >= 0
+        }
+    }
+
+    private fun <T> writeDatabase(
+        name: String,
+        fallback: T,
+        block: (SQLiteDatabase) -> T,
+    ): T {
+        synchronized(opened) { opened.remove(name)?.close() }
+        directory.mkdirs()
+        val file = File(directory, name)
+        return try {
+            SQLiteDatabase.openDatabase(
+                file.path,
+                null,
+                SQLiteDatabase.OPEN_READWRITE or SQLiteDatabase.CREATE_IF_NECESSARY,
+            ).use(block)
+        } catch (error: Exception) {
+            Log.w(TAG, "Write failed on $name", error)
+            fallback
+        }
+    }
+
     private fun clearTable(name: String, table: String): Boolean {
         synchronized(opened) { opened.remove(name)?.close() }
         val file = File(directory, name)
@@ -203,5 +276,21 @@ class SnoozyDatabases(private val context: Context) {
         private const val FAVORITES_DB = "snoozy_favorites.db"
         private const val METADATA_DB = "snoozy_metadata.db"
         private const val PLAY_HISTORY_DB = "snoozy_playhistory.db"
+        private const val CREATE_PLAY_HISTORY_SQL =
+            "CREATE TABLE IF NOT EXISTS play_history (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "track_id TEXT NOT NULL, " +
+                "played_at INTEGER NOT NULL, " +
+                "duration_listened_ms INTEGER NOT NULL)"
+        private const val CREATE_LISTENING_SESSIONS_SQL =
+            "CREATE TABLE IF NOT EXISTS listening_sessions (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "sound_id TEXT NOT NULL, " +
+                "started_at INTEGER NOT NULL, " +
+                "ended_at INTEGER, " +
+                "duration_seconds INTEGER NOT NULL DEFAULT 0)"
+        private const val CREATE_LISTENING_SESSIONS_INDEX_SQL =
+            "CREATE INDEX IF NOT EXISTS listening_sessions_started_at " +
+                "ON listening_sessions (started_at)"
     }
 }

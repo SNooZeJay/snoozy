@@ -14,6 +14,7 @@ import com.snoozy.app.data.model.PlayHistoryEntry
 import com.snoozy.app.data.model.Playlist
 import com.snoozy.app.data.model.Track
 import com.snoozy.app.data.scan.LibraryScanner
+import com.snoozy.app.playback.PlaybackQueueOps
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -214,6 +215,42 @@ class LibraryRepository(
                 if (ok) loaded else loaded.copy(error = "Could not clear play history.")
             }
             ok
+        }
+    }
+
+    suspend fun recordRecent(trackId: String): Boolean = withContext(Dispatchers.IO) {
+        if (trackId.isBlank()) return@withContext false
+        mutationMutex.withLock {
+            try {
+                val current = stores.recentsForUpdate()
+                val next = PlaybackQueueOps.prependRecent(current, trackId)
+                if (next !== current && !stores.saveRecents(next)) {
+                    throw StoreFailureException("Could not save recents.")
+                }
+                _state.update { it.copy(recents = next) }
+                true
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.w(TAG, "Recents write failed", error)
+                false
+            }
+        }
+    }
+
+    suspend fun recordPlay(
+        trackId: String,
+        durationListenedMs: Long,
+        playedAt: Long = System.currentTimeMillis(),
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (trackId.isBlank() || durationListenedMs < 0L) return@withContext false
+        mutationMutex.withLock {
+            val recorded = databases.recordPlayHistory(trackId, playedAt, durationListenedMs)
+            if (recorded) {
+                val history = databases.playHistory()
+                _state.update { it.copy(history = history) }
+            }
+            recorded
         }
     }
 
