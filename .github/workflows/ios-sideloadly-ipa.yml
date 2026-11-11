@@ -65,8 +65,6 @@ jobs:
             --output-partial-info-plist build/assetcatalog_generated_info.plist \
             --output-format human-readable-text || true
           cp -f Snoozy/Resources/SnoozyBrandLogo.png build/ipa/Payload/Snoozy.app/SnoozyBrandLogo.png
-          cp -f Snoozy/Resources/SnoozyBrandLogo@2x.png build/ipa/Payload/Snoozy.app/SnoozyBrandLogo@2x.png
-          cp -f Snoozy/Resources/SnoozyBrandLogo@3x.png build/ipa/Payload/Snoozy.app/SnoozyBrandLogo@3x.png
           cp -f Snoozy/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-60@2x.png build/ipa/Payload/Snoozy.app/AppIcon60x60@2x.png
           cp -f Snoozy/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png build/ipa/Payload/Snoozy.app/AppIcon60x60@3x.png
           cp -f Snoozy/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-40@2x.png build/ipa/Payload/Snoozy.app/AppIcon40x40@2x.png
@@ -80,7 +78,7 @@ jobs:
           ls -la build/ipa/Payload/Snoozy.app
           test -f build/ipa/Payload/Snoozy.app/AppIcon60x60@2x.png
           test -f build/ipa/Payload/Snoozy.app/SnoozyBrandLogo.png
-          test -f build/ipa/Payload/Snoozy.app/BricolageGrotesque-SemiBold.ttf
+          test -f build/ipa/Payload/Snoozy.app/bricolage_grotesque_600.ttf
           cd build/ipa
           zip -qry ../Snoozy-iOS-Sideloadly.ipa Payload
           ls -lh ../Snoozy-iOS-Sideloadly.ipa
