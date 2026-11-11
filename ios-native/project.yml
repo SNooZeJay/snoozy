@@ -24,6 +24,7 @@ targets:
       - path: Snoozy
         excludes:
           - "**/*.md"
+      - path: Snoozy/Resources/Assets.xcassets
     info:
       path: Snoozy/Info.plist
       properties:
