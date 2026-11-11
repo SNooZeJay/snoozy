@@ -38,6 +38,7 @@ import com.snoozy.app.ui.screens.GenreScreen
 import com.snoozy.app.ui.screens.HomeScreen
 import com.snoozy.app.ui.screens.LibraryScreen
 import com.snoozy.app.ui.screens.LibraryTab
+import com.snoozy.app.ui.screens.PlaylistScreen
 import com.snoozy.app.ui.screens.PlaylistsScreen
 import com.snoozy.app.ui.screens.RootPlaceholder
 import io.github.neoruaa.glasmio.glass.GlasmioBackdropProvider
@@ -241,6 +242,13 @@ fun SnoozyApp(repository: LibraryRepository, onExit: () -> Unit) {
                                             contentPadding = headerPadding,
                                             headerEntry = entry,
                                             openPlaylist = openPlaylist,
+                                        )
+
+                                        is NavKey.Playlist -> PlaylistScreen(
+                                            playlistId = key.playlistId,
+                                            contentPadding = headerPadding,
+                                            headerEntry = entry,
+                                            onBack = navigateBack,
                                         )
 
                                         else -> RootPlaceholder(

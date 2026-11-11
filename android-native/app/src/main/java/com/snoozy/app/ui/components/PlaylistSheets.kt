@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.snoozy.app.data.model.Playlist
+import com.snoozy.app.data.model.Track
 import io.github.neoruaa.glasmio.core.LocalGlassColors
 import io.github.neoruaa.glasmio.glass.GlassEmphasis
 import io.github.neoruaa.glasmio.ui.GlasmioActionSheetContent
@@ -116,6 +117,64 @@ fun PlaylistActionsSheet(
                 titleColor = destructive,
                 onClick = {
                     onDelete()
+                    onDismiss()
+                },
+            )
+            GlasmioListRow(
+                title = "Cancel",
+                showDisclosure = false,
+                onClick = onDismiss,
+            )
+        }
+    }
+}
+
+@Composable
+fun PlaylistTrackActionsSheet(
+    track: Track,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val destructive = LocalGlassColors.current.destructive
+    GlasmioBottomSheet(
+        visible = true,
+        fitContent = true,
+        onDismissRequest = onDismiss,
+    ) {
+        GlasmioActionSheetContent(
+            title = track.title,
+            message = "${track.artist} \u00B7 ${track.album}",
+        ) {
+            if (canMoveUp) {
+                GlasmioListRow(
+                    title = "Move up",
+                    showDisclosure = false,
+                    onClick = {
+                        onMoveUp()
+                        onDismiss()
+                    },
+                )
+            }
+            if (canMoveDown) {
+                GlasmioListRow(
+                    title = "Move down",
+                    showDisclosure = false,
+                    onClick = {
+                        onMoveDown()
+                        onDismiss()
+                    },
+                )
+            }
+            GlasmioListRow(
+                title = "Remove from playlist",
+                showDisclosure = false,
+                titleColor = destructive,
+                onClick = {
+                    onRemove()
                     onDismiss()
                 },
             )
