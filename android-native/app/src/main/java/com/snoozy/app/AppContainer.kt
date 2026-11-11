@@ -6,6 +6,7 @@ import com.snoozy.app.data.diagnostics.DataDiagnostics
 import com.snoozy.app.data.library.LibraryRepository
 import com.snoozy.app.data.mmkv.SnoozyStores
 import com.snoozy.app.data.scan.LibraryScanner
+import com.snoozy.app.playback.PlaybackController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -20,6 +21,7 @@ class AppContainer(context: Context) {
     val databases = SnoozyDatabases(appContext)
     val scanner = LibraryScanner(appContext, stores)
     val repository = LibraryRepository(appContext, stores, scanner, databases)
+    val playbackController = PlaybackController(appContext, stores, databases, repository)
 
     private var loadJob: Job? = null
 
