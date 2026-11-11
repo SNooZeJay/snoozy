@@ -38,6 +38,7 @@ import com.snoozy.app.ui.screens.GenreScreen
 import com.snoozy.app.ui.screens.HomeScreen
 import com.snoozy.app.ui.screens.LibraryScreen
 import com.snoozy.app.ui.screens.LibraryTab
+import com.snoozy.app.ui.screens.PlaylistsScreen
 import com.snoozy.app.ui.screens.RootPlaceholder
 import io.github.neoruaa.glasmio.glass.GlasmioBackdropProvider
 import io.github.neoruaa.glasmio.glass.render.backdrops.rememberLayerBackdrop
@@ -111,6 +112,9 @@ fun SnoozyApp(repository: LibraryRepository, onExit: () -> Unit) {
     }
     val openGenre: (String) -> Unit = { name ->
         backStack.add(NavKey.Genre(name).route)
+    }
+    val openPlaylist: (String) -> Unit = { id ->
+        backStack.add(NavKey.Playlist(id).route)
     }
     val openLibraryAlbums: () -> Unit = {
         libraryTab = LibraryTab.Albums
@@ -231,6 +235,12 @@ fun SnoozyApp(repository: LibraryRepository, onExit: () -> Unit) {
                                             contentPadding = headerPadding,
                                             headerEntry = entry,
                                             onOpenAlbum = openAlbum,
+                                        )
+
+                                        NavKey.Playlists -> PlaylistsScreen(
+                                            contentPadding = headerPadding,
+                                            headerEntry = entry,
+                                            openPlaylist = openPlaylist,
                                         )
 
                                         else -> RootPlaceholder(
