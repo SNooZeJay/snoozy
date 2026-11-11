@@ -116,4 +116,96 @@ final class PlaybackQueueOpsTests: XCTestCase {
         )
         XCTAssertEqual(pillScrub, 2.0, accuracy: 0.001)
     }
+
+    func testParseFilenameMetadataFallback() {
+        let p1 = AudioScanner.parseFilenameMetadata("01 - Daft Punk - Digital Love")
+        XCTAssertEqual(p1.trackNumber, 1)
+        XCTAssertNil(p1.discNumber)
+        XCTAssertEqual(p1.artist, "Daft Punk")
+        XCTAssertEqual(p1.title, "Digital Love")
+
+        let p2 = AudioScanner.parseFilenameMetadata("2-07 - Aphex Twin - Xtal")
+        XCTAssertEqual(p2.discNumber, 2)
+        XCTAssertEqual(p2.trackNumber, 7)
+        XCTAssertEqual(p2.artist, "Aphex Twin")
+        XCTAssertEqual(p2.title, "Xtal")
+
+        let p3 = AudioScanner.parseFilenameMetadata("03. Track Three")
+        XCTAssertEqual(p3.trackNumber, 3)
+        XCTAssertNil(p3.artist)
+        XCTAssertEqual(p3.title, "Track Three")
+    }
+
+    func testInferFolderHierarchyMetadata() {
+        let h1 = AudioScanner.inferFolderHierarchyMetadata(fromRelativePath: "Daft Punk/Discovery/01 - One More Time.mp3")
+        XCTAssertEqual(h1.artist, "Daft Punk")
+        XCTAssertEqual(h1.album, "Discovery")
+        XCTAssertNil(h1.discNumber)
+
+        let h2 = AudioScanner.inferFolderHierarchyMetadata(fromRelativePath: "Music/Rock/01 - Song One.mp3")
+        XCTAssertEqual(h2.genre, "Rock")
+
+        let h3 = AudioScanner.inferFolderHierarchyMetadata(fromRelativePath: "Pink Floyd/The Wall/CD2/01 - Hey You.flac")
+        XCTAssertEqual(h3.artist, "Pink Floyd")
+        XCTAssertEqual(h3.album, "The Wall")
+        XCTAssertEqual(h3.discNumber, 2)
+
+        let h4 = AudioScanner.inferFolderHierarchyMetadata(fromRelativePath: "Radiohead - OK Computer/01 - Airbag.m4a")
+        XCTAssertEqual(h4.artist, "Radiohead")
+        XCTAssertEqual(h4.album, "OK Computer")
+    }
+
+    func testMultiDiscAlbumSortingAndCompilationGrouping() {
+        let tracks: [Track] = [
+            Track(
+                id: "d2t1",
+                title: "Disc 2 Opening",
+                artist: "Artist A",
+                album: "Anthology",
+                albumArtist: nil,
+                trackNumber: 1,
+                discNumber: 2,
+                duration: 180,
+                relativePath: "Anthology/CD2/01 - Disc 2 Opening.flac",
+                artworkPath: nil,
+                addedAt: 100
+            ),
+            Track(
+                id: "d1t2",
+                title: "Disc 1 Second",
+                artist: "Artist B",
+                album: "Anthology",
+                albumArtist: nil,
+                trackNumber: 2,
+                discNumber: 1,
+                duration: 200,
+                relativePath: "Anthology/CD1/02 - Disc 1 Second.flac",
+                artworkPath: "/tmp/cover.jpg",
+                addedAt: 100
+            ),
+            Track(
+                id: "d1t1",
+                title: "Disc 1 Opening",
+                artist: "Artist C",
+                album: "Anthology",
+                albumArtist: nil,
+                trackNumber: 1,
+                discNumber: 1,
+                duration: 190,
+                relativePath: "Anthology/CD1/01 - Disc 1 Opening.flac",
+                artworkPath: nil,
+                addedAt: 100
+            )
+        ]
+
+        let propagated = AudioScanner.propagateSharedFolderArtworkAndCompilations(tracks)
+        // Multi-artist album in same folder without albumArtist is unified under "Various Artists"
+        XCTAssertEqual(propagated.first?.albumArtist, "Various Artists")
+        // Shared artwork propagates to sibling tracks in the same album
+        XCTAssertEqual(propagated.first(where: { $0.id == "d1t1" })?.artworkPath, "/tmp/cover.jpg")
+
+        let albums = LibraryRepository.buildAlbums(from: propagated, overrides: [:])
+        XCTAssertEqual(albums.count, 1)
+        XCTAssertEqual(albums[0].trackIds, ["d1t1", "d1t2", "d2t1"])
+    }
 }

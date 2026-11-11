@@ -1,18 +1,73 @@
+import ImageIO
 import SwiftUI
 import UIKit
 
 public enum SnoozyBrandAssetLoader {
+    private static var cachedLogo: UIImage? = nil
+
     public static func loadBrandLogoImage() -> UIImage? {
+        if let cachedLogo {
+            return cachedLogo
+        }
         if let named = UIImage(named: "SnoozyBrandLogo") {
+            cachedLogo = named
             return named
         }
         if let path = Bundle.main.path(forResource: "SnoozyBrandLogo", ofType: "png"),
            let img = UIImage(contentsOfFile: path) {
+            cachedLogo = img
             return img
         }
         if let iconPath = Bundle.main.path(forResource: "AppIcon60x60@3x", ofType: "png"),
            let img = UIImage(contentsOfFile: iconPath) {
+            cachedLogo = img
             return img
+        }
+        return nil
+    }
+}
+
+public enum SnoozyArtworkCache {
+    private static let cache: NSCache<NSString, UIImage> = {
+        let c = NSCache<NSString, UIImage>()
+        c.countLimit = 320
+        c.totalCostLimit = 64 * 1024 * 1024
+        return c
+    }()
+
+    public static func loadThumbnail(at path: String, pointSize: CGFloat?) -> UIImage? {
+        let bucketPx: Int = {
+            guard let pt = pointSize, pt > 0 else { return 640 }
+            if pt <= 64 { return 160 }
+            if pt <= 180 { return 380 }
+            return 720
+        }()
+        let cacheKey = "\(path)#\(bucketPx)" as NSString
+        if let hit = cache.object(forKey: cacheKey) {
+            return hit
+        }
+
+        let fileURL = URL(fileURLWithPath: path)
+        guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil) else {
+            return nil
+        }
+
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: bucketPx
+        ]
+        if let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
+            let uiImage = UIImage(cgImage: cgImage)
+            let cost = cgImage.bytesPerRow * cgImage.height
+            cache.setObject(uiImage, forKey: cacheKey, cost: cost)
+            return uiImage
+        }
+
+        if let fallback = UIImage(contentsOfFile: path) {
+            cache.setObject(fallback, forKey: cacheKey)
+            return fallback
         }
         return nil
     }
@@ -152,7 +207,7 @@ public struct SnoozyArtworkView: View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         Group {
             if let path = artworkPath,
-               let uiImage = UIImage(contentsOfFile: path) {
+               let uiImage = SnoozyArtworkCache.loadThumbnail(at: path, pointSize: size) {
                 Image(uiImage: uiImage)
                     .resizable()
                     .interpolation(.high)

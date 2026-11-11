@@ -47,11 +47,37 @@ public final class LibraryRepository: ObservableObject {
             artworkCacheURL: store.artworkCacheURL,
             existingTracksByPath: existingByPath
         )
+        let validIds = Set(scanned.map(\.id))
 
         let updated = store.update { state in
             state.scannedTracks = scanned
+            state.recents = state.recents.filter { validIds.contains($0) }
+            state.favoriteTrackIds = state.favoriteTrackIds.filter { validIds.contains($0) }
+            for idx in state.playlists.indices {
+                state.playlists[idx].trackIds = state.playlists[idx].trackIds.filter { validIds.contains($0) }
+            }
         }
         applyPersistedState(updated)
+    }
+
+    public func deleteTrack(_ track: Track) {
+        let fileURL = self.fileURL(for: track)
+        try? FileManager.default.removeItem(at: fileURL)
+        let lrcURL = fileURL.deletingPathExtension().appendingPathExtension("lrc")
+        if FileManager.default.fileExists(atPath: lrcURL.path) {
+            try? FileManager.default.removeItem(at: lrcURL)
+        }
+        let updated = store.update { state in
+            state.scannedTracks.removeAll { $0.id == track.id }
+            state.recents.removeAll { $0 == track.id }
+            state.favoriteTrackIds.removeAll { $0 == track.id }
+            state.trackOverrides.removeValue(forKey: track.id)
+            for idx in state.playlists.indices {
+                state.playlists[idx].trackIds.removeAll { $0 == track.id }
+            }
+        }
+        applyPersistedState(updated)
+        bannerMessage = "Deleted \"\(track.title)\" from Snoozy."
     }
 
     public func importFiles(from urls: [URL]) async {
@@ -552,25 +578,28 @@ public final class LibraryRepository: ObservableObject {
         self.albumSort = state.albumSort
         self.preferences = state.preferences
 
-        let resolvedTracks = state.scannedTracks.map { raw -> Track in
+        var resolvedTracks = state.scannedTracks.map { raw -> Track in
             guard let ov = state.trackOverrides[raw.id] else { return raw }
             var copy = raw
             if let t = ov.title, !t.isEmpty { copy.title = t }
             if let ar = ov.artist, !ar.isEmpty { copy.artist = ar }
             if let al = ov.album, !al.isEmpty { copy.album = al }
             if let aa = ov.albumArtist, !aa.isEmpty { copy.albumArtist = aa }
+            if let comp = ov.composer, !comp.isEmpty { copy.composer = comp }
             if let g = ov.genre, !g.isEmpty { copy.genre = g }
             if let y = ov.year, !y.isEmpty { copy.year = y }
             if let tn = ov.trackNumber { copy.trackNumber = tn }
+            if let dn = ov.discNumber { copy.discNumber = dn }
             if let desc = ov.descriptionText { copy.descriptionText = desc }
             if let art = ov.artworkPath, !art.isEmpty { copy.artworkPath = art }
             return copy
         }
+        resolvedTracks = AudioScanner.propagateSharedFolderArtworkAndCompilations(resolvedTracks)
         self.tracks = resolvedTracks
         self.albums = Self.buildAlbums(from: resolvedTracks, overrides: state.albumOverrides)
     }
 
-    private static func buildAlbums(
+    public static func buildAlbums(
         from tracks: [Track],
         overrides: [String: AlbumOverride]
     ) -> [Album] {
@@ -578,8 +607,13 @@ public final class LibraryRepository: ObservableObject {
         var built: [Album] = []
         for (key, group) in grouped {
             let sortedGroup = group.sorted { a, b in
+                let discA = a.discNumber ?? 1
+                let discB = b.discNumber ?? 1
+                if discA != discB { return discA < discB }
                 switch (a.trackNumber, b.trackNumber) {
                 case let (ta?, tb?) where ta != tb: return ta < tb
+                case (_?, nil): return true
+                case (nil, _?): return false
                 default: return a.title.localizedCaseInsensitiveCompare(b.title) == .orderedAscending
                 }
             }

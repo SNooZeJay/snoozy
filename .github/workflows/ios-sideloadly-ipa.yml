@@ -59,6 +59,7 @@ jobs:
           xcrun actool Snoozy/Resources/Assets.xcassets \
             --compile build/ipa/Payload/Snoozy.app \
             --platform iphoneos \
+            --target-device iphone \
             --minimum-deployment-target 17.0 \
             --app-icon AppIcon \
             --output-partial-info-plist build/assetcatalog_generated_info.plist
@@ -74,7 +75,7 @@ jobs:
           cp -f Snoozy/Resources/Fonts/*.ttf build/ipa/Payload/Snoozy.app/
           echo "=== Verifying Snoozy.app Bundle Contents ==="
           ls -la build/ipa/Payload/Snoozy.app
-          test -f build/ipa/Payload/Snoozy.app/Assets.car
+          test -f build/ipa/Payload/Snoozy.app/AppIcon60x60@2x.png
           test -f build/ipa/Payload/Snoozy.app/SnoozyBrandLogo.png
           test -f build/ipa/Payload/Snoozy.app/BricolageGrotesque-SemiBold.ttf
           cd build/ipa

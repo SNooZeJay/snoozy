@@ -1059,11 +1059,20 @@ public struct TrackInfoSheetView: View {
                         infoRow(label: "Duration", value: SnoozyFormat.formatClock(track.duration), showSeparator: true)
                         infoRow(label: "Folder", value: track.folderName, showSeparator: true)
                         infoRow(label: "File Path", value: track.relativePath, showSeparator: true)
+                        if let albumArtist = track.albumArtist, !albumArtist.isEmpty {
+                            infoRow(label: "Album Artist", value: albumArtist, showSeparator: true)
+                        }
+                        if let composer = track.composer, !composer.isEmpty {
+                            infoRow(label: "Composer", value: composer, showSeparator: true)
+                        }
                         if let genre = track.genre, !genre.isEmpty {
                             infoRow(label: "Genre", value: genre, showSeparator: true)
                         }
                         if let year = track.year, !year.isEmpty {
                             infoRow(label: "Year", value: year, showSeparator: true)
+                        }
+                        if let discNum = track.discNumber {
+                            infoRow(label: "Disc Number", value: "\(discNum)", showSeparator: true)
                         }
                         if let trackNum = track.trackNumber {
                             infoRow(label: "Track Number", value: "\(trackNum)", showSeparator: true)

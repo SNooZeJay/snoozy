@@ -29,6 +29,8 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     private var coldStartRestored: Bool = false
     private var maxListenedMsForActiveTrack: Int64 = 0
     private var sessionStartedAtMs: Int64? = nil
+    private var originalQueueTracks: [Track] = []
+    private var notificationTokens: [NSObjectProtocol] = []
     private var cancellables = Set<AnyCancellable>()
 
     public init(repository: LibraryRepository) {
@@ -38,6 +40,12 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         configureRemoteCommands()
         observeAudioNotifications()
         observeLibraryChanges()
+    }
+
+    deinit {
+        for token in notificationTokens {
+            NotificationCenter.default.removeObserver(token)
+        }
     }
 
     public func restoreColdStartIfNeeded() {
@@ -52,6 +60,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             return
         }
 
+        self.originalQueueTracks = resolved.queueTracks
         self.queueTracks = resolved.queueTracks
         self.queueIndex = resolved.activeIndex
         self.activeTrack = resolved.activeTrack
@@ -69,6 +78,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     public func prepareInitialTrackIfNeeded(_ track: Track, queue: [Track]) {
         guard activeTrack == nil else { return }
         let ordered = queue.isEmpty ? [track] : queue
+        self.originalQueueTracks = ordered
         self.queueTracks = ordered
         self.queueIndex = ordered.firstIndex(where: { $0.id == track.id }) ?? 0
         self.activeTrack = track
@@ -95,6 +105,8 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             let all = repository.sortedSongs
             return all.contains(where: { $0.id == track.id }) ? all : [track]
         }()
+
+        self.originalQueueTracks = baseQueue
 
         let nextShuffle = shuffleOverride ?? self.shuffle
         let nextRepeat = repeatOverride ?? self.repeatMode
@@ -307,10 +319,27 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     public func toggleShuffle() {
         triggerHaptic(.selection)
         shuffle.toggle()
-        if shuffle, let active = activeTrack, queueTracks.count > 1 {
+        guard let active = activeTrack, queueTracks.count > 1 else {
+            persistSession()
+            return
+        }
+        if shuffle {
+            if originalQueueTracks.isEmpty {
+                originalQueueTracks = queueTracks
+            }
             let others = queueTracks.filter { $0.id != active.id }.shuffled()
             queueTracks = [active] + others
             queueIndex = 0
+        } else {
+            let validById = Dictionary(uniqueKeysWithValues: queueTracks.map { ($0.id, $0) })
+            var restored = originalQueueTracks.compactMap { validById[$0.id] }
+            for extra in queueTracks where !restored.contains(where: { $0.id == extra.id }) {
+                restored.append(extra)
+            }
+            if !restored.isEmpty {
+                queueTracks = restored
+                queueIndex = restored.firstIndex(where: { $0.id == active.id }) ?? 0
+            }
         }
         persistSession()
     }
@@ -400,7 +429,9 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
 
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
-            try AVAudioSession.sharedInstance().setActive(true)
+            if autoPlay {
+                try AVAudioSession.sharedInstance().setActive(true)
+            }
             let player = try AVAudioPlayer(contentsOf: url)
             player.delegate = self
             player.enableRate = true
@@ -598,7 +629,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     }
 
     private func observeAudioNotifications() {
-        NotificationCenter.default.addObserver(
+        let interruptionToken = NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification,
             object: nil,
             queue: .main
@@ -623,8 +654,9 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
                 }
             }
         }
+        notificationTokens.append(interruptionToken)
 
-        NotificationCenter.default.addObserver(
+        let routeToken = NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification,
             object: nil,
             queue: .main
@@ -639,6 +671,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
                 }
             }
         }
+        notificationTokens.append(routeToken)
     }
 
     private func observeLibraryChanges() {
@@ -648,10 +681,31 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
                 guard let self else { return }
                 if !self.coldStartRestored && !updatedTracks.isEmpty {
                     self.restoreColdStartIfNeeded()
-                } else if let current = self.activeTrack,
-                          let refreshed = updatedTracks.first(where: { $0.id == current.id }) {
+                    return
+                }
+                let byId = Dictionary(uniqueKeysWithValues: updatedTracks.map { ($0.id, $0) })
+                self.originalQueueTracks = self.originalQueueTracks.compactMap { byId[$0.id] }
+                self.queueTracks = self.queueTracks.compactMap { byId[$0.id] }
+
+                guard let current = self.activeTrack else { return }
+                if let refreshed = byId[current.id] {
+                    let artworkChanged = (current.artworkPath != refreshed.artworkPath)
                     self.activeTrack = refreshed
+                    if let newIdx = self.queueTracks.firstIndex(where: { $0.id == refreshed.id }) {
+                        self.queueIndex = newIdx
+                    }
+                    if artworkChanged {
+                        self.loadAuxiliaryTrackData(for: refreshed)
+                    }
                     self.updateNowPlayingInfo()
+                } else {
+                    // The active track was deleted or removed from the library
+                    if self.queueTracks.isEmpty {
+                        self.clearQueue()
+                    } else {
+                        let nextIdx = min(max(0, self.queueIndex), self.queueTracks.count - 1)
+                        self.jumpToQueueIndex(nextIdx, autoPlay: self.isPlaying)
+                    }
                 }
             }
             .store(in: &cancellables)

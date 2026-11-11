@@ -17,10 +17,21 @@ public struct ArtworkPalette: Equatable, Sendable {
 
 public enum ArtworkPaletteExtractor {
     private static let context = CIContext(options: [.workingColorSpace: NSNull()])
+    private static let cacheLock = NSLock()
+    private static var paletteCache: [String: ArtworkPalette] = [:]
 
     public static func extract(from artworkPath: String?) -> ArtworkPalette {
-        guard let path = artworkPath,
-              let uiImage = UIImage(contentsOfFile: path),
+        guard let path = artworkPath, !path.isEmpty else {
+            return .emeraldDefault
+        }
+        cacheLock.lock()
+        if let cached = paletteCache[path] {
+            cacheLock.unlock()
+            return cached
+        }
+        cacheLock.unlock()
+
+        guard let uiImage = UIImage(contentsOfFile: path),
               let cgImage = uiImage.cgImage
         else {
             return .emeraldDefault
@@ -44,11 +55,18 @@ public enum ArtworkPaletteExtractor {
         let c2 = averageColor(in: ciImage, extent: topRect) ?? UIColor(red: 0.020, green: 0.588, blue: 0.412, alpha: 1)
         let c3 = averageColor(in: ciImage, extent: bottomRect) ?? UIColor(red: 0.055, green: 0.455, blue: 0.565, alpha: 1)
 
-        return ArtworkPalette(
+        let extracted = ArtworkPalette(
             primary: boostSaturation(c1),
             secondary: boostSaturation(c2),
             tertiary: boostSaturation(c3)
         )
+        cacheLock.lock()
+        if paletteCache.count > 256 {
+            paletteCache.removeAll(keepingCapacity: true)
+        }
+        paletteCache[path] = extracted
+        cacheLock.unlock()
+        return extracted
     }
 
     private static func averageColor(in image: CIImage, extent: CGRect) -> UIColor? {

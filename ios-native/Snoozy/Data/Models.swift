@@ -6,9 +6,11 @@ public struct Track: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var artist: String
     public var album: String
     public var albumArtist: String?
+    public var composer: String?
     public var genre: String?
     public var year: String?
     public var trackNumber: Int?
+    public var discNumber: Int?
     public var descriptionText: String?
     public var duration: Double
     public var relativePath: String
@@ -21,9 +23,11 @@ public struct Track: Identifiable, Codable, Equatable, Hashable, Sendable {
         artist: String,
         album: String,
         albumArtist: String? = nil,
+        composer: String? = nil,
         genre: String? = nil,
         year: String? = nil,
         trackNumber: Int? = nil,
+        discNumber: Int? = nil,
         descriptionText: String? = nil,
         duration: Double,
         relativePath: String,
@@ -35,9 +39,11 @@ public struct Track: Identifiable, Codable, Equatable, Hashable, Sendable {
         self.artist = artist
         self.album = album
         self.albumArtist = albumArtist
+        self.composer = composer
         self.genre = genre
         self.year = year
         self.trackNumber = trackNumber
+        self.discNumber = discNumber
         self.descriptionText = descriptionText
         self.duration = duration
         self.relativePath = relativePath
@@ -129,9 +135,11 @@ public struct TrackOverride: Codable, Equatable, Sendable {
     public var artist: String?
     public var album: String?
     public var albumArtist: String?
+    public var composer: String?
     public var genre: String?
     public var year: String?
     public var trackNumber: Int?
+    public var discNumber: Int?
     public var descriptionText: String?
     public var artworkPath: String?
     public var updatedAt: Int64
@@ -142,9 +150,11 @@ public struct TrackOverride: Codable, Equatable, Sendable {
         artist: String? = nil,
         album: String? = nil,
         albumArtist: String? = nil,
+        composer: String? = nil,
         genre: String? = nil,
         year: String? = nil,
         trackNumber: Int? = nil,
+        discNumber: Int? = nil,
         descriptionText: String? = nil,
         artworkPath: String? = nil,
         updatedAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
@@ -154,9 +164,11 @@ public struct TrackOverride: Codable, Equatable, Sendable {
         self.artist = artist
         self.album = album
         self.albumArtist = albumArtist
+        self.composer = composer
         self.genre = genre
         self.year = year
         self.trackNumber = trackNumber
+        self.discNumber = discNumber
         self.descriptionText = descriptionText
         self.artworkPath = artworkPath
         self.updatedAt = updatedAt

@@ -48,6 +48,8 @@ public struct TrackActionsSheetView: View {
     public let onAddToPlaylist: () -> Void
     public let onToggleFavorite: () -> Void
     public let onEditMetadata: () -> Void
+    public var onDeleteTrack: (() -> Void)? = nil
+    @State private var showDeleteConfirm: Bool = false
     @Environment(\.dismiss) private var dismiss
 
     public var body: some View {
@@ -104,6 +106,11 @@ public struct TrackActionsSheetView: View {
                                 onEditMetadata()
                             }
                         }
+                        if onDeleteTrack != nil {
+                            sheetActionRow(icon: "trash", title: "Delete from Library", isDestructive: true) {
+                                showDeleteConfirm = true
+                            }
+                        }
                     }
                 }
                 .padding(16)
@@ -117,22 +124,32 @@ public struct TrackActionsSheetView: View {
                         .foregroundStyle(theme.accent)
                 }
             }
+            .alert("Delete Song from Library?", isPresented: $showDeleteConfirm) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    onDeleteTrack?()
+                    dismiss()
+                }
+            } message: {
+                Text("This removes \"\(track.title)\" from Snoozy's local storage on this iPhone.")
+            }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(32)
     }
 
-    private func sheetActionRow(icon: String, title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    private func sheetActionRow(icon: String, title: String, isDestructive: Bool = false, action: @escaping () -> Void) -> some View {
+        let rowTint = isDestructive ? theme.danger : theme.accent
+        return Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(rowTint)
                     .frame(width: 28)
                 Text(title)
                     .font(SnoozyTypography.body(15, bold: true))
-                    .foregroundStyle(theme.ink)
+                    .foregroundStyle(isDestructive ? theme.danger : theme.ink)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
@@ -144,7 +161,7 @@ public struct TrackActionsSheetView: View {
                 cornerRadius: 16,
                 glassMode: preferences.glassMode,
                 refractionIntensity: preferences.refractionIntensity * 0.7,
-                tintColor: theme.accent
+                tintColor: rowTint
             )
         }
         .buttonStyle(.plain)
@@ -626,8 +643,12 @@ public struct TrackMetadataEditSheetView: View {
     @State private var title: String
     @State private var artist: String
     @State private var album: String
+    @State private var albumArtist: String
+    @State private var composer: String
     @State private var genre: String
     @State private var year: String
+    @State private var trackNumberText: String
+    @State private var discNumberText: String
     @State private var descriptionText: String
     @Environment(\.dismiss) private var dismiss
 
@@ -644,8 +665,12 @@ public struct TrackMetadataEditSheetView: View {
         _title = State(initialValue: track.title)
         _artist = State(initialValue: track.artist)
         _album = State(initialValue: track.album)
+        _albumArtist = State(initialValue: track.albumArtist ?? "")
+        _composer = State(initialValue: track.composer ?? "")
         _genre = State(initialValue: track.genre ?? "")
         _year = State(initialValue: track.year ?? "")
+        _trackNumberText = State(initialValue: track.trackNumber.map(String.init) ?? "")
+        _discNumberText = State(initialValue: track.discNumber.map(String.init) ?? "")
         _descriptionText = State(initialValue: track.descriptionText ?? "")
     }
 
@@ -656,8 +681,16 @@ public struct TrackMetadataEditSheetView: View {
                     fieldRow(label: "Title", text: $title)
                     fieldRow(label: "Artist", text: $artist)
                     fieldRow(label: "Album", text: $album)
-                    fieldRow(label: "Genre", text: $genre)
-                    fieldRow(label: "Year", text: $year)
+                    fieldRow(label: "Album Artist", text: $albumArtist)
+                    fieldRow(label: "Composer", text: $composer)
+                    HStack(spacing: 12) {
+                        fieldRow(label: "Track #", text: $trackNumberText)
+                        fieldRow(label: "Disc #", text: $discNumberText)
+                    }
+                    HStack(spacing: 12) {
+                        fieldRow(label: "Genre", text: $genre)
+                        fieldRow(label: "Year", text: $year)
+                    }
                     fieldRow(label: "Notes", text: $descriptionText)
 
                     Button {
@@ -682,13 +715,19 @@ public struct TrackMetadataEditSheetView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        let parsedTrackNum = Int(trackNumberText.trimmingCharacters(in: .whitespacesAndNewlines))
+                        let parsedDiscNum = Int(discNumberText.trimmingCharacters(in: .whitespacesAndNewlines))
                         let ov = TrackOverride(
                             trackId: track.id,
                             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                             artist: artist.trimmingCharacters(in: .whitespacesAndNewlines),
                             album: album.trimmingCharacters(in: .whitespacesAndNewlines),
+                            albumArtist: albumArtist.trimmingCharacters(in: .whitespacesAndNewlines),
+                            composer: composer.trimmingCharacters(in: .whitespacesAndNewlines),
                             genre: genre.trimmingCharacters(in: .whitespacesAndNewlines),
                             year: year.trimmingCharacters(in: .whitespacesAndNewlines),
+                            trackNumber: parsedTrackNum,
+                            discNumber: parsedDiscNum,
                             descriptionText: descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
                         )
                         repository.saveTrackOverride(ov)

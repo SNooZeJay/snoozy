@@ -348,7 +348,8 @@ public struct RootScaffoldView: View {
                 onAddToQueue: { playback.addToQueue(track) },
                 onAddToPlaylist: { playlistTargetTrack = track },
                 onToggleFavorite: { repository.toggleFavorite(track.id) },
-                onEditMetadata: { metadataTargetTrack = track }
+                onEditMetadata: { metadataTargetTrack = track },
+                onDeleteTrack: { repository.deleteTrack(track) }
             )
         }
         .sheet(item: $playlistTargetTrack) { track in
