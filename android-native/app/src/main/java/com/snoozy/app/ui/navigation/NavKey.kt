@@ -68,10 +68,17 @@ sealed interface NavKey {
         override val description = "Songs tagged with this genre."
     }
 
+    data class Playlist(val playlistId: String) : NavKey {
+        override val route = "playlist/${encodeRouteArg(playlistId)}"
+        override val title = "Playlist"
+        override val description = "Songs saved to this playlist."
+    }
+
     companion object {
         private const val ALBUM_PREFIX = "album/"
         private const val ARTIST_PREFIX = "artist/"
         private const val GENRE_PREFIX = "genre/"
+        private const val PLAYLIST_PREFIX = "playlist/"
 
         // Lazy: eagerly building this list during companion init can capture the nested
         // object still being class-initialized as null.
@@ -84,6 +91,8 @@ sealed interface NavKey {
                 Artist(decodeRouteArg(route.removePrefix(ARTIST_PREFIX)))
             route.startsWith(GENRE_PREFIX) ->
                 Genre(decodeRouteArg(route.removePrefix(GENRE_PREFIX)))
+            route.startsWith(PLAYLIST_PREFIX) ->
+                Playlist(decodeRouteArg(route.removePrefix(PLAYLIST_PREFIX)))
             route == Home.route -> Home
             route == Search.route -> Search
             route == Library.route -> Library

@@ -32,4 +32,21 @@ class NavKeyTest {
         assertFalse(NavKey.Artist("a").isRoot)
         assertFalse(NavKey.Genre("a").isRoot)
     }
+
+    @Test
+    fun playlistRouteRoundTripsAwkwardIds() {
+        val ids = listOf(
+            "playlist-1794335417895-z97hxa",
+            "playlist-1-abc/def",
+            "playlist-2-100% #1 ?",
+        )
+        for (id in ids) {
+            assertEquals(NavKey.Playlist(id), NavKey.fromRoute(NavKey.Playlist(id).route))
+        }
+    }
+
+    @Test
+    fun playlistRouteIsNotARoot() {
+        assertFalse(NavKey.Playlist("p1").isRoot)
+    }
 }

@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -24,7 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.snoozy.app.data.model.Album
+import com.snoozy.app.data.model.Playlist
 import com.snoozy.app.data.model.Track
+import com.snoozy.app.ui.format.countLabel
 import com.snoozy.app.ui.format.formatClock
 import com.snoozy.app.ui.icons.SnoozyIcons
 import io.github.neoruaa.glasmio.core.IosTypography
@@ -50,6 +53,7 @@ fun SnoozyTrackRow(
     subtitle: String,
     onClick: (() -> Unit)?,
     showTopSeparator: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     GlasmioListRow(
         title = track.title,
@@ -57,6 +61,7 @@ fun SnoozyTrackRow(
         detail = formatClock(track.duration),
         leading = { SnoozyArtwork(track.artwork, 44.dp, 10.dp, null) },
         onClick = onClick,
+        trailing = trailing,
         showTopSeparator = showTopSeparator,
     )
 }
@@ -95,6 +100,47 @@ fun SnoozyGenreRow(name: String, onClick: () -> Unit, showTopSeparator: Boolean 
         onClick = onClick,
         showTopSeparator = showTopSeparator,
     )
+}
+
+@Composable
+fun SnoozyPlaylistRow(
+    playlist: Playlist,
+    trackCount: Int,
+    artworks: List<String?>,
+    onClick: () -> Unit,
+    onManage: () -> Unit,
+    showTopSeparator: Boolean = false,
+) {
+    GlasmioListRow(
+        title = playlist.name,
+        subtitle = countLabel(trackCount, "track", "tracks"),
+        leading = { SnoozyPlaylistCover(artworks, 44.dp, 10.dp) },
+        onClick = onClick,
+        trailing = { SnoozyIconAction(SnoozyIcons.More, "Manage ${playlist.name}", onManage) },
+        showTopSeparator = showTopSeparator,
+    )
+}
+
+@Composable
+fun SnoozyIconAction(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    tint: Color = LocalGlassColors.current.secondaryContent,
+) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = tint,
+            modifier = Modifier.size(20.dp),
+        )
+    }
 }
 
 @Composable
