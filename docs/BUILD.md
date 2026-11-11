@@ -1,5 +1,25 @@
 # Snoozy build record
 
+## Native 3.0 Phase 3A (3.0.0, versionCode 14) - home and library verified on device
+
+- Intent: replace the Home, Library, album, artist, and genre placeholders with working Glasmio screens over the Phase 2 data layer. Sorts persist through the existing MMKV stores, every row opens a real route, and playback controls stay out until Phase 4.
+- New code: `data/library/LibraryBrowse.kt`, `ui/format/Format.kt`, `ui/components/SnoozyPage.kt`, `SnoozyArtwork.kt`, `SnoozyRows.kt`, `GroupedRows.kt`, `LibraryActions.kt`, `SnoozyBanners.kt`, `SnoozyHeaderActions.kt`, `SnoozyLibraryEmpty.kt`, `ui/navigation/LocalLibraryRepository.kt`, and `ui/screens/HomeScreen.kt`, `LibraryScreen.kt`, `AlbumScreen.kt`, `ArtistScreen.kt`, `GenreScreen.kt`.
+- Data: `LibraryRepository.State` now carries play history, song sort, and album sort. Sort setters write the React Native storage values. Unchanged fields keep the Phase 2 JSON shapes and MediaStore identity.
+- Glasmio: one `SnoozyGridPage` owns the lazy grid, header collapse binding, scroll-edge blur, and bottom inset for every screen. Page content is hosted by `GlasmioBackdropHost`, and `SnoozyApp` wraps the scaffold in `GlasmioBackdropProvider(navigationBackdrop)` so modal sheets receive `LocalBlurBackdrop`. The sort selector uses `GlasmioBottomSheet`, `GlasmioActionSheetContent`, and `GlasmioListRow` with an emerald `SnoozyIcons.Check`; `GlasmioAlertDialog` was dropped because its default button tint is a hardcoded iOS blue.
+- Static gates: `gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug` with JDK 25 and `ANDROID_HOME=D:\Android\Sdk`: `BUILD SUCCESSFUL`. Unit tests: 52 tests, 0 failures. Lint: 0 errors, 6 warnings, 1 hint.
+- Artifact: `android-native/app/build/outputs/apk/debug/app-debug.apk`, `78,424,442` bytes, SHA-256 `3E8D3E09F2C580C631F269FCDF91D2D281F2395FBBCFE171DDAF3A2B8B4CE5D0`. Signed with the existing release certificate, SHA-256 `0b3acae8b73999d871c4f18684e70fc32967fada05967f9d18a463b37fe755ce`.
+- Device verification on Oppo A55 (`CPH2325`, Android 13, `9PGE8SQKAM598PBY`): `adb install -r` succeeded over the existing 3.0 install and the `READ_MEDIA_AUDIO` grant carried over.
+  - Home reported `37 songs` with real Recently played and Most played cards (Ivy, Mine, Mitsubishi Sony; Mine at 2 plays). Recently added stayed hidden because every track in the preserved snapshot has `addedAt` `0`: Expo writes `DATE_TAKEN` through `putLong`, so React Native also stored `0` and its Home applies the same `addedAt > 0` filter. No data change was made.
+  - Library reported 37 songs, 3 albums (Blonde, Endless, RED 99), 2 artists (Ciarán, Frank Ocean), 2 genres (Pop, R&B/Soul), and 0 favorites with the empty state and a working Browse songs action.
+  - Song sorts Title, Artist, Album, and Duration each reordered the list, and Duration survived a force-stop and cold start. Album sorts Title, Artist, Year, and Tracks each reordered, and Tracks survived a force-stop and cold start. Both were restored to Title afterward.
+  - The album grid/list toggle rendered two columns and grouped list rows with years. Blonde and Endless detail routes, the Ciarán artist route, and the Pop genre route all opened with real track lists; back restored the previous Library scroll position.
+  - Scrolling Library replaced the large title with the compact header and followed with the blur progress. Album detail used the same collapse.
+  - The import header action opened the system document picker; cancelling returned to the Library with no state change.
+  - Permission: Music and audio was denied in system settings, the next launch showed the system request, and Allow restored all 37 songs. The in-app permission state exposes Grant access and Open settings callbacks.
+  - No entries in `logcat -b crash` after the fix pass.
+- Defects found and fixed during the gate: page content needed a `GlasmioBackdropHost` for the segment control, and the modal sort sheet needed the app-level `LocalBlurBackdrop` provider. The first sheet run also showed a duplicate drag handle and disclosure chevrons on action rows; both were removed.
+- Not yet done: playlists and playlist detail, playlist CRUD, add/remove/reorder, full import execution, recents clear, favorite toggles, queue menus, play and shuffle controls, pull-to-refresh, reduced-motion setting, and full glass. These stay in Phase 3B and later phases. The APK is still about 78 MB; release minification and asset review remain in Phase 8.
+
 ## Native 3.0 Phase 2 (3.0.0, versionCode 14) - data layer verified on device
 
 - Intent: read the existing expo-sqlite and react-native-mmkv data in place, scan MediaStore with the expo-media-library identity and caching rules, and add a library repository plus startup diagnostics. No migration, no store clearing, and no UI changes beyond the Phase 1 shell.
