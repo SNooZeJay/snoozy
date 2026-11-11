@@ -569,6 +569,9 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         if let artPath = track.artworkPath, let image = UIImage(contentsOfFile: artPath) {
             let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
             info[MPMediaItemPropertyArtwork] = artwork
+        } else if let brandImage = UIImage(named: "SnoozyBrandLogo") {
+            let artwork = MPMediaItemArtwork(boundsSize: brandImage.size) { _ in brandImage }
+            info[MPMediaItemPropertyArtwork] = artwork
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }

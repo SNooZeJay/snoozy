@@ -12,60 +12,34 @@ public struct SnoozyBrandIconView: View {
         let cornerRadius = size * 0.225
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
-        ZStack {
-            shape.fill(
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.000, green: 0.008, blue: 0.059), // #00020F
-                        Color(red: 0.020, green: 0.067, blue: 0.094), // #051118
-                        Color(red: 0.051, green: 0.184, blue: 0.161), // #0D2F29
-                        Color(red: 0.098, green: 0.345, blue: 0.275), // #195846
-                        Color(red: 0.133, green: 0.447, blue: 0.357)  // #22725B
-                    ],
-                    startPoint: .bottomLeading,
-                    endPoint: .topTrailing
-                )
-            )
-
-            // Soft bottom-left contact shadow
-            Image(systemName: "music.note")
-                .font(.system(size: size * 0.46, weight: .bold))
-                .foregroundStyle(Color.black.opacity(0.52))
-                .offset(x: -size * 0.018, y: size * 0.026)
-                .blur(radius: size * 0.025)
-
-            // Refractive smoky-emerald crystal glass note
-            Image(systemName: "music.note")
-                .font(.system(size: size * 0.46, weight: .bold))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.925, green: 0.992, blue: 0.961), // #ECFDF5
-                            Color(red: 0.431, green: 0.906, blue: 0.718).opacity(0.85), // #6EE7B7
-                            Color(red: 0.063, green: 0.725, blue: 0.506).opacity(0.75), // #10B981
-                            Color(red: 0.655, green: 0.953, blue: 0.816)  // #A7F3D0
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+        Group {
+            if let brandImage = UIImage(named: "SnoozyBrandLogo") {
+                Image(uiImage: brandImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .antialiased(true)
+                    .scaledToFit()
+            } else {
+                ZStack {
+                    shape.fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.000, green: 0.008, blue: 0.059),
+                                Color(red: 0.051, green: 0.184, blue: 0.161),
+                                Color(red: 0.133, green: 0.447, blue: 0.357)
+                            ],
+                            startPoint: .bottomLeading,
+                            endPoint: .topTrailing
+                        )
                     )
-                )
-                .shadow(color: Color(red: 0.925, green: 0.992, blue: 0.961).opacity(0.45), radius: 2, x: -0.5, y: -0.5)
+                    Image(systemName: "music.note")
+                        .font(.system(size: size * 0.46, weight: .bold))
+                        .foregroundStyle(Color(red: 0.925, green: 0.992, blue: 0.961))
+                }
+            }
         }
         .frame(width: size, height: size)
         .clipShape(shape)
-        .overlay(
-            shape.strokeBorder(
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.925, green: 0.992, blue: 0.961).opacity(0.42),
-                        Color(red: 0.204, green: 0.827, blue: 0.600).opacity(0.18)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: 0.8
-            )
-        )
         .accessibilityLabel("Snoozy Emerald Liquid Glass icon")
     }
 }
@@ -132,6 +106,12 @@ public struct SnoozyArtworkView: View {
                let uiImage = UIImage(contentsOfFile: path) {
                 Image(uiImage: uiImage)
                     .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+            } else if let brandImage = UIImage(named: "SnoozyBrandLogo") {
+                Image(uiImage: brandImage)
+                    .resizable()
+                    .interpolation(.high)
                     .scaledToFill()
             } else {
                 ZStack {
