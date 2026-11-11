@@ -102,23 +102,27 @@ public struct SearchScreen: View {
                         Text("Songs (\(matchingSongs.count))")
                             .font(SnoozyTypography.headline(16))
                             .foregroundStyle(theme.inkMuted)
-                        LazyVStack(spacing: 8) {
-                            ForEach(matchingSongs) { track in
-                                SnoozyTrackRowView(
-                                    track: track,
-                                    subtitle: "\(track.artist) · \(track.album)",
-                                    isActive: playback.activeTrack?.id == track.id,
-                                    isFavorite: repository.isFavorite(track.id),
-                                    theme: theme,
-                                    preferences: repository.preferences,
-                                    onTap: {
-                                        repository.addRecentSearch(trimmedQuery)
-                                        playback.playTrack(track, queue: matchingSongs)
-                                    },
-                                    onMenu: {
-                                        onSelectTrackForMenu(track)
-                                    }
-                                )
+                        SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
+                            LazyVStack(spacing: 0) {
+                                ForEach(Array(matchingSongs.enumerated()), id: \.element.id) { index, track in
+                                    SnoozyTrackRowView(
+                                        track: track,
+                                        subtitle: "\(track.artist) · \(track.album)",
+                                        isActive: playback.activeTrack?.id == track.id,
+                                        isFavorite: repository.isFavorite(track.id),
+                                        showTopSeparator: index > 0,
+                                        isGrouped: true,
+                                        theme: theme,
+                                        preferences: repository.preferences,
+                                        onTap: {
+                                            repository.addRecentSearch(trimmedQuery)
+                                            playback.playTrack(track, queue: matchingSongs)
+                                        },
+                                        onMenu: {
+                                            onSelectTrackForMenu(track)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

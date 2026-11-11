@@ -90,9 +90,7 @@ public struct HomeScreen: View {
 
     private var emptyLibraryCard: some View {
         VStack(spacing: 14) {
-            Image(systemName: "waveform.and.magnifyingglass")
-                .font(.system(size: 38, weight: .semibold))
-                .foregroundStyle(theme.accent)
+            SnoozyBrandIconView(size: 64)
 
             Text("Ready for your offline library")
                 .font(SnoozyTypography.title(20))

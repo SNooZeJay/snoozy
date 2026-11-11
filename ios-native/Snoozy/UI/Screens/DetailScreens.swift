@@ -1,5 +1,7 @@
 import SwiftUI
 
+public struct DetailScreensMarker {}
+
 public struct AlbumDetailScreen: View {
     public let albumKey: String
     @ObservedObject public var repository: LibraryRepository
@@ -68,18 +70,22 @@ public struct AlbumDetailScreen: View {
                         }
                     )
 
-                    LazyVStack(spacing: 8) {
-                        ForEach(tracks) { track in
-                            SnoozyTrackRowView(
-                                track: track,
-                                subtitle: track.artist,
-                                isActive: playback.activeTrack?.id == track.id,
-                                isFavorite: repository.isFavorite(track.id),
-                                theme: theme,
-                                preferences: repository.preferences,
-                                onTap: { playback.playTrack(track, queue: tracks) },
-                                onMenu: { onSelectTrackForMenu(track) }
-                            )
+                    SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                                SnoozyTrackRowView(
+                                    track: track,
+                                    subtitle: track.artist,
+                                    isActive: playback.activeTrack?.id == track.id,
+                                    isFavorite: repository.isFavorite(track.id),
+                                    showTopSeparator: index > 0,
+                                    isGrouped: true,
+                                    theme: theme,
+                                    preferences: repository.preferences,
+                                    onTap: { playback.playTrack(track, queue: tracks) },
+                                    onMenu: { onSelectTrackForMenu(track) }
+                                )
+                            }
                         }
                     }
                 } else {
@@ -181,18 +187,22 @@ public struct ArtistDetailScreen: View {
                     .font(SnoozyTypography.headline(16))
                     .foregroundStyle(theme.inkMuted)
 
-                LazyVStack(spacing: 8) {
-                    ForEach(tracks) { track in
-                        SnoozyTrackRowView(
-                            track: track,
-                            subtitle: track.album,
-                            isActive: playback.activeTrack?.id == track.id,
-                            isFavorite: repository.isFavorite(track.id),
-                            theme: theme,
-                            preferences: repository.preferences,
-                            onTap: { playback.playTrack(track, queue: tracks) },
-                            onMenu: { onSelectTrackForMenu(track) }
-                        )
+                SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                            SnoozyTrackRowView(
+                                track: track,
+                                subtitle: track.album,
+                                isActive: playback.activeTrack?.id == track.id,
+                                isFavorite: repository.isFavorite(track.id),
+                                showTopSeparator: index > 0,
+                                isGrouped: true,
+                                theme: theme,
+                                preferences: repository.preferences,
+                                onTap: { playback.playTrack(track, queue: tracks) },
+                                onMenu: { onSelectTrackForMenu(track) }
+                            )
+                        }
                     }
                 }
             }
@@ -254,18 +264,22 @@ public struct GenreDetailScreen: View {
                     }
                 )
 
-                LazyVStack(spacing: 8) {
-                    ForEach(tracks) { track in
-                        SnoozyTrackRowView(
-                            track: track,
-                            subtitle: track.artist,
-                            isActive: playback.activeTrack?.id == track.id,
-                            isFavorite: repository.isFavorite(track.id),
-                            theme: theme,
-                            preferences: repository.preferences,
-                            onTap: { playback.playTrack(track, queue: tracks) },
-                            onMenu: { onSelectTrackForMenu(track) }
-                        )
+                SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                            SnoozyTrackRowView(
+                                track: track,
+                                subtitle: track.artist,
+                                isActive: playback.activeTrack?.id == track.id,
+                                isFavorite: repository.isFavorite(track.id),
+                                showTopSeparator: index > 0,
+                                isGrouped: true,
+                                theme: theme,
+                                preferences: repository.preferences,
+                                onTap: { playback.playTrack(track, queue: tracks) },
+                                onMenu: { onSelectTrackForMenu(track) }
+                            )
+                        }
                     }
                 }
             }

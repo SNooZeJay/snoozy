@@ -1,6 +1,112 @@
 import SwiftUI
 import UIKit
 
+public struct SnoozyBrandIconView: View {
+    public let size: CGFloat
+
+    public init(size: CGFloat = 56) {
+        self.size = size
+    }
+
+    public var body: some View {
+        let cornerRadius = size * 0.225
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        ZStack {
+            shape.fill(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.000, green: 0.008, blue: 0.059), // #00020F
+                        Color(red: 0.020, green: 0.067, blue: 0.094), // #051118
+                        Color(red: 0.051, green: 0.184, blue: 0.161), // #0D2F29
+                        Color(red: 0.098, green: 0.345, blue: 0.275), // #195846
+                        Color(red: 0.133, green: 0.447, blue: 0.357)  // #22725B
+                    ],
+                    startPoint: .bottomLeading,
+                    endPoint: .topTrailing
+                )
+            )
+
+            // Soft bottom-left contact shadow
+            Image(systemName: "music.note")
+                .font(.system(size: size * 0.46, weight: .bold))
+                .foregroundStyle(Color.black.opacity(0.52))
+                .offset(x: -size * 0.018, y: size * 0.026)
+                .blur(radius: size * 0.025)
+
+            // Refractive smoky-emerald crystal glass note
+            Image(systemName: "music.note")
+                .font(.system(size: size * 0.46, weight: .bold))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.925, green: 0.992, blue: 0.961), // #ECFDF5
+                            Color(red: 0.431, green: 0.906, blue: 0.718).opacity(0.85), // #6EE7B7
+                            Color(red: 0.063, green: 0.725, blue: 0.506).opacity(0.75), // #10B981
+                            Color(red: 0.655, green: 0.953, blue: 0.816)  // #A7F3D0
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: Color(red: 0.925, green: 0.992, blue: 0.961).opacity(0.45), radius: 2, x: -0.5, y: -0.5)
+        }
+        .frame(width: size, height: size)
+        .clipShape(shape)
+        .overlay(
+            shape.strokeBorder(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.925, green: 0.992, blue: 0.961).opacity(0.42),
+                        Color(red: 0.204, green: 0.827, blue: 0.600).opacity(0.18)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 0.8
+            )
+        )
+        .accessibilityLabel("Snoozy Emerald Liquid Glass icon")
+    }
+}
+
+public struct SnoozySoundWaveView: View {
+    public let isActive: Bool
+    public let color: Color
+    public let bars: Int
+    public let height: CGFloat
+
+    public init(
+        isActive: Bool,
+        color: Color,
+        bars: Int = 4,
+        height: CGFloat = 14
+    ) {
+        self.isActive = isActive
+        self.color = color
+        self.bars = bars
+        self.height = height
+    }
+
+    public var body: some View {
+        TimelineView(.animation(minimumInterval: isActive ? 1.0 / 24.0 : 1.0)) { timeline in
+            let t = isActive ? timeline.date.timeIntervalSinceReferenceDate : 0.0
+            HStack(alignment: .center, spacing: 2) {
+                ForEach(0..<bars, id: \.self) { index in
+                    let phase = Double(index) * 0.85 + 0.3
+                    let wave = isActive ? abs(sin(t * 3.8 + phase)) : 0.25
+                    let barHeight = max(3.0, height * CGFloat(0.28 + wave * 0.72))
+                    Capsule()
+                        .fill(color)
+                        .frame(width: 2.4, height: barHeight)
+                }
+            }
+            .frame(height: height)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 public struct SnoozyArtworkView: View {
     public let artworkPath: String?
     public let size: CGFloat?
@@ -31,16 +137,25 @@ public struct SnoozyArtworkView: View {
                 ZStack {
                     LinearGradient(
                         colors: [
-                            theme.accent.opacity(0.32),
-                            theme.accentStrong.opacity(0.16),
-                            Color.black.opacity(0.35)
+                            Color(red: 0.000, green: 0.008, blue: 0.059),
+                            Color(red: 0.051, green: 0.184, blue: 0.161),
+                            Color(red: 0.133, green: 0.447, blue: 0.357)
                         ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                        startPoint: .bottomLeading,
+                        endPoint: .topTrailing
                     )
                     Image(systemName: "music.note")
-                        .font(.system(size: (size ?? 120) * 0.36, weight: .semibold))
-                        .foregroundStyle(theme.accent)
+                        .font(.system(size: (size ?? 120) * 0.38, weight: .bold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [
+                                    theme.accentInk,
+                                    theme.accent
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                 }
             }
         }
