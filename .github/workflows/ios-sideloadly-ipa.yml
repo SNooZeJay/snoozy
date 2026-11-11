@@ -29,7 +29,9 @@ jobs:
       - name: Build unsigned Release .app for iOS (arm64)
         working-directory: ios-native
         run: |
-          xcodebuild \
+          set -o pipefail
+          mkdir -p build
+          if ! xcodebuild \
             -project Snoozy.xcodeproj \
             -scheme Snoozy \
             -configuration Release \
@@ -41,7 +43,13 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            clean build
+            clean build 2>&1 | tee build/xcodebuild.log; then
+            echo "=== XCODEBUILD ERRORS ==="
+            grep -E "error:|fatal error:" build/xcodebuild.log | head -n 40 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
 
       - name: Package Payload into Snoozy-iOS-Sideloadly.ipa
         working-directory: ios-native

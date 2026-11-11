@@ -24,6 +24,7 @@ targets:
       - path: Snoozy
         excludes:
           - "**/*.md"
+          - "Resources/**"
     resources:
       - path: Snoozy/Resources/Assets.xcassets
       - path: Snoozy/Resources/Fonts

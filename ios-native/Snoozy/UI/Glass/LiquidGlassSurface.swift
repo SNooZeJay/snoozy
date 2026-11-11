@@ -40,7 +40,11 @@ public struct SnoozyGlassEffectContainer<Content: View>: View {
 public struct LiquidGlassInteractiveBounceStyle: ButtonStyle {
     public let scaleOnPress: CGFloat
 
-    public init(scaleOnPress: CGFloat = 1.05) {
+    public init(scale: CGFloat = 0.92) {
+        self.scaleOnPress = scale
+    }
+
+    public init(scaleOnPress: CGFloat) {
         self.scaleOnPress = scaleOnPress
     }
 
@@ -297,8 +301,8 @@ public struct LiquidGlassThumblessSlider: View {
     public let activeHeight: CGFloat
     public let fillColor: Color
     public let trackColor: Color
-    public let onEditingChanged: (Bool) -> Void
-    public let onCommit: (Double) -> Void
+    public let enableMomentum: Bool
+    public let onEditingChanged: (Bool, Double) -> Void
 
     @State private var isDragging: Bool = false
     @State private var dragStartValue: Double = 0.0
@@ -306,15 +310,15 @@ public struct LiquidGlassThumblessSlider: View {
 
     public init(
         value: Binding<Double>,
-        in range: ClosedRange<Double>,
+        range: ClosedRange<Double>,
         neutralValue: Double? = nil,
         tickCount: Int = 0,
         restingHeight: CGFloat = 6,
         activeHeight: CGFloat = 12,
         fillColor: Color = .white,
         trackColor: Color = Color.white.opacity(0.22),
-        onEditingChanged: @escaping (Bool) -> Void = { _ in },
-        onCommit: @escaping (Double) -> Void = { _ in }
+        enableMomentum: Bool = true,
+        onEditingChanged: @escaping (Bool, Double) -> Void = { _, _ in }
     ) {
         self._value = value
         self.range = range
@@ -324,8 +328,8 @@ public struct LiquidGlassThumblessSlider: View {
         self.activeHeight = activeHeight
         self.fillColor = fillColor
         self.trackColor = trackColor
+        self.enableMomentum = enableMomentum
         self.onEditingChanged = onEditingChanged
-        self.onCommit = onCommit
     }
 
     private var span: Double {
@@ -389,12 +393,6 @@ public struct LiquidGlassThumblessSlider: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
-                        if !isDragging {
-                            isDragging = true
-                            dragStartValue = value
-                            onEditingChanged(true)
-                            UISelectionFeedbackGenerator().selectionChanged()
-                        }
                         let rawFraction = Double(gesture.location.x / width)
                         if rawFraction < 0.0 {
                             overscrollStretch = max(-24.0, CGFloat(rawFraction) * 32.0)
@@ -410,10 +408,17 @@ public struct LiquidGlassThumblessSlider: View {
                             candidate = (candidate / step).rounded() * step
                         }
                         value = candidate
+                        if !isDragging {
+                            isDragging = true
+                            dragStartValue = candidate
+                            UISelectionFeedbackGenerator().selectionChanged()
+                        }
+                        onEditingChanged(true, candidate)
                     }
                     .onEnded { gesture in
-                        // Preserve horizontal momentum on release (WWDC25 Session 284, 17:24)
-                        let momentumDelta = Double((gesture.predictedEndLocation.x - gesture.location.x) / width) * 0.18
+                        let momentumDelta = enableMomentum
+                            ? Double((gesture.predictedEndLocation.x - gesture.location.x) / width) * 0.18
+                            : 0.0
                         let finalFraction = min(1.0, max(0.0, Double(gesture.location.x / width) + momentumDelta))
                         var finalValue = range.lowerBound + finalFraction * span
                         if tickCount > 1 {
@@ -425,8 +430,7 @@ public struct LiquidGlassThumblessSlider: View {
                             isDragging = false
                             overscrollStretch = 0.0
                         }
-                        onEditingChanged(false)
-                        onCommit(finalValue)
+                        onEditingChanged(false, finalValue)
                     }
             )
             .animation(.spring(response: 0.24, dampingFraction: 0.74), value: isDragging)
