@@ -7,9 +7,6 @@ on:
       - main
       - master
       - "release/**"
-    paths:
-      - "ios-native/**"
-      - ".github/workflows/ios-sideloadly-ipa.yml"
 
 jobs:
   build-unsigned-ipa:
