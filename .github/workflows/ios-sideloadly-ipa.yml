@@ -1,0 +1,64 @@
+name: Build Snoozy iOS IPA for Sideloadly
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+      - "release/**"
+    paths:
+      - "ios-native/**"
+      - ".github/workflows/ios-sideloadly-ipa.yml"
+
+jobs:
+  build-unsigned-ipa:
+    name: Build Unsigned Snoozy.ipa (iPhone 13 mini / arm64)
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+
+      - name: Generate Xcode project
+        working-directory: ios-native
+        run: xcodegen generate
+
+      - name: Build unsigned Release .app for iOS (arm64)
+        working-directory: ios-native
+        run: |
+          xcodebuild \
+            -project Snoozy.xcodeproj \
+            -scheme Snoozy \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/DerivedData \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            clean build
+
+      - name: Package Payload into Snoozy-iOS-Sideloadly.ipa
+        working-directory: ios-native
+        run: |
+          mkdir -p build/ipa/Payload
+          cp -R build/DerivedData/Build/Products/Release-iphoneos/Snoozy.app build/ipa/Payload/Snoozy.app
+          cd build/ipa
+          zip -qry ../Snoozy-iOS-Sideloadly.ipa Payload
+          ls -lh ../Snoozy-iOS-Sideloadly.ipa
+
+      - name: Upload Snoozy-iOS-Sideloadly.ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Snoozy-iOS-Sideloadly-IPA
+          path: ios-native/build/Snoozy-iOS-Sideloadly.ipa
+          if-no-files-found: error
+          retention-days: 90
