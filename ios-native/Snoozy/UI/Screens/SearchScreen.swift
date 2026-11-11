@@ -541,7 +541,7 @@ public struct SearchScreen: View {
                     subtitle: SnoozyFormat.countLabel(repository.folderNames.count, "folder", "folders"),
                     icon: "folder.fill",
                     gradient: [Color(red: 0.22, green: 0.46, blue: 0.36), Color(red: 0.08, green: 0.22, blue: 0.17)],
-                    artworkPath: repository.recentlyAdded.first?.artworkPath
+                    artworkPath: repository.recentTracks.first?.artworkPath
                 ) {
                     onOpenLibraryCategory(.folders)
                 }

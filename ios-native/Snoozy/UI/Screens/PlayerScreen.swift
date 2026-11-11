@@ -519,7 +519,7 @@ public struct PlayerScreen: View {
                         lyricsLineButton(
                             line: line,
                             isCurrent: activeIdx == line.id,
-                            isSynchronized: lyrics.isSynchronized,
+                            isSynchronized: lyrics.isSynced,
                             offset: offset
                         )
                     }
@@ -537,7 +537,7 @@ public struct PlayerScreen: View {
     }
 
     private func lyricsLineButton(
-        line: LyricsLine,
+        line: LyricLine,
         isCurrent: Bool,
         isSynchronized: Bool,
         offset: Double
