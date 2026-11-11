@@ -12,7 +12,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.snoozy.app.data.library.albumKeyFor
@@ -37,6 +40,11 @@ import com.snoozy.app.ui.navigation.LocalLibraryRepository
 import com.snoozy.app.ui.navigation.NavHeaderEntry
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.core.LocalGlassColors
+import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonLayout
+import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonRole
+import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonSpec
+import io.github.neoruaa.glasmio.ui.GlasmioAlertDialog
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -48,6 +56,8 @@ fun HomeScreen(
     val repository = LocalLibraryRepository.current
     val state by repository.state.collectAsState()
     val actions = rememberLibraryActions(repository)
+    val scope = rememberCoroutineScope()
+    var clearOpen by remember { mutableStateOf(false) }
 
     val recentTracks = remember(state.tracks, state.recents) {
         tracksForIds(state.tracks, state.recents, 10)
@@ -100,7 +110,11 @@ fun HomeScreen(
 
             else -> {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "home-recently-played-title") {
-                    SnoozySectionHeader("Recently played")
+                    SnoozySectionHeader(
+                        title = "Recently played",
+                        actionLabel = if (recentTracks.isNotEmpty()) "Clear" else null,
+                        onAction = if (recentTracks.isNotEmpty()) ({ clearOpen = true }) else null,
+                    )
                 }
                 if (recentTracks.isEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }, key = "home-recently-played-empty") {
@@ -170,6 +184,30 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (clearOpen) {
+        GlasmioAlertDialog(
+            onDismissRequest = { clearOpen = false },
+            title = "Clear recently played?",
+            message = "Your play history will be emptied.",
+            buttonLayout = GlasmioAlertButtonLayout.SideBySide,
+            buttons = listOf(
+                GlasmioAlertButtonSpec(
+                    label = "Cancel",
+                    onClick = { clearOpen = false },
+                    role = GlasmioAlertButtonRole.Cancel,
+                ),
+                GlasmioAlertButtonSpec(
+                    label = "Clear",
+                    onClick = {
+                        clearOpen = false
+                        scope.launch { repository.clearRecents() }
+                    },
+                    role = GlasmioAlertButtonRole.Destructive,
+                ),
+            ),
+        )
     }
 }
 
