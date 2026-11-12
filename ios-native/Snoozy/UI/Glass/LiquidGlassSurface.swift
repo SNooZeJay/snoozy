@@ -571,6 +571,7 @@ public struct LiquidGlassButton: View {
     public let systemImage: String?
     public let isProminent: Bool
     public let isDisabled: Bool
+    public let expandsFullWidth: Bool
     public let theme: SnoozyThemeColors
     public let preferences: SnoozyPreferences
     public let action: () -> Void
@@ -580,6 +581,7 @@ public struct LiquidGlassButton: View {
         systemImage: String? = nil,
         isProminent: Bool = false,
         isDisabled: Bool = false,
+        expandsFullWidth: Bool = false,
         theme: SnoozyThemeColors,
         preferences: SnoozyPreferences,
         action: @escaping () -> Void
@@ -588,6 +590,7 @@ public struct LiquidGlassButton: View {
         self.systemImage = systemImage
         self.isProminent = isProminent
         self.isDisabled = isDisabled
+        self.expandsFullWidth = expandsFullWidth
         self.theme = theme
         self.preferences = preferences
         self.action = action
@@ -595,20 +598,22 @@ public struct LiquidGlassButton: View {
 
     public var body: some View {
         Button(action: action) {
-            HStack(spacing: 7) {
+            HStack(spacing: 6) {
                 if let systemImage {
                     Image(systemName: systemImage)
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                 }
                 Text(title)
                     .font(SnoozyTypography.body(14, bold: true))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.82)
             }
             .foregroundStyle(isProminent ? theme.accentInk : theme.ink)
-            .padding(.horizontal, 18)
-            .frame(minHeight: 46)
+            .padding(.horizontal, expandsFullWidth ? 12 : 16)
+            .frame(maxWidth: expandsFullWidth ? .infinity : nil)
+            .frame(minHeight: 44)
             .liquidGlassSurface(
-                cornerRadius: 23,
+                cornerRadius: 22,
                 glassMode: preferences.glassMode,
                 refractionIntensity: preferences.refractionIntensity,
                 tintColor: theme.accent,

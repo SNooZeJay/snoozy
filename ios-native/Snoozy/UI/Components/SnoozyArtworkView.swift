@@ -2,8 +2,18 @@ import ImageIO
 import SwiftUI
 import UIKit
 
+public enum SnoozyIconAppearanceMode: String, CaseIterable, Identifiable, Sendable {
+    case automatic = "Default"
+    case light = "Light"
+    case dark = "Dark"
+    case tinted = "Tinted"
+
+    public var id: String { rawValue }
+}
+
 public enum SnoozyBrandAssetLoader {
     private static var cachedLogo: UIImage? = nil
+    private static var cachedLayers: [Int: UIImage] = [:]
 
     public static func loadBrandLogoImage() -> UIImage? {
         if let cachedLogo {
@@ -21,6 +31,23 @@ public enum SnoozyBrandAssetLoader {
         if let iconPath = Bundle.main.path(forResource: "AppIcon60x60@3x", ofType: "png"),
            let img = UIImage(contentsOfFile: iconPath) {
             cachedLogo = img
+            return img
+        }
+        return nil
+    }
+
+    public static func loadIconLayer(_ index: Int) -> UIImage? {
+        if let hit = cachedLayers[index] {
+            return hit
+        }
+        let name = "SnoozyIconLayer\(index)"
+        if let named = UIImage(named: name) {
+            cachedLayers[index] = named
+            return named
+        }
+        if let path = Bundle.main.path(forResource: "\(name)@3x", ofType: "png") ?? Bundle.main.path(forResource: name, ofType: "png"),
+           let img = UIImage(contentsOfFile: path) {
+            cachedLayers[index] = img
             return img
         }
         return nil
@@ -76,17 +103,107 @@ public enum SnoozyArtworkCache {
 
 public struct SnoozyBrandIconView: View {
     public let size: CGFloat
+    public var appearanceMode: SnoozyIconAppearanceMode = .automatic
+    public var tintColor: Color = Color(red: 0.063, green: 0.725, blue: 0.506)
+    @Environment(\.colorScheme) private var systemColorScheme
 
-    public init(size: CGFloat = 56) {
+    public init(
+        size: CGFloat = 56,
+        appearanceMode: SnoozyIconAppearanceMode = .automatic,
+        tintColor: Color = Color(red: 0.063, green: 0.725, blue: 0.506)
+    ) {
         self.size = size
+        self.appearanceMode = appearanceMode
+        self.tintColor = tintColor
+    }
+
+    private var effectiveMode: SnoozyIconAppearanceMode {
+        if appearanceMode != .automatic {
+            return appearanceMode
+        }
+        return systemColorScheme == .light ? .light : .dark
     }
 
     public var body: some View {
-        let cornerRadius = size * 0.23
+        let cornerRadius = size * 0.228
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let mode = effectiveMode
 
         Group {
-            if let brandImage = SnoozyBrandAssetLoader.loadBrandLogoImage() {
+            if let l0 = SnoozyBrandAssetLoader.loadIconLayer(0),
+               let l1 = SnoozyBrandAssetLoader.loadIconLayer(1),
+               let l2 = SnoozyBrandAssetLoader.loadIconLayer(2),
+               let l3 = SnoozyBrandAssetLoader.loadIconLayer(3) {
+                ZStack {
+                    // Layer 0: Dynamic Background Chamber (Default/Light, Dark, or Tinted)
+                    switch mode {
+                    case .light:
+                        Image(uiImage: l0)
+                            .resizable()
+                            .interpolation(.high)
+                            .scaledToFill()
+                            .overlay(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.16, green: 0.86, blue: 0.64).opacity(0.32),
+                                        Color(red: 0.04, green: 0.34, blue: 0.25).opacity(0.18)
+                                    ],
+                                    startPoint: .topTrailing,
+                                    endPoint: .bottomLeading
+                                )
+                            )
+                    case .dark, .automatic:
+                        Image(uiImage: l0)
+                            .resizable()
+                            .interpolation(.high)
+                            .scaledToFill()
+                            .overlay(Color.black.opacity(0.18))
+                    case .tinted:
+                        LinearGradient(
+                            colors: [
+                                Color(white: 0.14),
+                                Color(white: 0.04)
+                            ],
+                            startPoint: .topTrailing,
+                            endPoint: .bottomLeading
+                        )
+                        .overlay(tintColor.opacity(0.16))
+                    }
+
+                    // Layer 1: Subsurface Caustic & Depth Shadow
+                    Image(uiImage: l1)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFill()
+                        .saturation(mode == .tinted ? 0.0 : 1.0)
+                        .colorMultiply(mode == .tinted ? tintColor : .white)
+                        .opacity(mode == .light ? 0.95 : 0.88)
+
+                    // Layer 2: Sculpted 3D Liquid Glass Note Body (preserved original Snoozy silhouette)
+                    Image(uiImage: l2)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFill()
+                        .saturation(mode == .tinted ? 0.0 : (mode == .light ? 1.10 : 1.0))
+                        .brightness(mode == .light ? 0.04 : (mode == .tinted ? 0.08 : 0.0))
+                        .colorMultiply(mode == .tinted ? tintColor : .white)
+                        .shadow(
+                            color: Color.black.opacity(mode == .dark ? 0.42 : 0.26),
+                            radius: size * 0.045,
+                            x: 0,
+                            y: size * 0.025
+                        )
+
+                    // Layer 3: Prismatic Specular Highlights & Outer Squircle Glass Rim
+                    Image(uiImage: l3)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFill()
+                        .saturation(mode == .tinted ? 0.0 : 1.0)
+                        .colorMultiply(mode == .tinted ? tintColor.opacity(0.92) : .white)
+                        .blendMode(.screen)
+                }
+            } else if let brandImage = SnoozyBrandAssetLoader.loadBrandLogoImage() {
                 Image(uiImage: brandImage)
                     .resizable()
                     .interpolation(.high)
@@ -105,26 +222,9 @@ public struct SnoozyBrandIconView: View {
                             endPoint: .topTrailing
                         )
                     )
-                    Circle()
-                        .fill(Color(red: 0.063, green: 0.725, blue: 0.506).opacity(0.32))
-                        .frame(width: size * 0.65, height: size * 0.65)
-                        .blur(radius: size * 0.14)
-                        .offset(x: size * 0.12, y: -size * 0.10)
-
                     Image(systemName: "music.note")
                         .font(.system(size: size * 0.48, weight: .bold))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [
-                                    Color.white,
-                                    Color(red: 0.65, green: 0.98, blue: 0.86),
-                                    Color(red: 0.35, green: 0.85, blue: 0.95)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .shadow(color: Color.black.opacity(0.45), radius: size * 0.08, x: 0, y: size * 0.05)
+                        .foregroundStyle(.white)
                 }
             }
         }
@@ -134,18 +234,18 @@ public struct SnoozyBrandIconView: View {
             shape.strokeBorder(
                 LinearGradient(
                     colors: [
-                        Color.white.opacity(0.46),
-                        Color(red: 0.063, green: 0.725, blue: 0.506).opacity(0.35),
-                        Color.white.opacity(0.10)
+                        Color.white.opacity(mode == .light ? 0.62 : 0.46),
+                        (mode == .tinted ? tintColor : Color(red: 0.063, green: 0.725, blue: 0.506)).opacity(0.38),
+                        Color.white.opacity(0.12)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ),
-                lineWidth: 0.9
+                lineWidth: max(0.7, size * 0.016)
             )
         )
-        .shadow(color: Color.black.opacity(0.35), radius: 8, x: 0, y: 4)
-        .accessibilityLabel("Snoozy Emerald Liquid Glass icon")
+        .shadow(color: Color.black.opacity(0.34), radius: max(4, size * 0.14), x: 0, y: max(2, size * 0.07))
+        .accessibilityLabel("Snoozy Multi-Layered Liquid Glass icon")
     }
 }
 

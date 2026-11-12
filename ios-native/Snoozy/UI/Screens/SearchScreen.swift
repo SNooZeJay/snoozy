@@ -24,6 +24,7 @@ public struct SearchScreen: View {
 
     @State private var query: String = ""
     @State private var selectedScope: LocalSearchScope = .all
+    @Environment(\.snoozyLayout) private var layout
 
     public init(
         repository: LibraryRepository,
@@ -85,25 +86,28 @@ public struct SearchScreen: View {
                     searchResultsContent
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-            .padding(.bottom, playback.activeTrack != nil ? 176 : 112)
+            .padding(.horizontal, layout.horizontalPadding)
+            .padding(.top, layout.isLandscape ? 8 : 10)
+            .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .toolbar(.hidden, for: .navigationBar)
     }
 
     private var headerRow: some View {
         HStack(alignment: .center, spacing: 12) {
-            SnoozyBrandIconView(size: 40)
+            SnoozyBrandIconView(size: layout.brandIconSize)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Search")
-                    .font(SnoozyTypography.display(30))
+                    .font(SnoozyTypography.display(layout.headerTitleSize))
                     .foregroundStyle(theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
 
                 Text("Instant offline search across \(SnoozyFormat.countLabel(repository.tracks.count, "song", "songs"))")
                     .font(SnoozyTypography.footnote(12))
                     .foregroundStyle(theme.inkMuted)
+                    .lineLimit(1)
             }
 
             Spacer()
@@ -509,16 +513,12 @@ public struct SearchScreen: View {
     }
 
     private var browseLocalCategoriesSection: some View {
-        let columns = [
-            GridItem(.flexible(), spacing: 12),
-            GridItem(.flexible(), spacing: 12)
-        ]
         return VStack(alignment: .leading, spacing: 12) {
             Text("Browse Local Library")
                 .font(SnoozyTypography.title(19))
                 .foregroundStyle(theme.ink)
 
-            LazyVGrid(columns: columns, spacing: 12) {
+            LazyVGrid(columns: layout.gridItems, spacing: 12) {
                 localCategoryTile(
                     title: "Favorites",
                     subtitle: SnoozyFormat.countLabel(repository.favoriteTracks.count, "song", "songs"),

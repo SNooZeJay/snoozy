@@ -9,6 +9,8 @@ public struct SettingsScreen: View {
 
     @State private var showClearHistoryAlert: Bool = false
     @State private var showErrorLogSheet: Bool = false
+    @State private var iconPreviewMode: SnoozyIconAppearanceMode = .automatic
+    @Environment(\.snoozyLayout) private var layout
 
     private static let speedChoices: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
@@ -17,11 +19,17 @@ public struct SettingsScreen: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .center, spacing: 12) {
-                    SnoozyBrandIconView(size: 40)
+                    SnoozyBrandIconView(
+                        size: layout.brandIconSize,
+                        appearanceMode: iconPreviewMode,
+                        tintColor: theme.accent
+                    )
 
                     Text("Settings")
-                        .font(SnoozyTypography.display(30))
+                        .font(SnoozyTypography.display(layout.headerTitleSize))
                         .foregroundStyle(theme.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
 
                     Spacer()
                 }
@@ -33,9 +41,9 @@ public struct SettingsScreen: View {
                 storageSection(prefs: prefs)
                 aboutSection(prefs: prefs)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-            .padding(.bottom, playback.activeTrack != nil ? 176 : 112)
+            .padding(.horizontal, layout.horizontalPadding)
+            .padding(.top, layout.isLandscape ? 8 : 10)
+            .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .toolbar(.hidden, for: .navigationBar)
         .alert("Clear Listening History?", isPresented: $showClearHistoryAlert) {
@@ -163,6 +171,7 @@ public struct SettingsScreen: View {
                         title: "Import Files",
                         systemImage: "doc.badge.plus",
                         isProminent: true,
+                        expandsFullWidth: true,
                         theme: theme,
                         preferences: prefs,
                         action: onImportFiles
@@ -170,6 +179,7 @@ public struct SettingsScreen: View {
                     LiquidGlassButton(
                         title: "Import Folder",
                         systemImage: "folder.badge.plus",
+                        expandsFullWidth: true,
                         theme: theme,
                         preferences: prefs,
                         action: onImportFolder
@@ -279,10 +289,42 @@ public struct SettingsScreen: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 196)
+                    .frame(width: layout.isCompactWidth ? 172 : 196)
                 }
                 .padding(.horizontal, 16)
                 .frame(minHeight: 50)
+
+                rowDivider
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        SnoozyBrandIconView(
+                            size: 52,
+                            appearanceMode: iconPreviewMode,
+                            tintColor: theme.accent
+                        )
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Liquid Glass App Icon")
+                                .font(SnoozyTypography.body(15, bold: true))
+                                .foregroundStyle(theme.ink)
+                            Text("4-layer composition · Light, Dark & Tinted")
+                                .font(SnoozyTypography.caption(12))
+                                .foregroundStyle(theme.inkMuted)
+                        }
+
+                        Spacer()
+                    }
+
+                    Picker("App Icon Appearance", selection: $iconPreviewMode) {
+                        ForEach(SnoozyIconAppearanceMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
 
                 rowDivider
 
@@ -507,7 +549,7 @@ public struct SettingsScreen: View {
             sectionTitle("About Snoozy", icon: "info.circle.fill")
 
             SnoozyGroupedCard(theme: theme, preferences: prefs) {
-                statRow(label: "Version", value: "3.2.0", showDivider: false)
+                statRow(label: "Version", value: "3.3.0", showDivider: false)
                 statRow(label: "Mode", value: "100% Offline Local Player", showDivider: true)
 
                 rowDivider

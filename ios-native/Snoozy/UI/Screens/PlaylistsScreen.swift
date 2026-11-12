@@ -12,6 +12,7 @@ public struct PlaylistsScreen: View {
     @State private var renameText: String = ""
     @State private var deleteTarget: Playlist? = nil
     @State private var gridMode: Bool = true
+    @Environment(\.snoozyLayout) private var layout
 
     public init(
         repository: LibraryRepository,
@@ -30,16 +31,19 @@ public struct PlaylistsScreen: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .center, spacing: 12) {
-                    SnoozyBrandIconView(size: 40)
+                    SnoozyBrandIconView(size: layout.brandIconSize)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Playlists")
-                            .font(SnoozyTypography.display(30))
+                            .font(SnoozyTypography.display(layout.headerTitleSize))
                             .foregroundStyle(theme.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
 
                         Text("\(SnoozyFormat.countLabel(repository.playlists.count, "playlist", "playlists")) · saved on this iPhone")
                             .font(SnoozyTypography.footnote(12))
                             .foregroundStyle(theme.inkMuted)
+                            .lineLimit(1)
                     }
 
                     Spacer(minLength: 6)
@@ -50,7 +54,7 @@ public struct PlaylistsScreen: View {
                                 LiquidGlassIconButton(
                                     systemImage: gridMode ? "list.bullet" : "square.grid.2x2",
                                     accessibilityLabel: gridMode ? "Show playlist list" : "Show playlist grid",
-                                    size: 40,
+                                    size: layout.headerButtonSize,
                                     theme: theme,
                                     preferences: repository.preferences
                                 ) {
@@ -63,7 +67,7 @@ public struct PlaylistsScreen: View {
                             LiquidGlassIconButton(
                                 systemImage: "plus",
                                 accessibilityLabel: "New playlist",
-                                size: 40,
+                                size: layout.headerButtonSize,
                                 theme: theme,
                                 preferences: repository.preferences
                             ) {
@@ -82,9 +86,9 @@ public struct PlaylistsScreen: View {
                     playlistsGroupedList(byId: byId)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-            .padding(.bottom, playback.activeTrack != nil ? 176 : 112)
+            .padding(.horizontal, layout.horizontalPadding)
+            .padding(.top, layout.isLandscape ? 8 : 10)
+            .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .toolbar(.hidden, for: .navigationBar)
         .alert("New Playlist", isPresented: $showCreateAlert) {
@@ -165,11 +169,8 @@ public struct PlaylistsScreen: View {
     }
 
     private func playlistsGrid(byId: [String: Track]) -> some View {
-        let columns = [
-            GridItem(.flexible(), spacing: 14),
-            GridItem(.flexible(), spacing: 14)
-        ]
-        return LazyVGrid(columns: columns, spacing: 18) {
+        let tileSize = layout.gridTileSize
+        return LazyVGrid(columns: layout.gridItems, spacing: 18) {
             ForEach(repository.playlists) { playlist in
                 let tracks = playlist.trackIds.compactMap { byId[$0] }
                 Button {
@@ -178,7 +179,7 @@ public struct PlaylistsScreen: View {
                     VStack(alignment: .leading, spacing: 7) {
                         SnoozyPlaylistCollageView(
                             artworkPaths: tracks.map(\.artworkPath),
-                            size: 164,
+                            size: tileSize,
                             cornerRadius: 16,
                             theme: theme
                         )
@@ -194,7 +195,7 @@ public struct PlaylistsScreen: View {
                             .foregroundStyle(theme.inkMuted)
                             .lineLimit(1)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(width: tileSize, alignment: .leading)
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
@@ -315,6 +316,7 @@ public struct PlaylistDetailScreen: View {
     @State private var renameText: String = ""
     @State private var showDeleteAlert: Bool = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.snoozyLayout) private var layout
 
     public init(
         playlistId: String,
@@ -344,7 +346,7 @@ public struct PlaylistDetailScreen: View {
                 if let playlist {
                     SnoozyPlaylistCollageView(
                         artworkPaths: tracks.map(\.artworkPath),
-                        size: 220,
+                        size: layout.detailHeroArtworkSize,
                         cornerRadius: 20,
                         theme: theme
                     )
@@ -487,8 +489,8 @@ public struct PlaylistDetailScreen: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, playback.activeTrack != nil ? 172 : 108)
+            .padding(.horizontal, layout.horizontalPadding)
+            .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .background(
             LiquidAuraBackgroundView(

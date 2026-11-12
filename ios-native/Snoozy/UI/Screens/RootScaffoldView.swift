@@ -195,6 +195,8 @@ public struct RootScaffoldView: View {
     public var body: some View {
         GeometryReader { proxy in
             let screenWidth = max(1.0, proxy.size.width)
+            let screenHeight = max(1.0, proxy.size.height)
+            let layout = SnoozyResponsiveLayout(width: screenWidth, height: screenHeight)
             let indicatorProgress = effectiveIndicatorProgress(screenWidth: screenWidth)
 
             ZStack(alignment: .bottom) {
@@ -313,10 +315,12 @@ public struct RootScaffoldView: View {
                         }
                 )
 
-                bottomChromeContainer(indicatorProgress: indicatorProgress)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 8)
+                bottomChromeContainer(indicatorProgress: indicatorProgress, layout: layout)
+                    .frame(maxWidth: layout.bottomChromeMaxWidth)
+                    .padding(.horizontal, layout.isCompactWidth ? 12 : 14)
+                    .padding(.bottom, layout.isCompactHeight ? 6 : 8)
             }
+            .environment(\.snoozyLayout, layout)
         }
         .tint(theme.accent)
         .preferredColorScheme(
@@ -451,15 +455,15 @@ public struct RootScaffoldView: View {
     }
 
     // WWDC25 Session 284 (1:55): Floating Liquid Glass Tab Bar with Scroll Minimization and Inline Mini-Player Accessory
-    private func bottomChromeContainer(indicatorProgress: Double) -> some View {
+    private func bottomChromeContainer(indicatorProgress: Double, layout: SnoozyResponsiveLayout) -> some View {
         let progress = playback.durationSeconds > 0
             ? min(1.0, max(0.0, playback.positionSeconds / playback.durationSeconds))
             : 0.0
 
-        return SnoozyGlassEffectContainer(spacing: 8) {
+        return SnoozyGlassEffectContainer(spacing: layout.isCompactHeight ? 6 : 8) {
             if isTabBarMinimized {
                 HStack(spacing: 8) {
-                    minimizedTabPillButton
+                    minimizedTabPillButton(size: layout.tabBarPillHeight)
 
                     if let active = playback.activeTrack {
                         SnoozyMiniPlayerView(
@@ -480,7 +484,7 @@ public struct RootScaffoldView: View {
                     }
                 }
             } else {
-                VStack(spacing: 8) {
+                VStack(spacing: layout.isCompactHeight ? 6 : 8) {
                     if let active = playback.activeTrack {
                         SnoozyMiniPlayerView(
                             track: active,
@@ -497,24 +501,24 @@ public struct RootScaffoldView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
 
-                    floatingLiquidGlassTabBar(indicatorProgress: indicatorProgress)
+                    floatingLiquidGlassTabBar(indicatorProgress: indicatorProgress, layout: layout)
                 }
             }
         }
     }
 
-    private var minimizedTabPillButton: some View {
+    private func minimizedTabPillButton(size: CGFloat) -> some View {
         Button {
             withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
                 isTabBarMinimized = false
             }
         } label: {
             Image(systemName: selectedTab.systemImage)
-                .font(.system(size: 18, weight: .bold))
+                .font(.system(size: size * 0.34, weight: .bold))
                 .foregroundStyle(theme.accent)
-                .frame(width: 54, height: 54)
+                .frame(width: size, height: size)
                 .liquidGlassSurface(
-                    cornerRadius: 27,
+                    cornerRadius: size * 0.5,
                     glassMode: repository.preferences.glassMode,
                     refractionIntensity: repository.preferences.refractionIntensity,
                     tintColor: theme.accent,
@@ -527,12 +531,12 @@ public struct RootScaffoldView: View {
     }
 
     /// Floating pill-shaped Liquid Glass navigation bar with Instagram-inspired icon-only continuous indicator motion.
-    private func floatingLiquidGlassTabBar(indicatorProgress: Double) -> some View {
+    private func floatingLiquidGlassTabBar(indicatorProgress: Double, layout: SnoozyResponsiveLayout) -> some View {
         let tabs = RootTab.allCases
         let tabCount = tabs.count
         let horizontalInset: CGFloat = 6.0
-        let pillHeight: CGFloat = 56.0
-        let indicatorHeight: CGFloat = 44.0
+        let pillHeight: CGFloat = layout.tabBarPillHeight
+        let indicatorHeight: CGFloat = layout.tabBarIndicatorHeight
 
         return GeometryReader { geo in
             let innerWidth = max(1.0, geo.size.width - horizontalInset * 2.0)

@@ -7,6 +7,7 @@ public struct AlbumDetailScreen: View {
     public let theme: SnoozyThemeColors
     public var onOpenArtist: ((String) -> Void)? = nil
     public let onSelectTrackForMenu: (Track) -> Void
+    @Environment(\.snoozyLayout) private var layout
 
     public init(
         albumKey: String,
@@ -41,7 +42,7 @@ public struct AlbumDetailScreen: View {
                     // Apple Music Centered Large Album Artwork
                     SnoozyArtworkView(
                         artworkPath: album.artworkPath,
-                        size: 224,
+                        size: layout.detailHeroArtworkSize,
                         cornerRadius: 18,
                         theme: theme
                     )
@@ -145,8 +146,8 @@ public struct AlbumDetailScreen: View {
                         .padding(.top, 48)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, playback.activeTrack != nil ? 172 : 108)
+            .padding(.horizontal, layout.horizontalPadding)
+            .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .background(
             LiquidAuraBackgroundView(
@@ -168,6 +169,7 @@ public struct ArtistDetailScreen: View {
     public let theme: SnoozyThemeColors
     public let onOpenAlbum: (String) -> Void
     public let onSelectTrackForMenu: (Track) -> Void
+    @Environment(\.snoozyLayout) private var layout
 
     private var tracks: [Track] {
         repository.tracksForArtist(artistName)
@@ -231,7 +233,7 @@ public struct ArtistDetailScreen: View {
                                     onOpenAlbum(album.id)
                                 } label: {
                                     VStack(alignment: .leading, spacing: 6) {
-                                        SnoozyArtworkView(artworkPath: album.artworkPath, size: 148, cornerRadius: 14, theme: theme)
+                                        SnoozyArtworkView(artworkPath: album.artworkPath, size: layout.shelfItemSize, cornerRadius: 14, theme: theme)
                                             .shadow(color: Color.black.opacity(0.24), radius: 8, x: 0, y: 4)
                                         Text(album.title)
                                             .font(SnoozyTypography.body(14, bold: true))
@@ -239,11 +241,11 @@ public struct ArtistDetailScreen: View {
                                             .lineLimit(1)
                                         if let year = album.year {
                                             Text(year)
-                                                .font(SnoozyTypography.footnote(12))
+                                                                                        .font(SnoozyTypography.footnote(12))
                                                 .foregroundStyle(theme.inkMuted)
                                         }
                                     }
-                                    .frame(width: 148)
+                                    .frame(width: layout.shelfItemSize)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -277,9 +279,9 @@ public struct ArtistDetailScreen: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, layout.horizontalPadding)
             .padding(.top, 12)
-            .padding(.bottom, playback.activeTrack != nil ? 172 : 108)
+            .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .background(
             LiquidAuraBackgroundView(
@@ -300,6 +302,7 @@ public struct GenreDetailScreen: View {
     @ObservedObject public var playback: PlaybackController
     public let theme: SnoozyThemeColors
     public let onSelectTrackForMenu: (Track) -> Void
+    @Environment(\.snoozyLayout) private var layout
 
     private var tracks: [Track] {
         repository.tracksForGenre(genreName)
@@ -358,9 +361,9 @@ public struct GenreDetailScreen: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, layout.horizontalPadding)
             .padding(.top, 12)
-            .padding(.bottom, playback.activeTrack != nil ? 172 : 108)
+            .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .background(
             LiquidAuraBackgroundView(
@@ -381,6 +384,7 @@ public struct FolderDetailScreen: View {
     @ObservedObject public var playback: PlaybackController
     public let theme: SnoozyThemeColors
     public let onSelectTrackForMenu: (Track) -> Void
+    @Environment(\.snoozyLayout) private var layout
 
     private var tracks: [Track] {
         repository.tracksForFolder(folderName)
@@ -450,9 +454,9 @@ public struct FolderDetailScreen: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, layout.horizontalPadding)
             .padding(.top, 12)
-            .padding(.bottom, playback.activeTrack != nil ? 172 : 108)
+            .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .background(
             LiquidAuraBackgroundView(

@@ -20,6 +20,7 @@ public struct LibraryScreen: View {
     @State private var newPlaylistName: String = ""
     @State private var searchText: String = ""
     @FocusState private var isSearchFieldFocused: Bool
+    @Environment(\.snoozyLayout) private var layout
 
     public init(
         repository: LibraryRepository,
@@ -95,9 +96,9 @@ public struct LibraryScreen: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-            .padding(.bottom, playback.activeTrack != nil ? 176 : 112)
+            .padding(.horizontal, layout.horizontalPadding)
+            .padding(.top, layout.isLandscape ? 8 : 10)
+            .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .toolbar(.hidden, for: .navigationBar)
         .confirmationDialog("Sort songs by", isPresented: $showSongSortDialog, titleVisibility: .visible) {
@@ -131,7 +132,7 @@ public struct LibraryScreen: View {
                 LiquidGlassIconButton(
                     systemImage: "chevron.left",
                     accessibilityLabel: "Back to Library Overview",
-                    size: 40,
+                    size: layout.headerButtonSize,
                     theme: theme,
                     preferences: repository.preferences
                 ) {
@@ -140,14 +141,15 @@ public struct LibraryScreen: View {
                     }
                 }
             } else {
-                SnoozyBrandIconView(size: 40)
+                SnoozyBrandIconView(size: layout.brandIconSize)
             }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(selectedTab == .overview ? "Library" : (selectedTab == .songs ? "All Songs" : selectedTab.rawValue))
-                    .font(SnoozyTypography.display(30))
+                    .font(SnoozyTypography.display(layout.headerTitleSize))
                     .foregroundStyle(theme.ink)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
 
                 Text(countSubtitle)
                     .font(SnoozyTypography.footnote(12))
@@ -163,7 +165,7 @@ public struct LibraryScreen: View {
                         LiquidGlassIconButton(
                             systemImage: "plus",
                             accessibilityLabel: "Create playlist",
-                            size: 40,
+                            size: layout.headerButtonSize,
                             theme: theme,
                             preferences: repository.preferences
                         ) {
@@ -175,7 +177,7 @@ public struct LibraryScreen: View {
                     LiquidGlassIconButton(
                         systemImage: "doc.badge.plus",
                         accessibilityLabel: "Import songs",
-                        size: 40,
+                        size: layout.headerButtonSize,
                         theme: theme,
                         preferences: repository.preferences,
                         action: onImportFiles
@@ -636,9 +638,9 @@ public struct LibraryScreen: View {
     }
 
     private func albumGrid(albums: [Album]) -> some View {
-        let cols = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
+        let tileSize = layout.gridTileSize
         let tracksById = repository.tracksById
-        return LazyVGrid(columns: cols, spacing: 18) {
+        return LazyVGrid(columns: layout.gridItems, spacing: 18) {
             ForEach(albums) { album in
                 let albumTracks = album.trackIds.compactMap { tracksById[$0] }
                 Button {
@@ -647,7 +649,7 @@ public struct LibraryScreen: View {
                     VStack(alignment: .leading, spacing: 6) {
                         SnoozyArtworkView(
                             artworkPath: album.artworkPath,
-                            size: 164,
+                            size: tileSize,
                             cornerRadius: 14,
                             theme: theme
                         )
@@ -663,6 +665,7 @@ public struct LibraryScreen: View {
                             .foregroundStyle(theme.inkMuted)
                             .lineLimit(1)
                     }
+                    .frame(width: tileSize, alignment: .leading)
                 }
                 .buttonStyle(.plain)
                 .contextMenu {

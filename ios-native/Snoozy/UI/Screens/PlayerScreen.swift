@@ -45,177 +45,236 @@ public struct PlayerScreen: View {
     }
 
     public var body: some View {
-        ZStack {
-            LiquidAuraBackgroundView(
-                theme: theme,
-                palette: playback.activePalette,
-                preferences: repository.preferences,
-                isImmersivePlayer: true,
-                audioLevels: playback.audioLevels
-            )
+        GeometryReader { proxy in
+            let layout = SnoozyResponsiveLayout(width: proxy.size.width, height: proxy.size.height)
+            ZStack {
+                LiquidAuraBackgroundView(
+                    theme: theme,
+                    palette: playback.activePalette,
+                    preferences: repository.preferences,
+                    isImmersivePlayer: true,
+                    audioLevels: playback.audioLevels
+                )
 
-            // Subtle dark vignette for Apple Music contrast legibility
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.18),
-                    Color.black.opacity(0.32),
-                    Color.black.opacity(0.55)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+                // Subtle dark vignette for Apple Music contrast legibility
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.18),
+                        Color.black.opacity(0.32),
+                        Color.black.opacity(0.55)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
-            if let track = playback.activeTrack {
-                nowPlayingLayout(for: track)
-                    .offset(y: max(0, dragOffsetY))
-                    .gesture(
-                        DragGesture(minimumDistance: 20)
-                            .onChanged { value in
-                                if value.translation.height > 0 && !isScrubbing {
-                                    dragOffsetY = value.translation.height * 0.65
-                                }
-                            }
-                            .onEnded { value in
-                                if value.translation.height > 110 || value.predictedEndTranslation.height > 180 {
-                                    dragOffsetY = 0
-                                    onClose()
-                                } else {
-                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                                        dragOffsetY = 0
+                if let track = playback.activeTrack {
+                    nowPlayingLayout(for: track, layout: layout)
+                        .offset(y: max(0, dragOffsetY))
+                        .gesture(
+                            DragGesture(minimumDistance: 20)
+                                .onChanged { value in
+                                    if value.translation.height > 0 && !isScrubbing {
+                                        dragOffsetY = value.translation.height * 0.65
                                     }
                                 }
-                            }
-                    )
-                    .sheet(isPresented: $showAddToPlaylistSheet) {
-                        AddToPlaylistSheetView(
-                            track: track,
-                            repository: repository,
-                            theme: theme,
-                            preferences: repository.preferences
-                        )
-                    }
-                    .sheet(isPresented: $showMetadataSheet) {
-                        TrackMetadataEditSheetView(
-                            track: track,
-                            repository: repository,
-                            theme: theme,
-                            preferences: repository.preferences
-                        )
-                    }
-                    .sheet(isPresented: $showTrackInfoSheet) {
-                        TrackInfoSheetView(
-                            track: track,
-                            theme: theme,
-                            preferences: repository.preferences,
-                            onEditMetadata: {
-                                showTrackInfoSheet = false
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                                    showMetadataSheet = true
+                                .onEnded { value in
+                                    if value.translation.height > 110 || value.predictedEndTranslation.height > 180 {
+                                        dragOffsetY = 0
+                                        onClose()
+                                    } else {
+                                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                                            dragOffsetY = 0
+                                        }
+                                    }
                                 }
-                            }
                         )
-                    }
-            } else {
-                emptyPlayerView
+                        .sheet(isPresented: $showAddToPlaylistSheet) {
+                            AddToPlaylistSheetView(
+                                track: track,
+                                repository: repository,
+                                theme: theme,
+                                preferences: repository.preferences
+                            )
+                        }
+                        .sheet(isPresented: $showMetadataSheet) {
+                            TrackMetadataEditSheetView(
+                                track: track,
+                                repository: repository,
+                                theme: theme,
+                                preferences: repository.preferences
+                            )
+                        }
+                        .sheet(isPresented: $showTrackInfoSheet) {
+                            TrackInfoSheetView(
+                                track: track,
+                                theme: theme,
+                                preferences: repository.preferences,
+                                onEditMetadata: {
+                                    showTrackInfoSheet = false
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                        showMetadataSheet = true
+                                    }
+                                }
+                            )
+                        }
+                } else {
+                    emptyPlayerView
+                }
             }
+            .environment(\.snoozyLayout, layout)
         }
     }
 
-    private func nowPlayingLayout(for track: Track) -> some View {
+    @ViewBuilder
+    private func nowPlayingLayout(for track: Track, layout: SnoozyResponsiveLayout) -> some View {
         let isFav = repository.isFavorite(track.id)
         let totalDuration = max(1.0, max(playback.durationSeconds, track.duration))
         let displayPos = isScrubbing ? scrubPosition : min(playback.positionSeconds, totalDuration)
         let progressFraction = min(1.0, max(0.0, displayPos / totalDuration))
+        let vSpacing = layout.nowPlayingSectionSpacing
 
-        return VStack(spacing: 0) {
-            // Top grabber capsule
-            Button(action: onClose) {
-                Capsule()
-                    .fill(Color.white.opacity(0.38))
-                    .frame(width: 38, height: 5)
-                    .padding(.top, 10)
-                    .padding(.bottom, 12)
+        if layout.isLandscape {
+            VStack(spacing: 6) {
+                Button(action: onClose) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.38))
+                        .frame(width: 36, height: 4)
+                        .padding(.top, 6)
+                        .padding(.bottom, 4)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss Now Playing")
+
+                HStack(alignment: .center, spacing: 24) {
+                    VStack(spacing: 12) {
+                        artworkModeView(for: track, isFav: isFav, layout: layout)
+                    }
+                    .frame(maxWidth: layout.containerWidth * 0.44)
+
+                    VStack(spacing: 12) {
+                        if mode == .lyrics {
+                            inlineLyricsView(for: track)
+                        } else if mode == .queue {
+                            inlineQueueView(for: track)
+                        } else {
+                            Spacer(minLength: 4)
+                        }
+
+                        progressSection(
+                            for: track,
+                            displayPos: displayPos,
+                            totalDuration: totalDuration,
+                            progressFraction: progressFraction
+                        )
+
+                        transportControlsRow(layout: layout)
+
+                        volumeSection
+
+                        bottomChromeRow(for: track)
+                    }
                     .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss Now Playing")
+            .animation(.spring(response: 0.38, dampingFraction: 0.82), value: mode)
+        } else {
+            VStack(spacing: 0) {
+                // Top grabber capsule
+                Button(action: onClose) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.38))
+                        .frame(width: 38, height: 5)
+                        .padding(.top, layout.isCompactHeight ? 6 : 10)
+                        .padding(.bottom, layout.isCompactHeight ? 8 : 12)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss Now Playing")
 
-            switch mode {
-            case .artwork:
-                artworkModeView(for: track, isFav: isFav)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                switch mode {
+                case .artwork:
+                    artworkModeView(for: track, isFav: isFav, layout: layout)
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
 
-            case .lyrics:
-                compactTrackHeader(for: track, isFav: isFav)
-                    .padding(.bottom, 10)
-                inlineLyricsView(for: track)
-                    .transition(.opacity)
+                case .lyrics:
+                    compactTrackHeader(for: track, isFav: isFav)
+                        .padding(.bottom, 8)
+                    inlineLyricsView(for: track)
+                        .transition(.opacity)
 
-            case .queue:
-                compactTrackHeader(for: track, isFav: isFav)
-                    .padding(.bottom, 10)
-                inlineQueueView(for: track)
-                    .transition(.opacity)
+                case .queue:
+                    compactTrackHeader(for: track, isFav: isFav)
+                        .padding(.bottom, 8)
+                    inlineQueueView(for: track)
+                        .transition(.opacity)
+                }
+
+                Spacer(minLength: layout.isCompactHeight ? 6 : 10)
+
+                // Apple Music Progress Bar + Elapsed / Quality Badge / Remaining Time
+                progressSection(
+                    for: track,
+                    displayPos: displayPos,
+                    totalDuration: totalDuration,
+                    progressFraction: progressFraction
+                )
+                .padding(.bottom, vSpacing)
+
+                // Primary Apple Music Transport Controls
+                transportControlsRow(layout: layout)
+                    .padding(.bottom, vSpacing)
+
+                // WWDC25 Session 284 (17:24) Thumbless Volume Slider with Rubber-Band Stretching
+                volumeSection
+                    .padding(.bottom, vSpacing)
+
+                // Bottom Liquid Glass Chrome Row: Lyrics, Audio Output (AVRoutePickerView), Speed, Queue
+                bottomChromeRow(for: track)
+                    .padding(.bottom, layout.isCompactHeight ? 6 : 10)
             }
-
-            Spacer(minLength: 10)
-
-            // Apple Music Progress Bar + Elapsed / Quality Badge / Remaining Time
-            progressSection(
-                for: track,
-                displayPos: displayPos,
-                totalDuration: totalDuration,
-                progressFraction: progressFraction
-            )
-            .padding(.bottom, 16)
-
-            // Primary Apple Music Transport Controls
-            transportControlsRow
-                .padding(.bottom, 18)
-
-            // WWDC25 Session 284 (17:24) Thumbless Volume Slider with Rubber-Band Stretching
-            volumeSection
-                .padding(.bottom, 16)
-
-            // Bottom Liquid Glass Chrome Row: Lyrics, Audio Output (AVRoutePickerView), Speed, Queue
-            bottomChromeRow(for: track)
-                .padding(.bottom, 10)
+            .padding(.horizontal, layout.isCompactWidth ? 18 : 24)
+            .animation(.spring(response: 0.38, dampingFraction: 0.82), value: mode)
         }
-        .padding(.horizontal, 24)
-        .animation(.spring(response: 0.38, dampingFraction: 0.82), value: mode)
     }
 
     @ViewBuilder
-    private func artworkModeView(for track: Track, isFav: Bool) -> some View {
-        VStack(spacing: 22) {
-            Spacer(minLength: 4)
+    private func artworkModeView(for track: Track, isFav: Bool, layout: SnoozyResponsiveLayout) -> some View {
+        let artSize = layout.nowPlayingArtworkSize
+        VStack(spacing: layout.isCompactHeight ? 14 : 20) {
+            if !layout.isLandscape {
+                Spacer(minLength: 2)
+            }
 
-            // Large centered Apple Music artwork with play/pause spring scale and audio-reactive depth shadow
+            // Responsive centered Apple Music artwork with play/pause spring scale and audio-reactive depth shadow
             let reactiveBass = (repository.preferences.audioReactiveAuraEnabled && playback.isPlaying)
                 ? playback.audioLevels.bass
                 : 0.0
             ZStack {
                 let artView = SnoozyArtworkView(
                     artworkPath: track.artworkPath,
-                    size: 308,
-                    cornerRadius: 20,
+                    size: artSize,
+                    cornerRadius: max(16, artSize * 0.065),
                     theme: theme
                 )
                 .shadow(
                     color: playback.activePalette.primary.opacity(playback.isPlaying ? min(0.76, 0.46 + reactiveBass * 0.28) : 0.16),
-                    radius: playback.isPlaying ? (28 + CGFloat(reactiveBass * 18.0)) : 10,
+                    radius: playback.isPlaying ? (26 + CGFloat(reactiveBass * 18.0)) : 10,
                     x: 0,
-                    y: playback.isPlaying ? 16 : 6
+                    y: playback.isPlaying ? 14 : 6
                 )
                 .shadow(
                     color: Color.black.opacity(playback.isPlaying ? 0.50 : 0.26),
-                    radius: playback.isPlaying ? 22 : 8,
+                    radius: playback.isPlaying ? 20 : 8,
                     x: 0,
-                    y: playback.isPlaying ? 12 : 4
+                    y: playback.isPlaying ? 10 : 4
                 )
-                .scaleEffect(playback.isPlaying ? (1.0 + CGFloat(reactiveBass * 0.025)) : 0.84)
+                .scaleEffect(playback.isPlaying ? (1.0 + CGFloat(reactiveBass * 0.025)) : 0.86)
                 .animation(.spring(response: 0.44, dampingFraction: 0.74), value: playback.isPlaying)
                 .id(track.id)
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
@@ -228,15 +287,18 @@ public struct PlayerScreen: View {
             }
             .frame(maxWidth: .infinity)
 
-            Spacer(minLength: 4)
+            if !layout.isLandscape {
+                Spacer(minLength: 2)
+            }
 
             // Apple Music Song Information Row: Left-aligned Title + Artist, Right-aligned Favorite + More Menu
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(track.title)
-                        .font(SnoozyTypography.title(22))
+                        .font(SnoozyTypography.title(layout.isCompactWidth ? 20 : 22))
                         .foregroundStyle(.white)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.85)
 
                     HStack(spacing: 6) {
                         Button {
@@ -817,7 +879,7 @@ public struct PlayerScreen: View {
         }
     }
 
-    private var transportControlsRow: some View {
+    private func transportControlsRow(layout: SnoozyResponsiveLayout) -> some View {
         HStack(spacing: 0) {
             Button {
                 playback.toggleShuffle()
@@ -836,9 +898,9 @@ public struct PlayerScreen: View {
                 playback.previous()
             } label: {
                 Image(systemName: "backward.fill")
-                    .font(.system(size: 30, weight: .bold))
+                    .font(.system(size: layout.nowPlayingSkipIconSize, weight: .bold))
                     .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
+                    .frame(width: layout.nowPlayingSkipButtonSize, height: layout.nowPlayingSkipButtonSize)
             }
             .buttonStyle(LiquidGlassInteractiveBounceStyle(scale: 0.86))
             .accessibilityLabel("Previous track")
@@ -849,9 +911,9 @@ public struct PlayerScreen: View {
                 playback.togglePlayback()
             } label: {
                 Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 42, weight: .bold))
+                    .font(.system(size: layout.nowPlayingPlayIconSize, weight: .bold))
                     .foregroundStyle(.white)
-                    .frame(width: 72, height: 72)
+                    .frame(width: layout.nowPlayingPlayButtonSize, height: layout.nowPlayingPlayButtonSize)
                     .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(LiquidGlassInteractiveBounceStyle(scale: 0.86))
@@ -863,9 +925,9 @@ public struct PlayerScreen: View {
                 playback.next()
             } label: {
                 Image(systemName: "forward.fill")
-                    .font(.system(size: 30, weight: .bold))
+                    .font(.system(size: layout.nowPlayingSkipIconSize, weight: .bold))
                     .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
+                    .frame(width: layout.nowPlayingSkipButtonSize, height: layout.nowPlayingSkipButtonSize)
             }
             .buttonStyle(LiquidGlassInteractiveBounceStyle(scale: 0.86))
             .accessibilityLabel("Next track")

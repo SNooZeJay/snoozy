@@ -11,6 +11,7 @@ public struct SnoozyMiniPlayerView: View {
     public let onTogglePlay: () -> Void
     public let onNext: () -> Void
     public var onPrevious: (() -> Void)? = nil
+    @Environment(\.snoozyLayout) private var layout
 
     public init(
         track: Track,
@@ -81,7 +82,7 @@ public struct SnoozyMiniPlayerView: View {
             }
             .padding(.leading, 10)
             .padding(.trailing, 8)
-            .frame(height: 56)
+            .frame(height: layout.miniPlayerHeight)
 
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
@@ -120,9 +121,10 @@ public struct SnoozyMiniPlayerView: View {
 
     @ViewBuilder
     private var artworkThumbnail: some View {
+        let thumbSize: CGFloat = layout.isCompactWidth ? 38 : 42
         let base = SnoozyArtworkView(
             artworkPath: track.artworkPath,
-            size: 42,
+            size: thumbSize,
             cornerRadius: 9,
             theme: theme
         )

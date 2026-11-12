@@ -307,4 +307,45 @@ final class PlaybackQueueOpsTests: XCTestCase {
         let decoded = try JSONDecoder().decode(SnoozyPreferences.self, from: legacyJSON)
         XCTAssertTrue(decoded.audioReactiveAuraEnabled)
     }
+
+    func testResponsiveLayoutAcrossIPhoneScreenSizes() {
+        // iPhone 13 mini (375 x 812 pt, 5.4-inch display)
+        let mini = SnoozyResponsiveLayout(width: 375, height: 812)
+        XCTAssertTrue(mini.isCompactWidth)
+        XCTAssertFalse(mini.isExpandedWidth)
+        XCTAssertFalse(mini.isLandscape)
+        XCTAssertEqual(mini.horizontalPadding, 14)
+        XCTAssertEqual(mini.gridColumnCount, 2)
+        // (375 - 28 - 12) / 2 = 167.5 -> floor 167
+        XCTAssertEqual(mini.gridTileSize, 167)
+        XCTAssertEqual(mini.tabBarHeight, 52)
+        XCTAssertEqual(mini.miniPlayerHeight, 56)
+
+        // iPhone 16 / 15 Pro (393 x 852 pt)
+        let standard = SnoozyResponsiveLayout(width: 393, height: 852)
+        XCTAssertFalse(standard.isCompactWidth)
+        XCTAssertFalse(standard.isExpandedWidth)
+        XCTAssertEqual(standard.horizontalPadding, 16)
+        XCTAssertEqual(standard.gridColumnCount, 2)
+        // (393 - 32 - 14) / 2 = 173.5 -> floor 173
+        XCTAssertEqual(standard.gridTileSize, 173)
+        XCTAssertEqual(standard.tabBarHeight, 56)
+
+        // iPhone 16 Pro Max (440 x 956 pt)
+        let proMax = SnoozyResponsiveLayout(width: 440, height: 956)
+        XCTAssertFalse(proMax.isCompactWidth)
+        XCTAssertTrue(proMax.isExpandedWidth)
+        XCTAssertEqual(proMax.horizontalPadding, 20)
+        XCTAssertEqual(proMax.gridColumnCount, 2)
+        // (440 - 40 - 16) / 2 = 192
+        XCTAssertEqual(proMax.gridTileSize, 192)
+        XCTAssertGreaterThan(proMax.gridTileSize, standard.gridTileSize)
+        XCTAssertGreaterThan(standard.gridTileSize, mini.gridTileSize)
+
+        // Landscape on iPhone 13 mini (812 x 375 pt)
+        let landscape = SnoozyResponsiveLayout(width: 812, height: 375)
+        XCTAssertTrue(landscape.isLandscape)
+        XCTAssertEqual(landscape.gridColumnCount, 4)
+        XCTAssertEqual(landscape.tabBarHeight, 50)
+    }
 }

@@ -12,6 +12,7 @@ public struct HomeScreen: View {
     public let onSelectTrackForMenu: (Track) -> Void
 
     @State private var showClearRecentsAlert: Bool = false
+    @Environment(\.snoozyLayout) private var layout
 
     public init(
         repository: LibraryRepository,
@@ -37,7 +38,7 @@ public struct HomeScreen: View {
 
     public var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 26) {
+            VStack(alignment: .leading, spacing: layout.sectionSpacing) {
                 headerSection
 
                 if let banner = repository.bannerMessage {
@@ -64,9 +65,9 @@ public struct HomeScreen: View {
                     importQuickActionsCard
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, layout.horizontalPadding)
             .padding(.top, 10)
-            .padding(.bottom, playback.activeTrack != nil ? 176 : 112)
+            .padding(.bottom, layout.scrollBottomPadding(hasActiveTrack: playback.activeTrack != nil))
         }
         .toolbar(.hidden, for: .navigationBar)
         .alert("Clear recently played?", isPresented: $showClearRecentsAlert) {
@@ -80,32 +81,35 @@ public struct HomeScreen: View {
     }
 
     private var headerSection: some View {
-        HStack(alignment: .center, spacing: 12) {
-            SnoozyBrandIconView(size: 44)
+        HStack(alignment: .center, spacing: layout.isCompactWidth ? 10 : 12) {
+            SnoozyBrandIconView(size: layout.brandIconSize, tintColor: theme.accent)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Home")
-                    .font(SnoozyTypography.display(30))
+                    .font(SnoozyTypography.display(layout.headerTitleSize))
                     .foregroundStyle(theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
 
                 Text(
                     repository.isScanning
                         ? "Scanning On My iPhone > Snoozy…"
-                        : "\(SnoozyFormat.countLabel(repository.tracks.count, "song", "songs")) · \(SnoozyFormat.countLabel(repository.albums.count, "album", "albums")) on this iPhone"
+                        : "\(SnoozyFormat.countLabel(repository.tracks.count, "song", "songs")) · \(SnoozyFormat.countLabel(repository.albums.count, "album", "albums"))"
                 )
                 .font(SnoozyTypography.footnote(12))
                 .foregroundStyle(theme.inkMuted)
                 .lineLimit(1)
+                .minimumScaleFactor(0.85)
             }
 
-            Spacer(minLength: 6)
+            Spacer(minLength: 4)
 
             SnoozyGlassEffectContainer(spacing: 6) {
                 HStack(spacing: 6) {
                     LiquidGlassIconButton(
                         systemImage: "doc.badge.plus",
                         accessibilityLabel: "Import audio files",
-                        size: 40,
+                        size: layout.headerButtonSize,
                         theme: theme,
                         preferences: repository.preferences,
                         action: onImportFiles
@@ -113,7 +117,7 @@ public struct HomeScreen: View {
                     LiquidGlassIconButton(
                         systemImage: "folder.badge.plus",
                         accessibilityLabel: "Import music folder",
-                        size: 40,
+                        size: layout.headerButtonSize,
                         theme: theme,
                         preferences: repository.preferences,
                         action: onImportFolder
@@ -121,7 +125,7 @@ public struct HomeScreen: View {
                     LiquidGlassIconButton(
                         systemImage: "arrow.clockwise",
                         accessibilityLabel: "Scan Snoozy folder",
-                        size: 40,
+                        size: layout.headerButtonSize,
                         theme: theme,
                         preferences: repository.preferences
                     ) {
@@ -148,6 +152,7 @@ public struct HomeScreen: View {
                     title: "Import Songs",
                     systemImage: "doc.badge.plus",
                     isProminent: true,
+                    expandsFullWidth: true,
                     theme: theme,
                     preferences: repository.preferences,
                     action: onImportFiles
@@ -156,6 +161,7 @@ public struct HomeScreen: View {
                     title: "Import Folder",
                     systemImage: "folder.badge.plus",
                     isProminent: false,
+                    expandsFullWidth: true,
                     theme: theme,
                     preferences: repository.preferences,
                     action: onImportFolder
@@ -173,10 +179,10 @@ public struct HomeScreen: View {
 
     private var emptyLibraryCard: some View {
         VStack(spacing: 14) {
-            SnoozyBrandIconView(size: 68)
+            SnoozyBrandIconView(size: layout.isCompactWidth ? 60 : 68, tintColor: theme.accent)
 
             Text("Your Personal Offline Music")
-                .font(SnoozyTypography.title(21))
+                .font(SnoozyTypography.title(layout.isCompactWidth ? 19 : 21))
                 .foregroundStyle(theme.ink)
                 .multilineTextAlignment(.center)
 
@@ -191,6 +197,7 @@ public struct HomeScreen: View {
                         title: "Import Files",
                         systemImage: "doc.badge.plus",
                         isProminent: true,
+                        expandsFullWidth: true,
                         theme: theme,
                         preferences: repository.preferences,
                         action: onImportFiles
@@ -199,6 +206,7 @@ public struct HomeScreen: View {
                         title: "Import Folder",
                         systemImage: "folder.badge.plus",
                         isProminent: false,
+                        expandsFullWidth: true,
                         theme: theme,
                         preferences: repository.preferences,
                         action: onImportFolder
@@ -248,7 +256,7 @@ public struct HomeScreen: View {
                                 title: track.title,
                                 subtitle: track.artist,
                                 artworkPath: track.artworkPath,
-                                size: 154
+                                size: layout.shelfItemSize
                             ) {
                                 playback.playTrack(track, queue: recents)
                             }
@@ -295,7 +303,7 @@ public struct HomeScreen: View {
                                 title: album.title,
                                 subtitle: album.artist,
                                 artworkPath: album.artworkPath,
-                                size: 154
+                                size: layout.shelfItemSize
                             ) {
                                 onOpenAlbum(album.id)
                             }
@@ -306,7 +314,7 @@ public struct HomeScreen: View {
         }
     }
 
-    // 3. Recently Added (Apple Music 2-column grid preview + See All)
+    // 3. Recently Added (Responsive Apple Music grid preview + See All)
     @ViewBuilder
     private var recentlyAddedSection: some View {
         let recentAlbums = Array(repository.recentlyAddedAlbums.prefix(4))
@@ -318,8 +326,7 @@ public struct HomeScreen: View {
                     action: { onOpenLibraryCategory(.albums) }
                 )
 
-                let cols = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
-                LazyVGrid(columns: cols, spacing: 16) {
+                LazyVGrid(columns: layout.gridItems, spacing: layout.gridSpacing + 2) {
                     ForEach(recentAlbums) { album in
                         Button {
                             onOpenAlbum(album.id)
@@ -327,7 +334,7 @@ public struct HomeScreen: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 SnoozyArtworkView(
                                     artworkPath: album.artworkPath,
-                                    size: 164,
+                                    size: layout.gridTileSize,
                                     cornerRadius: 14,
                                     theme: theme
                                 )
@@ -343,6 +350,7 @@ public struct HomeScreen: View {
                                     .foregroundStyle(theme.inkMuted)
                                     .lineLimit(1)
                             }
+                            .frame(width: layout.gridTileSize, alignment: .leading)
                         }
                         .buttonStyle(.plain)
                     }
@@ -405,7 +413,7 @@ public struct HomeScreen: View {
                                 title: track.title,
                                 subtitle: track.artist,
                                 artworkPath: track.artworkPath,
-                                size: 144
+                                size: layout.shelfItemSize
                             ) {
                                 playback.playTrack(track, queue: favs)
                             }
@@ -438,7 +446,7 @@ public struct HomeScreen: View {
                                 VStack(alignment: .leading, spacing: 6) {
                                     SnoozyPlaylistCollageView(
                                         artworkPaths: tracks.map(\.artworkPath),
-                                        size: 148,
+                                        size: layout.shelfItemSize,
                                         cornerRadius: 14,
                                         theme: theme
                                     )
@@ -453,7 +461,7 @@ public struct HomeScreen: View {
                                         .foregroundStyle(theme.inkMuted)
                                         .lineLimit(1)
                                 }
-                                .frame(width: 148)
+                                .frame(width: layout.shelfItemSize)
                             }
                             .buttonStyle(.plain)
                         }

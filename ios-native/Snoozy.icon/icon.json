@@ -1,0 +1,124 @@
+{
+  "fill" : {
+    "linear-gradient" : [
+      "srgb:0.004,0.020,0.067,1.0",
+      "srgb:0.114,0.408,0.318,1.0"
+    ],
+    "orientation" : {
+      "start" : { "x" : 0.15, "y" : 0.85 },
+      "stop" : { "x" : 0.85, "y" : 0.15 }
+    }
+  },
+  "fill-specializations" : [
+    {
+      "appearance" : "light",
+      "value" : {
+        "linear-gradient" : [
+          "srgb:0.039,0.220,0.169,1.0",
+          "srgb:0.098,0.580,0.416,1.0"
+        ],
+        "orientation" : {
+          "start" : { "x" : 0.15, "y" : 0.85 },
+          "stop" : { "x" : 0.85, "y" : 0.15 }
+        }
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "linear-gradient" : [
+          "srgb:0.002,0.012,0.031,1.0",
+          "srgb:0.043,0.275,0.208,1.0"
+        ],
+        "orientation" : {
+          "start" : { "x" : 0.15, "y" : 0.85 },
+          "stop" : { "x" : 0.85, "y" : 0.15 }
+        }
+      }
+    },
+    {
+      "appearance" : "tinted",
+      "value" : {
+        "linear-gradient" : [
+          "srgb:0.04,0.04,0.04,1.0",
+          "srgb:0.18,0.18,0.18,1.0"
+        ],
+        "orientation" : {
+          "start" : { "x" : 0.15, "y" : 0.85 },
+          "stop" : { "x" : 0.85, "y" : 0.15 }
+        }
+      }
+    }
+  ],
+  "groups" : [
+    {
+      "name" : "Background Chamber",
+      "blur-material" : 0.18,
+      "specular" : false,
+      "layers" : [
+        {
+          "name" : "Base Emerald Gradient",
+          "image-name" : "01-Background.png",
+          "glass" : false,
+          "opacity" : 1.0
+        }
+      ]
+    },
+    {
+      "name" : "Subsurface Caustic & Depth Shadow",
+      "blur-material" : 0.35,
+      "specular" : false,
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.45
+      },
+      "layers" : [
+        {
+          "name" : "Subsurface Glow",
+          "image-name" : "02-SubsurfaceGlow.png",
+          "glass" : true,
+          "opacity" : 0.92
+        }
+      ]
+    },
+    {
+      "name" : "Sculpted 3D Liquid Glass Note",
+      "blur-material" : 0.65,
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.78
+      },
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 0.55
+      },
+      "layers" : [
+        {
+          "name" : "Glass Beamed Eighth Note Body",
+          "image-name" : "03-GlassNoteBody.png",
+          "glass" : true,
+          "opacity" : 1.0
+        }
+      ]
+    },
+    {
+      "name" : "Prismatic Specular & Squircle Rim",
+      "blur-material" : 0.0,
+      "specular" : true,
+      "lighting" : "individual",
+      "layers" : [
+        {
+          "name" : "Chromatic Specular Highlights",
+          "image-name" : "04-SpecularRim.png",
+          "glass" : true,
+          "opacity" : 1.0
+        }
+      ]
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [ "watchOS" ],
+    "squares" : "shared"
+  }
+}
