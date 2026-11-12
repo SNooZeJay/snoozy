@@ -57,36 +57,54 @@ public struct PersistedAppState: Codable, Sendable {
 
 public final class SnoozyStore: @unchecked Sendable {
     private let lock = NSLock()
+    private let fileManager: FileManager
     private let storeURL: URL
     public let documentsURL: URL
     public let artworkCacheURL: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private var cachedState = PersistedAppState()
+    private var writesBlocked = false
+    public private(set) var recoveryNotice: String?
 
-    public init(fileManager: FileManager = .default) {
+    public convenience init(fileManager: FileManager = .default) {
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let snoozySupport = appSupport.appendingPathComponent("Snoozy", isDirectory: true)
         let docs = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let artCache = snoozySupport.appendingPathComponent("ArtworkCache", isDirectory: true)
+        self.init(
+            fileManager: fileManager,
+            supportDirectory: snoozySupport,
+            documentsDirectory: docs
+        )
+    }
 
-        try? fileManager.createDirectory(at: snoozySupport, withIntermediateDirectories: true)
+    init(
+        fileManager: FileManager = .default,
+        supportDirectory: URL,
+        documentsDirectory: URL
+    ) {
+        self.fileManager = fileManager
+
+        let artCache = supportDirectory.appendingPathComponent("ArtworkCache", isDirectory: true)
+
+        try? fileManager.createDirectory(at: supportDirectory, withIntermediateDirectories: true)
         try? fileManager.createDirectory(at: artCache, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: docs, withIntermediateDirectories: true)
+        try? fileManager.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
 
-        let readmeURL = docs.appendingPathComponent("Drop Music Files Here.txt")
+        let readmeURL = documentsDirectory.appendingPathComponent("Drop Music Files Here.txt")
         if !fileManager.fileExists(atPath: readmeURL.path) {
             let guide = """
             Snoozy Offline Music Folder (iPhone 13 mini)
             --------------------------------------------
-            Drop your MP3, FLAC, WAV, M4A, ALAC, AAC, AIFF, or OGG files (and .lrc lyrics files)
+            Drop your MP3, FLAC, WAV, M4A, or ALAC files (and .lrc lyrics files)
             directly into this 'Snoozy' folder in the iPhone Files app, or into any subfolder here.
             Then tap 'Scan' inside Snoozy to index them immediately.
             """
             try? guide.data(using: .utf8)?.write(to: readmeURL, options: .atomic)
         }
 
-        self.storeURL = snoozySupport.appendingPathComponent("snoozy-state-v1.json")
-        self.documentsURL = docs
+        self.storeURL = supportDirectory.appendingPathComponent("snoozy-state-v1.json")
+        self.documentsURL = documentsDirectory
         self.artworkCacheURL = artCache
 
         let enc = JSONEncoder()
@@ -98,35 +116,79 @@ public final class SnoozyStore: @unchecked Sendable {
     public func load() -> PersistedAppState {
         lock.lock()
         defer { lock.unlock() }
-        guard let data = try? Data(contentsOf: storeURL),
-              let decoded = try? decoder.decode(PersistedAppState.self, from: data)
-        else {
-            return PersistedAppState()
-        }
-        return decoded
+        let state = loadLocked()
+        cachedState = state
+        return state
     }
 
     public func save(_ state: PersistedAppState) {
         lock.lock()
         defer { lock.unlock() }
+        guard !writesBlocked else { return }
         guard let data = try? encoder.encode(state) else { return }
-        try? data.write(to: storeURL, options: .atomic)
+        do {
+            try data.write(to: storeURL, options: .atomic)
+            cachedState = state
+        } catch {
+            recoveryNotice = "Snoozy could not save changes. Your last saved library is unchanged."
+        }
     }
 
     public func update(_ transform: (inout PersistedAppState) -> Void) -> PersistedAppState {
         lock.lock()
         defer { lock.unlock() }
-        var current: PersistedAppState
-        if let data = try? Data(contentsOf: storeURL),
-           let decoded = try? decoder.decode(PersistedAppState.self, from: data) {
-            current = decoded
-        } else {
-            current = PersistedAppState()
-        }
+
+        var current = loadLocked()
+        guard !writesBlocked else { return current }
+
         transform(&current)
-        if let data = try? encoder.encode(current) {
-            try? data.write(to: storeURL, options: .atomic)
+        guard let data = try? encoder.encode(current) else { return current }
+        do {
+            try data.write(to: storeURL, options: .atomic)
+            cachedState = current
+        } catch {
+            recoveryNotice = "Snoozy could not save changes. Your last saved library is unchanged."
         }
         return current
+    }
+
+    private func loadLocked() -> PersistedAppState {
+        guard fileManager.fileExists(atPath: storeURL.path) else {
+            return PersistedAppState()
+        }
+
+        do {
+            let data = try Data(contentsOf: storeURL)
+            return try decoder.decode(PersistedAppState.self, from: data)
+        } catch is DecodingError {
+            quarantineCorruptStore()
+            return PersistedAppState()
+        } catch {
+            writesBlocked = true
+            recoveryNotice = "Snoozy could not open your saved library. To protect your data, changes are disabled for this session."
+            return cachedState
+        }
+    }
+
+    private func quarantineCorruptStore() {
+        let stamp = Int(Date().timeIntervalSince1970)
+        var backupURL = storeURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("snoozy-state-v1.corrupt-\(stamp).json")
+        var suffix = 1
+        while fileManager.fileExists(atPath: backupURL.path) {
+            backupURL = storeURL
+                .deletingLastPathComponent()
+                .appendingPathComponent("snoozy-state-v1.corrupt-\(stamp)-\(suffix).json")
+            suffix += 1
+        }
+
+        do {
+            try fileManager.moveItem(at: storeURL, to: backupURL)
+            recoveryNotice = "Snoozy could not read your saved library. The damaged file was preserved and a fresh library was started."
+        } catch {
+            writesBlocked = true
+            recoveryNotice = "Snoozy could not read or preserve your saved library. To protect your data, changes are disabled for this session."
+        }
     }
 }

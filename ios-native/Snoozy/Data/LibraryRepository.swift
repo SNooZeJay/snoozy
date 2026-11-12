@@ -41,6 +41,9 @@ public final class LibraryRepository: ObservableObject {
         self.store = store
         let loaded = store.load()
         applyPersistedState(loaded)
+        if let notice = store.recoveryNotice {
+            bannerMessage = notice
+        }
     }
 
     public func fileURL(for track: Track) -> URL {
@@ -53,11 +56,24 @@ public final class LibraryRepository: ObservableObject {
         defer { isScanning = false }
 
         let existingByPath = Dictionary(uniqueKeysWithValues: rawTracks.map { ($0.relativePath, $0) })
-        let scanned = await AudioScanner.scanDirectory(
+        guard let scanned = await AudioScanner.scanDirectory(
             documentsURL: store.documentsURL,
             artworkCacheURL: store.artworkCacheURL,
             existingTracksByPath: existingByPath
-        )
+        ) else {
+            let message = "Could not read your music folder. Existing library was kept."
+            bannerMessage = message
+            logError(category: "scan", message: message)
+            return
+        }
+
+        if scanned.isEmpty && !rawTracks.isEmpty {
+            let message = "No songs found. Existing library was kept. Check Files and rescan in Settings."
+            bannerMessage = message
+            logError(category: "scan", message: message)
+            return
+        }
+
         let validIds = Set(scanned.map(\.id))
 
         let updated = store.update { state in

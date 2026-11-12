@@ -28,7 +28,8 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     private var progressTimer: Timer? = nil
     private var ticksSinceSave: Int = 0
     private var coldStartRestored: Bool = false
-    private var maxListenedMsForActiveTrack: Int64 = 0
+    private var interruptionState = PlaybackInterruptionState()
+    private var listeningTracker = PlaybackListeningTracker()
     private var sessionStartedAtMs: Int64? = nil
     private var originalQueueTracks: [Track] = []
     private var isAppInForeground: Bool = true
@@ -132,7 +133,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         self.repeatMode = nextRepeat
         self.positionSeconds = 0.0
         self.durationSeconds = track.duration
-        self.maxListenedMsForActiveTrack = 0
+        self.listeningTracker.start(atMs: 0)
         self.playbackError = nil
 
         repository.recordRecent(track.id)
@@ -213,6 +214,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         let clamped = max(0.0, min(seconds, max(durationSeconds, 0.0)))
         audioPlayer?.currentTime = clamped
         positionSeconds = clamped
+        listeningTracker.reposition(toMs: Int64(clamped * 1000.0))
         persistSession()
         updateNowPlayingInfo()
     }
@@ -372,16 +374,12 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     }
 
     private func handleTrackFinished() {
-        if let active = activeTrack {
-            let fullMs = Int64(max(durationSeconds, active.duration) * 1000.0)
-            maxListenedMsForActiveTrack = max(maxListenedMsForActiveTrack, fullMs)
-        }
         flushCurrentPlayHistoryIfQualified()
 
         switch repeatMode {
         case .one:
             if let active = activeTrack {
-                maxListenedMsForActiveTrack = 0
+                listeningTracker.start(atMs: 0)
                 preparePlayer(for: active, seekTo: 0.0, autoPlay: true)
             }
         case .all:
@@ -408,7 +406,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         activeTrack = track
         positionSeconds = 0.0
         durationSeconds = track.duration
-        maxListenedMsForActiveTrack = 0
+        listeningTracker.start(atMs: 0)
         if autoPlay {
             repository.recordRecent(track.id)
         }
@@ -454,6 +452,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
                 positionSeconds = 0.0
             }
             self.audioPlayer = player
+            listeningTracker.reposition(toMs: Int64(positionSeconds * 1000.0))
 
             if autoPlay {
                 player.play()
@@ -515,9 +514,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             durationSeconds = player.duration
         }
         let posMs = Int64(pos * 1000.0)
-        if posMs > maxListenedMsForActiveTrack {
-            maxListenedMsForActiveTrack = posMs
-        }
+        listeningTracker.tick(positionMs: posMs, isPlaying: isPlaying)
 
         // Real-time lightweight audio-reactive level sampling (foreground only)
         let prefs = repository.preferences
@@ -550,13 +547,14 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
 
     private func flushCurrentPlayHistoryIfQualified() {
         guard let current = activeTrack else { return }
+        let listenedMs = listeningTracker.listenedMs
         if PlaybackQueueOps.shouldRecordPlay(
             durationSeconds: max(durationSeconds, current.duration),
-            listenedMs: maxListenedMsForActiveTrack
+            listenedMs: listenedMs
         ) {
-            repository.recordPlay(trackId: current.id, durationListenedMs: maxListenedMsForActiveTrack)
+            repository.recordPlay(trackId: current.id, durationListenedMs: listenedMs)
         }
-        maxListenedMsForActiveTrack = 0
+        listeningTracker.reset()
     }
 
     private func finishActiveListeningSession() {
@@ -832,13 +830,19 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             Task { @MainActor in
                 switch type {
                 case .began:
+                    self?.interruptionState.began(wasPlaying: self?.isPlaying ?? false)
                     self?.pause()
                 case .ended:
                     if let optVal = info[AVAudioSessionInterruptionOptionKey] as? UInt {
                         let options = AVAudioSession.InterruptionOptions(rawValue: optVal)
-                        if options.contains(.shouldResume) {
+                        let shouldResume = self?.interruptionState.ended(
+                            canResume: options.contains(.shouldResume)
+                        ) ?? false
+                        if shouldResume {
                             self?.togglePlayback()
                         }
+                    } else {
+                        _ = self?.interruptionState.ended(canResume: false)
                     }
                 @unknown default:
                     break

@@ -1,0 +1,40 @@
+name: iOS Unit Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  test:
+    name: Run Snoozy unit tests
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+
+      - name: Generate Xcode project
+        working-directory: ios-native
+        run: xcodegen generate
+
+      - name: Run unit tests
+        working-directory: ios-native
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild \
+            -project Snoozy.xcodeproj \
+            -scheme Snoozy \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,OS=latest,name=iPhone 16' \
+            -derivedDataPath build/TestDerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            test 2>&1 | tee build/xcodebuild-test.log

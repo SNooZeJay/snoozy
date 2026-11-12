@@ -78,3 +78,13 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Snoozy:
+    build:
+      targets:
+        Snoozy: all
+        SnoozyTests: [test]
+    test:
+      targets:
+        - SnoozyTests

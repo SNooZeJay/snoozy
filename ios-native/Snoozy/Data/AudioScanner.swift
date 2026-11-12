@@ -77,7 +77,7 @@ public enum AudioScanner {
         documentsURL: URL,
         artworkCacheURL: URL,
         existingTracksByPath: [String: Track] = [:]
-    ) async -> [Track] {
+    ) async -> [Track]? {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(
             at: documentsURL,
@@ -89,7 +89,7 @@ public enum AudioScanner {
             ],
             options: [.skipsHiddenFiles]
         ) else {
-            return []
+            return nil
         }
 
         var audioURLs: [URL] = []
@@ -414,19 +414,32 @@ public enum AudioScanner {
         to destURL: URL,
         fileManager: FileManager
     ) -> Bool {
-        if fileManager.fileExists(atPath: destURL.path) {
-            let srcSize = (try? fileManager.attributesOfItem(atPath: sourceURL.path)[.size] as? NSNumber)?.int64Value ?? -1
-            let dstSize = (try? fileManager.attributesOfItem(atPath: destURL.path)[.size] as? NSNumber)?.int64Value ?? -2
-            if srcSize > 0 && srcSize == dstSize {
-                return true
-            }
-            try? fileManager.removeItem(at: destURL)
-        }
+        let destination = uniqueDestinationURL(for: destURL, fileManager: fileManager)
         do {
-            try fileManager.copyItem(at: sourceURL, to: destURL)
+            try fileManager.copyItem(at: sourceURL, to: destination)
             return true
         } catch {
             return false
+        }
+    }
+
+    static func uniqueDestinationURL(for destURL: URL, fileManager: FileManager) -> URL {
+        guard fileManager.fileExists(atPath: destURL.path) else { return destURL }
+
+        let directory = destURL.deletingLastPathComponent()
+        let fileExtension = destURL.pathExtension
+        let baseName = destURL.deletingPathExtension().lastPathComponent
+
+        var index = 2
+        while true {
+            let candidateName = fileExtension.isEmpty
+                ? "\(baseName) (\(index))"
+                : "\(baseName) (\(index)).\(fileExtension)"
+            let candidate = directory.appendingPathComponent(candidateName)
+            if !fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            index += 1
         }
     }
 
