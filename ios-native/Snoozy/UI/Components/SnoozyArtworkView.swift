@@ -40,7 +40,8 @@ public enum SnoozyArtworkCache {
             guard let pt = pointSize, pt > 0 else { return 640 }
             if pt <= 64 { return 160 }
             if pt <= 180 { return 380 }
-            return 720
+            if pt <= 400 { return 720 }
+            return 1024
         }()
         let cacheKey = "\(path)#\(bucketPx)" as NSString
         if let hit = cache.object(forKey: cacheKey) {

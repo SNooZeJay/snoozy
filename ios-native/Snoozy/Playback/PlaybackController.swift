@@ -733,7 +733,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         format.opaque = true
 
         if let artPath = track.artworkPath,
-           let sourceImage = SnoozyArtworkCache.shared.image(forPath: artPath, pointSize: 512, scale: 2.0) ?? UIImage(contentsOfFile: artPath) {
+           let sourceImage = SnoozyArtworkCache.loadThumbnail(at: artPath, pointSize: 1024) ?? UIImage(contentsOfFile: artPath) {
             return UIGraphicsImageRenderer(size: canvasSize, format: format).image { ctx in
                 UIColor.black.setFill()
                 ctx.fill(CGRect(origin: .zero, size: canvasSize))
