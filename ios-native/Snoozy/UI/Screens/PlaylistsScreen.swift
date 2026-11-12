@@ -390,7 +390,7 @@ public struct PlaylistDetailScreen: View {
                                             glassMode: repository.preferences.glassMode,
                                             refractionIntensity: repository.preferences.refractionIntensity,
                                             tintColor: theme.accent,
-                                            elevation: .ultraClear
+                                            variant: .ultraClear
                                         )
                                 }
                                 .accessibilityLabel("Playlist options")

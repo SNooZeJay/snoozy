@@ -291,17 +291,20 @@ public struct SnoozyArtworkView: View {
     public let size: CGFloat?
     public let cornerRadius: CGFloat
     public let theme: SnoozyThemeColors
+    public let placeholderSymbol: String
 
     public init(
         artworkPath: String?,
         size: CGFloat? = 48,
         cornerRadius: CGFloat = 14,
-        theme: SnoozyThemeColors
+        theme: SnoozyThemeColors,
+        placeholderSymbol: String = "music.note"
     ) {
         self.artworkPath = artworkPath
         self.size = size
         self.cornerRadius = cornerRadius
         self.theme = theme
+        self.placeholderSymbol = placeholderSymbol
     }
 
     public var body: some View {
@@ -314,7 +317,7 @@ public struct SnoozyArtworkView: View {
                     .interpolation(.high)
                     .antialiased(true)
                     .scaledToFill()
-            } else if let brandImage = SnoozyBrandAssetLoader.loadBrandLogoImage() {
+            } else if placeholderSymbol == "music.note", let brandImage = SnoozyBrandAssetLoader.loadBrandLogoImage() {
                 Image(uiImage: brandImage)
                     .resizable()
                     .interpolation(.high)
@@ -331,7 +334,7 @@ public struct SnoozyArtworkView: View {
                         startPoint: .bottomLeading,
                         endPoint: .topTrailing
                     )
-                    Image(systemName: "music.note")
+                    Image(systemName: placeholderSymbol)
                         .font(.system(size: (size ?? 120) * 0.40, weight: .bold))
                         .foregroundStyle(
                             LinearGradient(
