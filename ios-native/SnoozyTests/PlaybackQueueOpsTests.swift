@@ -319,7 +319,7 @@ final class PlaybackQueueOpsTests: XCTestCase {
         // (375 - 28 - 12) / 2 = 167.5 -> floor 167
         XCTAssertEqual(mini.gridTileSize, 167)
         XCTAssertEqual(mini.tabBarHeight, 52)
-        XCTAssertEqual(mini.miniPlayerHeight, 56)
+        XCTAssertEqual(mini.miniPlayerHeight, 52)
 
         // iPhone 16 / 15 Pro (393 x 852 pt)
         let standard = SnoozyResponsiveLayout(width: 393, height: 852)

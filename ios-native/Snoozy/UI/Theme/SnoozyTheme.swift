@@ -259,6 +259,10 @@ public struct SnoozyResponsiveLayout: Equatable, Sendable {
         self.bottomChromeMaxWidth = landscape ? 460 : 500
     }
 
+    public var tabBarHeight: CGFloat {
+        tabBarPillHeight
+    }
+
     public var gridItems: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: gridColumnCount)
     }
@@ -268,6 +272,10 @@ public struct SnoozyResponsiveLayout: Equatable, Sendable {
             return tabBarPillHeight + miniPlayerHeight + (isCompactHeight ? 32 : 42)
         }
         return tabBarPillHeight + (isCompactHeight ? 24 : 32)
+    }
+
+    public func scrollBottomPadding(hasMiniPlayer: Bool) -> CGFloat {
+        scrollBottomPadding(hasActiveTrack: hasMiniPlayer)
     }
 
     public var nowPlayingArtworkSize: CGFloat {
