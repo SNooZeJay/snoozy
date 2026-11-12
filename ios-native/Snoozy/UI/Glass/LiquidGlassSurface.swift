@@ -422,32 +422,42 @@ public struct LiquidGlassThumblessSlider: View {
 }
 
 /// Hardware-accelerated native SwiftUI Aurora Mesh backdrop that breathes with the active track's artwork palette
-/// or Snoozy's signature Emerald & Deep Teal Liquid Glass aura.
+/// and reacts smoothly to real-time audio characteristics (Bass, Mid, High, and Overall energy).
 public struct LiquidAuraBackgroundView: View {
     public let theme: SnoozyThemeColors
     public let palette: ArtworkPalette
     public let preferences: SnoozyPreferences
     public let isImmersivePlayer: Bool
+    public let audioLevels: AudioReactiveLevels
 
     public init(
         theme: SnoozyThemeColors,
         palette: ArtworkPalette,
         preferences: SnoozyPreferences,
-        isImmersivePlayer: Bool = false
+        isImmersivePlayer: Bool = false,
+        audioLevels: AudioReactiveLevels = .zero
     ) {
         self.theme = theme
         self.palette = palette
         self.preferences = preferences
         self.isImmersivePlayer = isImmersivePlayer
+        self.audioLevels = audioLevels
     }
 
     public var body: some View {
         if !preferences.auraBackdropEnabled || preferences.glassMode == .reduceTransparency {
             theme.background.ignoresSafeArea()
         } else {
-            let intensity = isImmersivePlayer
+            let reactiveActive = preferences.audioReactiveAuraEnabled && preferences.motionMode != .reduced
+            let bass = reactiveActive ? audioLevels.bass : 0.0
+            let mid = reactiveActive ? audioLevels.mid : 0.0
+            let high = reactiveActive ? audioLevels.high : 0.0
+            let overall = reactiveActive ? audioLevels.overall : 0.0
+
+            let baseIntensity = isImmersivePlayer
                 ? max(0.78, preferences.auraBackdropIntensity)
                 : max(0.48, preferences.auraBackdropIntensity * 0.68)
+            let effectiveIntensity = min(1.0, baseIntensity + overall * 0.24)
 
             TimelineView(.animation(minimumInterval: preferences.motionMode == .reduced ? 2.0 : 1.0 / 24.0)) { timeline in
                 let t = preferences.motionMode == .reduced
@@ -461,65 +471,91 @@ public struct LiquidAuraBackgroundView: View {
                     ZStack {
                         theme.background
 
-                        // Orb 1: Primary Emerald / Artwork Top-Left Aura
+                        // Orb 1: Primary Bass-Reactive Artwork Aura (expands and brightens with low frequencies)
                         Circle()
                             .fill(
                                 RadialGradient(
                                     colors: [
-                                        palette.primary.opacity(0.52 * intensity),
-                                        palette.primary.opacity(0.16 * intensity),
+                                        palette.primary.opacity(min(0.92, (0.52 + bass * 0.28) * effectiveIntensity)),
+                                        palette.primary.opacity(min(0.48, (0.16 + bass * 0.14) * effectiveIntensity)),
                                         Color.clear
                                     ],
                                     center: .center,
                                     startRadius: 8,
-                                    endRadius: w * 0.78
+                                    endRadius: w * CGFloat(0.78 + bass * 0.18)
                                 )
                             )
                             .frame(width: w * 1.35, height: w * 1.35)
+                            .scaleEffect(1.0 + CGFloat(bass * 0.24))
                             .offset(
-                                x: -w * 0.24 + CGFloat(cos(t * 0.32)) * 28.0,
-                                y: -h * 0.26 + CGFloat(sin(t * 0.38)) * 24.0
+                                x: -w * 0.24 + CGFloat(cos(t * 0.34)) * CGFloat(28.0 + bass * 22.0),
+                                y: -h * 0.26 + CGFloat(sin(t * 0.40)) * CGFloat(24.0 + bass * 18.0)
                             )
 
-                        // Orb 2: Secondary Cyan-Teal / Artwork Center-Right Aura
+                        // Orb 2: Secondary Mid-Frequency Fluid Wave Aura (subtle waves and fluid motion)
                         Circle()
                             .fill(
                                 RadialGradient(
                                     colors: [
-                                        palette.secondary.opacity(0.44 * intensity),
-                                        theme.accent.opacity(0.18 * intensity),
+                                        palette.secondary.opacity(min(0.88, (0.44 + mid * 0.26) * effectiveIntensity)),
+                                        theme.accent.opacity(min(0.46, (0.18 + mid * 0.14) * effectiveIntensity)),
                                         Color.clear
                                     ],
                                     center: .center,
                                     startRadius: 10,
-                                    endRadius: w * 0.72
+                                    endRadius: w * CGFloat(0.72 + mid * 0.16)
                                 )
                             )
                             .frame(width: w * 1.25, height: w * 1.25)
+                            .scaleEffect(x: 1.0 + CGFloat(mid * 0.18), y: 1.0 + CGFloat(bass * 0.10))
                             .offset(
-                                x: w * 0.28 + CGFloat(sin(t * 0.27)) * 26.0,
-                                y: h * 0.04 + CGFloat(cos(t * 0.31)) * 30.0
+                                x: w * 0.28 + CGFloat(sin(t * 0.29 + mid * 1.3)) * CGFloat(26.0 + mid * 28.0),
+                                y: h * 0.04 + CGFloat(cos(t * 0.33 + mid * 1.1)) * CGFloat(30.0 + mid * 24.0)
                             )
 
-                        // Orb 3: Tertiary Deep Emerald / Artwork Bottom Glow (illuminates floating Liquid Glass tab pill)
+                        // Orb 3: Tertiary Deep Aura & Overall Energy Expansion (illuminates floating Liquid Glass pill)
                         Circle()
                             .fill(
                                 RadialGradient(
                                     colors: [
-                                        palette.tertiary.opacity(0.48 * intensity),
-                                        theme.accentStrong.opacity(0.22 * intensity),
+                                        palette.tertiary.opacity(min(0.86, (0.48 + overall * 0.24) * effectiveIntensity)),
+                                        theme.accentStrong.opacity(min(0.45, (0.22 + bass * 0.14) * effectiveIntensity)),
                                         Color.clear
                                     ],
                                     center: .center,
                                     startRadius: 8,
-                                    endRadius: w * 0.75
+                                    endRadius: w * CGFloat(0.75 + overall * 0.15)
                                 )
                             )
                             .frame(width: w * 1.30, height: w * 1.30)
+                            .scaleEffect(1.0 + CGFloat(overall * 0.16))
                             .offset(
-                                x: CGFloat(sin(t * 0.22 + 1.2)) * 32.0,
-                                y: h * 0.36 + CGFloat(cos(t * 0.34)) * 20.0
+                                x: CGFloat(sin(t * 0.24 + 1.2)) * CGFloat(32.0 + mid * 20.0),
+                                y: h * 0.36 + CGFloat(cos(t * 0.35)) * CGFloat(20.0 + bass * 16.0)
                             )
+
+                        // Orb 4: High-Frequency Specular Shimmer Highlight (finer visual details on treble/transients)
+                        if high > 0.02 || isImmersivePlayer {
+                            Circle()
+                                .fill(
+                                    RadialGradient(
+                                        colors: [
+                                            Color.white.opacity(min(0.34, (0.06 + high * 0.26) * effectiveIntensity)),
+                                            palette.primary.opacity(min(0.42, (0.08 + high * 0.24) * effectiveIntensity)),
+                                            Color.clear
+                                        ],
+                                        center: .center,
+                                        startRadius: 4,
+                                        endRadius: w * CGFloat(0.46 + high * 0.18)
+                                    )
+                                )
+                                .frame(width: w * 0.92, height: w * 0.92)
+                                .scaleEffect(0.92 + CGFloat(high * 0.28))
+                                .offset(
+                                    x: CGFloat(cos(t * 0.52 + high * 1.6)) * CGFloat(36.0 + high * 24.0),
+                                    y: -h * 0.08 + CGFloat(sin(t * 0.48 + mid * 1.2)) * CGFloat(28.0 + high * 20.0)
+                                )
+                        }
                     }
                     .frame(width: w, height: h)
                     .clipped()

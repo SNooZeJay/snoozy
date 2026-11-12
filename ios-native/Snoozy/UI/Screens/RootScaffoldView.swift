@@ -201,7 +201,8 @@ public struct RootScaffoldView: View {
                 LiquidAuraBackgroundView(
                     theme: theme,
                     palette: playback.activePalette,
-                    preferences: repository.preferences
+                    preferences: repository.preferences,
+                    audioLevels: playback.audioLevels
                 )
 
                 NavigationStack(path: $navPath) {
@@ -508,38 +509,30 @@ public struct RootScaffoldView: View {
                 isTabBarMinimized = false
             }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: selectedTab.systemImage)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(theme.accent)
-                if playback.activeTrack == nil {
-                    Text(selectedTab.label)
-                        .font(SnoozyTypography.caption(12, bold: true))
-                        .foregroundStyle(theme.ink)
-                }
-            }
-            .padding(.horizontal, playback.activeTrack == nil ? 16 : 0)
-            .frame(minWidth: 56, minHeight: 56)
-            .liquidGlassSurface(
-                cornerRadius: 28,
-                glassMode: repository.preferences.glassMode,
-                refractionIntensity: repository.preferences.refractionIntensity,
-                tintColor: theme.accent,
-                variant: .ultraClear
-            )
-            .shadow(color: Color.black.opacity(theme.isDark ? 0.36 : 0.14), radius: 14, x: 0, y: 6)
+            Image(systemName: selectedTab.systemImage)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(theme.accent)
+                .frame(width: 54, height: 54)
+                .liquidGlassSurface(
+                    cornerRadius: 27,
+                    glassMode: repository.preferences.glassMode,
+                    refractionIntensity: repository.preferences.refractionIntensity,
+                    tintColor: theme.accent,
+                    variant: .ultraClear
+                )
+                .shadow(color: Color.black.opacity(theme.isDark ? 0.36 : 0.14), radius: 14, x: 0, y: 6)
         }
         .buttonStyle(LiquidGlassInteractiveBounceStyle(scale: 0.90))
         .accessibilityLabel("Expand navigation tab bar (\(selectedTab.label))")
     }
 
-    /// Floating pill-shaped Liquid Glass navigation bar with Instagram-inspired continuous indicator motion.
+    /// Floating pill-shaped Liquid Glass navigation bar with Instagram-inspired icon-only continuous indicator motion.
     private func floatingLiquidGlassTabBar(indicatorProgress: Double) -> some View {
         let tabs = RootTab.allCases
         let tabCount = tabs.count
         let horizontalInset: CGFloat = 6.0
-        let pillHeight: CGFloat = 62.0
-        let indicatorHeight: CGFloat = 50.0
+        let pillHeight: CGFloat = 56.0
+        let indicatorHeight: CGFloat = 44.0
 
         return GeometryReader { geo in
             let innerWidth = max(1.0, geo.size.width - horizontalInset * 2.0)
@@ -559,7 +552,7 @@ public struct RootScaffoldView: View {
                     .scaleEffect(x: 1.0, y: dropletScaleY)
                     .position(x: indicatorCenterX, y: pillHeight * 0.5)
 
-                // 2. Interactive Tab Items Synchronized with Gliding Indicator
+                // 2. Icon-Only Interactive Tab Items Synchronized with Gliding Indicator
                 HStack(spacing: 0) {
                     ForEach(tabs) { tab in
                         let distance = abs(indicatorProgress - Double(tab.index))
@@ -569,19 +562,16 @@ public struct RootScaffoldView: View {
                         Button {
                             selectTabWithSpring(tab)
                         } label: {
-                            VStack(spacing: 3) {
-                                Image(systemName: tab.systemImage)
-                                    .font(.system(size: 17, weight: isFocused ? .bold : .medium))
-                                    .scaleEffect(1.0 + CGFloat(proximity) * 0.08)
-                                Text(tab.label)
-                                    .font(SnoozyTypography.caption(10, bold: isFocused))
-                            }
-                            .foregroundStyle(isFocused ? theme.accentInk : theme.ink.opacity(0.68 + 0.25 * proximity))
-                            .frame(width: slotWidth, height: indicatorHeight)
-                            .contentShape(Rectangle())
+                            Image(systemName: tab.systemImage)
+                                .font(.system(size: 19, weight: isFocused ? .bold : .medium))
+                                .scaleEffect(1.0 + CGFloat(proximity) * 0.10)
+                                .foregroundStyle(isFocused ? theme.accentInk : theme.ink.opacity(0.64 + 0.28 * proximity))
+                                .frame(width: slotWidth, height: pillHeight)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(tab.label)
+                        .accessibilityAddTraits(isFocused ? .isSelected : [])
                     }
                 }
                 .padding(.horizontal, horizontalInset)

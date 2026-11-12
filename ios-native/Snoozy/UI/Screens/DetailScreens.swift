@@ -30,7 +30,7 @@ public struct AlbumDetailScreen: View {
 
     private var tracks: [Track] {
         guard let album else { return [] }
-        let byId = Dictionary(uniqueKeysWithValues: repository.tracks.map { ($0.id, $0) })
+        let byId = repository.tracksById
         return album.trackIds.compactMap { byId[$0] }
     }
 
@@ -152,7 +152,8 @@ public struct AlbumDetailScreen: View {
             LiquidAuraBackgroundView(
                 theme: theme,
                 palette: playback.activePalette,
-                preferences: repository.preferences
+                preferences: repository.preferences,
+                audioLevels: playback.audioLevels
             )
         )
         .navigationTitle(album?.title ?? "Album")
@@ -284,7 +285,8 @@ public struct ArtistDetailScreen: View {
             LiquidAuraBackgroundView(
                 theme: theme,
                 palette: playback.activePalette,
-                preferences: repository.preferences
+                preferences: repository.preferences,
+                audioLevels: playback.audioLevels
             )
         )
         .navigationTitle(artistName)
@@ -364,7 +366,8 @@ public struct GenreDetailScreen: View {
             LiquidAuraBackgroundView(
                 theme: theme,
                 palette: playback.activePalette,
-                preferences: repository.preferences
+                preferences: repository.preferences,
+                audioLevels: playback.audioLevels
             )
         )
         .navigationTitle(genreName)
@@ -455,7 +458,8 @@ public struct FolderDetailScreen: View {
             LiquidAuraBackgroundView(
                 theme: theme,
                 palette: playback.activePalette,
-                preferences: repository.preferences
+                preferences: repository.preferences,
+                audioLevels: playback.audioLevels
             )
         )
         .navigationTitle(folderName)

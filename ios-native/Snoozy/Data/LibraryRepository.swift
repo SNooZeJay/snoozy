@@ -8,7 +8,18 @@ public final class LibraryRepository: ObservableObject {
 
     @Published public private(set) var rawTracks: [Track] = []
     @Published public private(set) var tracks: [Track] = []
+    @Published public private(set) var tracksById: [String: Track] = [:]
+    @Published public private(set) var sortedSongs: [Track] = []
     @Published public private(set) var albums: [Album] = []
+    @Published public private(set) var sortedAlbums: [Album] = []
+    @Published public private(set) var artistNames: [String] = []
+    @Published public private(set) var genreNames: [String] = []
+    @Published public private(set) var folderNames: [String] = []
+    @Published public private(set) var favoriteTracks: [Track] = []
+    @Published public private(set) var recentTracks: [Track] = []
+    @Published public private(set) var recentlyPlayedAlbums: [Album] = []
+    @Published public private(set) var recentlyAddedAlbums: [Album] = []
+    @Published public private(set) var mostPlayedTracks: [PlayedTrackSummary] = []
     @Published public private(set) var playlists: [Playlist] = []
     @Published public private(set) var recents: [String] = []
     @Published public private(set) var favoriteTrackIds: Set<String> = []
@@ -249,7 +260,95 @@ public final class LibraryRepository: ObservableObject {
         applyPersistedState(updated)
     }
 
-    public var sortedSongs: [Track] {
+    public func searchLibrary(query: String) -> LibrarySearchResults {
+        Self.filterLibrary(
+            query: query,
+            sortedSongs: sortedSongs,
+            sortedAlbums: sortedAlbums,
+            artistNames: artistNames,
+            playlists: playlists,
+            folderNames: folderNames,
+            genreNames: genreNames
+        )
+    }
+
+    public static func filterLibrary(
+        query: String,
+        sortedSongs: [Track],
+        sortedAlbums: [Album],
+        artistNames: [String],
+        playlists: [Playlist],
+        folderNames: [String] = [],
+        genreNames: [String] = []
+    ) -> LibrarySearchResults {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return LibrarySearchResults(
+                songs: sortedSongs,
+                albums: sortedAlbums,
+                artists: artistNames,
+                playlists: playlists,
+                folders: folderNames,
+                genres: genreNames
+            )
+        }
+
+        let tokens = trimmed
+            .lowercased()
+            .split(whereSeparator: { $0.isWhitespace })
+            .map(String.init)
+
+        let matchedSongs = sortedSongs.filter { track in
+            let haystack = [
+                track.title,
+                track.artist,
+                track.album,
+                track.albumArtist ?? "",
+                track.composer ?? "",
+                track.genre ?? "",
+                track.folderName
+            ]
+            .joined(separator: " ")
+            .lowercased()
+            return tokens.allSatisfy { haystack.contains($0) }
+        }
+
+        let matchedAlbums = sortedAlbums.filter { album in
+            let haystack = "\(album.title) \(album.artist) \(album.year ?? "")".lowercased()
+            return tokens.allSatisfy { haystack.contains($0) }
+        }
+
+        let matchedArtists = artistNames.filter { name in
+            let lower = name.lowercased()
+            return tokens.allSatisfy { lower.contains($0) }
+        }
+
+        let matchedPlaylists = playlists.filter { playlist in
+            let lower = playlist.name.lowercased()
+            return tokens.allSatisfy { lower.contains($0) }
+        }
+
+        let matchedFolders = folderNames.filter { folder in
+            let lower = folder.lowercased()
+            return tokens.allSatisfy { lower.contains($0) }
+        }
+
+        let matchedGenres = genreNames.filter { genre in
+            let lower = genre.lowercased()
+            return tokens.allSatisfy { lower.contains($0) }
+        }
+
+        return LibrarySearchResults(
+            songs: matchedSongs,
+            albums: matchedAlbums,
+            artists: matchedArtists,
+            playlists: matchedPlaylists,
+            folders: matchedFolders,
+            genres: matchedGenres
+        )
+    }
+
+    public static func sortTracks(_ tracks: [Track], by songSort: SongSort) -> [Track] {
         switch songSort {
         case .title:
             return tracks.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
@@ -266,7 +365,7 @@ public final class LibraryRepository: ObservableObject {
         }
     }
 
-    public var sortedAlbums: [Album] {
+    public static func sortAlbums(_ albums: [Album], by albumSort: AlbumSort) -> [Album] {
         switch albumSort {
         case .title:
             return albums.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
@@ -277,64 +376,6 @@ public final class LibraryRepository: ObservableObject {
         case .recentlyAdded:
             return albums.sorted { $0.addedAt > $1.addedAt }
         }
-    }
-
-    public var artistNames: [String] {
-        let names = Set(tracks.map { $0.artist.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
-        return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-    }
-
-    public var genreNames: [String] {
-        let names = Set(tracks.compactMap { $0.genre?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
-        return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-    }
-
-    public var folderNames: [String] {
-        let names = Set(tracks.map(\.folderName))
-        return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-    }
-
-    public var favoriteTracks: [Track] {
-        tracks.filter { favoriteTrackIds.contains($0.id) }
-    }
-
-    public var recentTracks: [Track] {
-        let byId = Dictionary(uniqueKeysWithValues: tracks.map { ($0.id, $0) })
-        return Array(recents.compactMap { byId[$0] }.prefix(12))
-    }
-
-    public var recentlyPlayedAlbums: [Album] {
-        let albumsByKey = Dictionary(uniqueKeysWithValues: albums.map { ($0.id, $0) })
-        var seen = Set<String>()
-        var result: [Album] = []
-        for track in recentTracks {
-            let key = track.albumKey
-            if !seen.contains(key), let album = albumsByKey[key] {
-                seen.insert(key)
-                result.append(album)
-            }
-        }
-        return Array(result.prefix(10))
-    }
-
-    public var recentlyAddedAlbums: [Album] {
-        Array(albums.sorted { $0.addedAt > $1.addedAt }.prefix(12))
-    }
-
-    public var mostPlayedTracks: [PlayedTrackSummary] {
-        let byId = Dictionary(uniqueKeysWithValues: tracks.map { ($0.id, $0) })
-        var counts: [String: Int] = [:]
-        for entry in playHistory {
-            counts[entry.trackId, default: 0] += 1
-        }
-        return counts
-            .compactMap { id, count -> PlayedTrackSummary? in
-                guard let track = byId[id], count > 0 else { return nil }
-                return PlayedTrackSummary(track: track, plays: count)
-            }
-            .sorted { $0.plays > $1.plays }
-            .prefix(10)
-            .map { $0 }
     }
 
     public func tracksForArtist(_ artist: String) -> [Track] {
@@ -596,7 +637,54 @@ public final class LibraryRepository: ObservableObject {
         }
         resolvedTracks = AudioScanner.propagateSharedFolderArtworkAndCompilations(resolvedTracks)
         self.tracks = resolvedTracks
-        self.albums = Self.buildAlbums(from: resolvedTracks, overrides: state.albumOverrides)
+        let byId = Dictionary(uniqueKeysWithValues: resolvedTracks.map { ($0.id, $0) })
+        self.tracksById = byId
+
+        let builtAlbums = Self.buildAlbums(from: resolvedTracks, overrides: state.albumOverrides)
+        self.albums = builtAlbums
+        self.sortedSongs = Self.sortTracks(resolvedTracks, by: state.songSort)
+        self.sortedAlbums = Self.sortAlbums(builtAlbums, by: state.albumSort)
+
+        let artistsSet = Set(resolvedTracks.map { $0.artist.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+        self.artistNames = artistsSet.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+
+        let genresSet = Set(resolvedTracks.compactMap { $0.genre?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+        self.genreNames = genresSet.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+
+        let foldersSet = Set(resolvedTracks.map(\.folderName))
+        self.folderNames = foldersSet.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+
+        let favSet = Set(state.favoriteTrackIds)
+        self.favoriteTracks = self.sortedSongs.filter { favSet.contains($0.id) }
+
+        let resolvedRecents = Array(state.recents.compactMap { byId[$0] }.prefix(12))
+        self.recentTracks = resolvedRecents
+
+        let albumsByKey = Dictionary(uniqueKeysWithValues: builtAlbums.map { ($0.id, $0) })
+        var seenAlbumKeys = Set<String>()
+        var recentAlb: [Album] = []
+        for track in resolvedRecents {
+            let key = track.albumKey
+            if !seenAlbumKeys.contains(key), let album = albumsByKey[key] {
+                seenAlbumKeys.insert(key)
+                recentAlb.append(album)
+            }
+        }
+        self.recentlyPlayedAlbums = Array(recentAlb.prefix(10))
+        self.recentlyAddedAlbums = Array(builtAlbums.sorted { $0.addedAt > $1.addedAt }.prefix(12))
+
+        var counts: [String: Int] = [:]
+        for entry in state.playHistory {
+            counts[entry.trackId, default: 0] += 1
+        }
+        self.mostPlayedTracks = counts
+            .compactMap { id, count -> PlayedTrackSummary? in
+                guard let track = byId[id], count > 0 else { return nil }
+                return PlayedTrackSummary(track: track, plays: count)
+            }
+            .sorted { $0.plays > $1.plays }
+            .prefix(10)
+            .map { $0 }
     }
 
     public static func buildAlbums(

@@ -10,43 +10,41 @@ public struct SettingsScreen: View {
     @State private var showClearHistoryAlert: Bool = false
     @State private var showErrorLogSheet: Bool = false
 
+    private static let speedChoices: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+
     public var body: some View {
         let prefs = repository.preferences
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .center, spacing: 12) {
                     SnoozyBrandIconView(size: 40)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Settings")
-                            .font(SnoozyTypography.display(30))
-                            .foregroundStyle(theme.ink)
-
-                        Text("iOS 27 Liquid Glass · iPhone 13 mini edition")
-                            .font(SnoozyTypography.footnote(12))
-                            .foregroundStyle(theme.inkMuted)
-                    }
+                    Text("Settings")
+                        .font(SnoozyTypography.display(30))
+                        .foregroundStyle(theme.ink)
 
                     Spacer()
                 }
 
-                liquidGlassCard(prefs: prefs)
-                appearanceCard(prefs: prefs)
-                offlineLibraryCard(prefs: prefs)
-                diagnosticsCard(prefs: prefs)
+                playbackSection(prefs: prefs)
+                librarySection(prefs: prefs)
+                appearanceSection(prefs: prefs)
+                audioAndEffectsSection(prefs: prefs)
+                storageSection(prefs: prefs)
+                aboutSection(prefs: prefs)
             }
             .padding(.horizontal, 16)
             .padding(.top, 10)
             .padding(.bottom, playback.activeTrack != nil ? 176 : 112)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .alert("Clear listening history?", isPresented: $showClearHistoryAlert) {
+        .alert("Clear Listening History?", isPresented: $showClearHistoryAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) {
                 repository.clearRecentsAndHistory()
             }
         } message: {
-            Text("Recently played songs, play counts, and listening sessions will be cleared.")
+            Text("Clears recently played songs, play counts, and listening sessions.")
         }
         .sheet(isPresented: $showErrorLogSheet) {
             DiagnosticsLogSheetView(
@@ -57,326 +55,543 @@ public struct SettingsScreen: View {
         }
     }
 
-    private func liquidGlassCard(prefs: SnoozyPreferences) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(theme.accent)
-                Text("iOS 27 Liquid Glass Engine")
-                    .font(SnoozyTypography.headline(17))
-                    .foregroundStyle(theme.ink)
-            }
+    // MARK: - 1. Playback
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Surface Material")
-                    .font(SnoozyTypography.caption(12, bold: true))
-                    .foregroundStyle(theme.inkMuted)
+    private func playbackSection(prefs: SnoozyPreferences) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Playback", icon: "play.circle.fill")
 
-                HStack(spacing: 8) {
-                    ForEach(GlassMode.allCases, id: \.self) { (mode: GlassMode) in
-                        let selected = (prefs.glassMode == mode)
-                        let shortLabel: String = {
-                            switch mode {
-                            case .liquidGlass: return "Liquid Glass"
-                            case .frosted: return "Frosted"
-                            case .reduceTransparency: return "Solid"
-                            }
-                        }()
-                        Button {
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.80)) {
-                                repository.updatePreferences { $0.glassMode = mode }
-                            }
-                        } label: {
-                            Text(shortLabel)
-                                .font(SnoozyTypography.caption(12, bold: true))
-                                .foregroundStyle(selected ? theme.accentInk : theme.ink)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 36)
-                                .liquidGlassSurface(
-                                    cornerRadius: 18,
-                                    glassMode: prefs.glassMode,
-                                    refractionIntensity: prefs.refractionIntensity,
-                                    tintColor: theme.accent,
-                                    isProminent: selected,
-                                    variant: .ultraClear
-                                )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-
-            if prefs.glassMode == .liquidGlass {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Lens Refraction & Chromatic Dispersion")
-                            .font(SnoozyTypography.caption(12, bold: true))
-                            .foregroundStyle(theme.inkMuted)
-                        Spacer()
-                        Text("\(Int((prefs.refractionIntensity * 100).rounded()))%")
-                            .font(SnoozyTypography.caption(12, bold: true))
-                            .foregroundStyle(theme.accent)
-                    }
-                    Slider(
-                        value: Binding(
-                            get: { prefs.refractionIntensity },
-                            set: { val in repository.updatePreferences { $0.refractionIntensity = val } }
-                        ),
-                        in: 0.0...1.0
-                    )
-                    .tint(theme.accent)
-                }
-            }
-
-            Toggle(
-                isOn: Binding(
-                    get: { prefs.auraBackdropEnabled },
-                    set: { enabled in repository.updatePreferences { $0.auraBackdropEnabled = enabled } }
-                )
-            ) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Dynamic Artwork Aura Backdrop")
-                        .font(SnoozyTypography.body(14, bold: true))
+            SnoozyGroupedCard(theme: theme, preferences: prefs) {
+                HStack {
+                    Text("Playback Speed")
+                        .font(SnoozyTypography.body(15, bold: true))
                         .foregroundStyle(theme.ink)
-                    Text("Real-time Metal fluid mesh tinted by album artwork")
-                        .font(SnoozyTypography.footnote(12))
-                        .foregroundStyle(theme.inkMuted)
-                }
-            }
-            .tint(theme.accent)
-
-            if prefs.auraBackdropEnabled {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Aura Intensity")
-                            .font(SnoozyTypography.caption(12, bold: true))
-                            .foregroundStyle(theme.inkMuted)
-                        Spacer()
-                        Text("\(Int((prefs.auraBackdropIntensity * 100).rounded()))%")
-                            .font(SnoozyTypography.caption(12, bold: true))
-                            .foregroundStyle(theme.accent)
+                    Spacer()
+                    Menu {
+                        ForEach(Self.speedChoices, id: \.self) { rate in
+                            Button {
+                                playback.setSpeed(rate)
+                            } label: {
+                                HStack {
+                                    Text(String(format: "%.2gx", rate))
+                                    if abs(playback.playbackRate - rate) < 0.01 {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(String(format: "%.2gx", playback.playbackRate))
+                                .font(SnoozyTypography.body(14, bold: true))
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(theme.accent)
                     }
-                    Slider(
-                        value: Binding(
-                            get: { prefs.auraBackdropIntensity },
-                            set: { val in repository.updatePreferences { $0.auraBackdropIntensity = val } }
-                        ),
-                        in: 0.1...1.0
-                    )
-                    .tint(theme.accent)
                 }
-            }
-        }
-        .padding(16)
-        .liquidGlassSurface(
-            cornerRadius: 24,
-            glassMode: prefs.glassMode,
-            refractionIntensity: prefs.refractionIntensity,
-            tintColor: theme.accent
-        )
-    }
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
 
-    private func appearanceCard(prefs: SnoozyPreferences) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Image(systemName: "paintpalette.fill")
-                    .foregroundStyle(theme.accent)
-                Text("Appearance & Motion")
-                    .font(SnoozyTypography.headline(17))
-                    .foregroundStyle(theme.ink)
-            }
+                rowDivider
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Theme Mode")
-                    .font(SnoozyTypography.caption(12, bold: true))
-                    .foregroundStyle(theme.inkMuted)
-                Picker(
-                    "Theme Mode",
-                    selection: Binding(
-                        get: { prefs.themeMode },
-                        set: { mode in repository.updatePreferences { $0.themeMode = mode } }
+                Toggle(
+                    isOn: Binding(
+                        get: { playback.shuffle },
+                        set: { newValue in
+                            if playback.shuffle != newValue {
+                                playback.toggleShuffle()
+                            }
+                        }
                     )
                 ) {
-                    ForEach(ThemeMode.allCases, id: \.self) { mode in
-                        Text(mode.label).tag(mode)
+                    Text("Shuffle")
+                        .font(SnoozyTypography.body(15, bold: true))
+                        .foregroundStyle(theme.ink)
+                }
+                .tint(theme.accent)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
+
+                rowDivider
+
+                HStack {
+                    Text("Repeat")
+                        .font(SnoozyTypography.body(15, bold: true))
+                        .foregroundStyle(theme.ink)
+                    Spacer()
+                    Button {
+                        playback.cycleRepeat()
+                    } label: {
+                        Text(playback.repeatMode.label)
+                            .font(SnoozyTypography.body(14, bold: true))
+                            .foregroundStyle(theme.accent)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
+
+                rowDivider
+
+                Toggle(
+                    isOn: Binding(
+                        get: { prefs.hapticsEnabled },
+                        set: { enabled in repository.updatePreferences { $0.hapticsEnabled = enabled } }
+                    )
+                ) {
+                    Text("Haptics")
+                        .font(SnoozyTypography.body(15, bold: true))
+                        .foregroundStyle(theme.ink)
+                }
+                .tint(theme.accent)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
+            }
+        }
+    }
+
+    // MARK: - 2. Library
+
+    private func librarySection(prefs: SnoozyPreferences) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Library", icon: "folder.fill")
+
+            SnoozyGroupedCard(theme: theme, preferences: prefs) {
+                HStack(spacing: 8) {
+                    LiquidGlassButton(
+                        title: "Import Files",
+                        systemImage: "doc.badge.plus",
+                        isProminent: true,
+                        theme: theme,
+                        preferences: prefs,
+                        action: onImportFiles
+                    )
+                    LiquidGlassButton(
+                        title: "Import Folder",
+                        systemImage: "folder.badge.plus",
+                        theme: theme,
+                        preferences: prefs,
+                        action: onImportFolder
+                    )
+                    LiquidGlassIconButton(
+                        systemImage: "arrow.clockwise",
+                        accessibilityLabel: "Rescan library",
+                        size: 46,
+                        theme: theme,
+                        preferences: prefs
+                    ) {
+                        Task { await repository.scanLibrary() }
                     }
                 }
-                .pickerStyle(.segmented)
-            }
+                .padding(12)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Accent Palette")
-                    .font(SnoozyTypography.caption(12, bold: true))
-                    .foregroundStyle(theme.inkMuted)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                rowDivider
+
+                HStack {
+                    Text("Sort Songs")
+                        .font(SnoozyTypography.body(15, bold: true))
+                        .foregroundStyle(theme.ink)
+                    Spacer()
+                    Menu {
+                        ForEach(SongSort.allCases, id: \.self) { sort in
+                            Button {
+                                repository.setSongSort(sort)
+                            } label: {
+                                HStack {
+                                    Text(sort.label)
+                                    if repository.songSort == sort {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(repository.songSort.label)
+                                .font(SnoozyTypography.body(14, bold: true))
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(theme.accent)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
+
+                rowDivider
+
+                HStack {
+                    Text("Sort Albums")
+                        .font(SnoozyTypography.body(15, bold: true))
+                        .foregroundStyle(theme.ink)
+                    Spacer()
+                    Menu {
+                        ForEach(AlbumSort.allCases, id: \.self) { sort in
+                            Button {
+                                repository.setAlbumSort(sort)
+                            } label: {
+                                HStack {
+                                    Text(sort.label)
+                                    if repository.albumSort == sort {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(repository.albumSort.label)
+                                .font(SnoozyTypography.body(14, bold: true))
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(theme.accent)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
+            }
+        }
+    }
+
+    // MARK: - 3. Appearance
+
+    private func appearanceSection(prefs: SnoozyPreferences) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Appearance", icon: "paintpalette.fill")
+
+            SnoozyGroupedCard(theme: theme, preferences: prefs) {
+                HStack {
+                    Text("Theme")
+                        .font(SnoozyTypography.body(15, bold: true))
+                        .foregroundStyle(theme.ink)
+                    Spacer()
+                    Picker(
+                        "Theme",
+                        selection: Binding(
+                            get: { prefs.themeMode },
+                            set: { mode in repository.updatePreferences { $0.themeMode = mode } }
+                        )
+                    ) {
+                        ForEach(ThemeMode.allCases, id: \.self) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 196)
+                }
+                .padding(.horizontal, 16)
+                .frame(minHeight: 50)
+
+                rowDivider
+
+                HStack {
+                    Text("Accent Color")
+                        .font(SnoozyTypography.body(15, bold: true))
+                        .foregroundStyle(theme.ink)
+                    Spacer()
+                    Menu {
                         ForEach(PaletteSeed.allCases, id: \.self) { seed in
-                            let selected = (prefs.paletteSeed == seed)
                             Button {
                                 repository.updatePreferences { $0.paletteSeed = seed }
                             } label: {
-                                Text(seed.label)
-                                    .font(SnoozyTypography.caption(12, bold: true))
-                                    .foregroundStyle(selected ? theme.accentInk : theme.ink)
-                                    .padding(.horizontal, 12)
-                                    .frame(height: 34)
-                                    .liquidGlassSurface(
-                                        cornerRadius: 17,
-                                        glassMode: prefs.glassMode,
-                                        refractionIntensity: prefs.refractionIntensity,
-                                        tintColor: theme.accent,
-                                        isProminent: selected
-                                    )
+                                HStack {
+                                    Text(seed.label)
+                                    if prefs.paletteSeed == seed {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
                             }
-                            .buttonStyle(.plain)
                         }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(shortPaletteLabel(prefs.paletteSeed))
+                                .font(SnoozyTypography.body(14, bold: true))
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(theme.accent)
                     }
                 }
-            }
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Motion")
-                    .font(SnoozyTypography.caption(12, bold: true))
-                    .foregroundStyle(theme.inkMuted)
-                Picker(
-                    "Motion",
-                    selection: Binding(
-                        get: { prefs.motionMode },
-                        set: { mode in repository.updatePreferences { $0.motionMode = mode } }
+                rowDivider
+
+                HStack {
+                    Text("Glass Style")
+                        .font(SnoozyTypography.body(15, bold: true))
+                        .foregroundStyle(theme.ink)
+                    Spacer()
+                    Menu {
+                        ForEach(GlassMode.allCases, id: \.self) { mode in
+                            Button {
+                                repository.updatePreferences { $0.glassMode = mode }
+                            } label: {
+                                HStack {
+                                    Text(shortGlassLabel(mode))
+                                    if prefs.glassMode == mode {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(shortGlassLabel(prefs.glassMode))
+                                .font(SnoozyTypography.body(14, bold: true))
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(theme.accent)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
+
+                if prefs.glassMode == .liquidGlass {
+                    rowDivider
+
+                    VStack(spacing: 6) {
+                        HStack {
+                            Text("Glass Refraction")
+                                .font(SnoozyTypography.body(14, bold: true))
+                                .foregroundStyle(theme.ink)
+                            Spacer()
+                            Text("\(Int((prefs.refractionIntensity * 100).rounded()))%")
+                                .font(SnoozyTypography.caption(12, bold: true))
+                                .foregroundStyle(theme.accent)
+                        }
+                        Slider(
+                            value: Binding(
+                                get: { prefs.refractionIntensity },
+                                set: { val in repository.updatePreferences { $0.refractionIntensity = val } }
+                            ),
+                            in: 0.0...1.0
+                        )
+                        .tint(theme.accent)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                }
+
+                rowDivider
+
+                Toggle(
+                    isOn: Binding(
+                        get: { prefs.motionMode == .reduced },
+                        set: { reduced in
+                            repository.updatePreferences { $0.motionMode = reduced ? .reduced : .full }
+                        }
                     )
                 ) {
-                    ForEach(MotionMode.allCases, id: \.self) { mode in
-                        Text(mode.label).tag(mode)
-                    }
+                    Text("Reduce Motion")
+                        .font(SnoozyTypography.body(15, bold: true))
+                        .foregroundStyle(theme.ink)
                 }
-                .pickerStyle(.segmented)
+                .tint(theme.accent)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
             }
-
-            Toggle(
-                isOn: Binding(
-                    get: { prefs.hapticsEnabled },
-                    set: { enabled in repository.updatePreferences { $0.hapticsEnabled = enabled } }
-                )
-            ) {
-                Text("Tactile Haptics")
-                    .font(SnoozyTypography.body(14, bold: true))
-                    .foregroundStyle(theme.ink)
-            }
-            .tint(theme.accent)
         }
-        .padding(16)
-        .liquidGlassSurface(
-            cornerRadius: 24,
-            glassMode: prefs.glassMode,
-            refractionIntensity: prefs.refractionIntensity,
-            tintColor: theme.accent
-        )
     }
 
-    private func offlineLibraryCard(prefs: SnoozyPreferences) -> some View {
-        let totalListeningSeconds = repository.listeningSessions.reduce(Int64(0)) { $0 + $1.durationSeconds }
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "folder.fill")
-                    .foregroundStyle(theme.accent)
-                Text("Offline Music Folder (Files App)")
-                    .font(SnoozyTypography.headline(17))
-                    .foregroundStyle(theme.ink)
-            }
+    // MARK: - 4. Audio & Effects
 
-            Text("Drop MP3, FLAC, WAV, M4A, ALAC, AAC, AIFF, or OGG files (plus .lrc lyrics) into On My iPhone > Snoozy in the iPhone Files app, or import directly below.")
-                .font(SnoozyTypography.footnote(13))
-                .foregroundStyle(theme.inkMuted)
+    private func audioAndEffectsSection(prefs: SnoozyPreferences) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Audio & Effects", icon: "waveform")
 
-            HStack(spacing: 8) {
-                LiquidGlassButton(
-                    title: "Import Files",
-                    systemImage: "doc.badge.plus",
-                    isProminent: true,
-                    theme: theme,
-                    preferences: prefs,
-                    action: onImportFiles
-                )
-                LiquidGlassButton(
-                    title: "Import Folder",
-                    systemImage: "folder.badge.plus",
-                    theme: theme,
-                    preferences: prefs,
-                    action: onImportFolder
-                )
-                LiquidGlassButton(
-                    title: "Rescan",
-                    systemImage: "arrow.clockwise",
-                    theme: theme,
-                    preferences: prefs
+            SnoozyGroupedCard(theme: theme, preferences: prefs) {
+                Toggle(
+                    isOn: Binding(
+                        get: { prefs.auraBackdropEnabled },
+                        set: { enabled in repository.updatePreferences { $0.auraBackdropEnabled = enabled } }
+                    )
                 ) {
-                    Task { await repository.scanLibrary() }
+                    Text("Artwork Aura")
+                        .font(SnoozyTypography.body(15, bold: true))
+                        .foregroundStyle(theme.ink)
+                }
+                .tint(theme.accent)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
+
+                if prefs.auraBackdropEnabled {
+                    rowDivider
+
+                    Toggle(
+                        isOn: Binding(
+                            get: { prefs.audioReactiveAuraEnabled },
+                            set: { enabled in repository.updatePreferences { $0.audioReactiveAuraEnabled = enabled } }
+                        )
+                    ) {
+                        Text("Audio-Reactive Visualizer")
+                            .font(SnoozyTypography.body(15, bold: true))
+                            .foregroundStyle(theme.ink)
+                    }
+                    .tint(theme.accent)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 48)
+
+                    rowDivider
+
+                    VStack(spacing: 6) {
+                        HStack {
+                            Text("Aura Intensity")
+                                .font(SnoozyTypography.body(14, bold: true))
+                                .foregroundStyle(theme.ink)
+                            Spacer()
+                            Text("\(Int((prefs.auraBackdropIntensity * 100).rounded()))%")
+                                .font(SnoozyTypography.caption(12, bold: true))
+                                .foregroundStyle(theme.accent)
+                        }
+                        Slider(
+                            value: Binding(
+                                get: { prefs.auraBackdropIntensity },
+                                set: { val in repository.updatePreferences { $0.auraBackdropIntensity = val } }
+                            ),
+                            in: 0.1...1.0
+                        )
+                        .tint(theme.accent)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                 }
             }
-
-            Divider().overlay(Color.white.opacity(0.12))
-
-            statRow(label: "Indexed Songs", value: "\(repository.tracks.count)")
-            statRow(label: "Albums", value: "\(repository.albums.count)")
-            statRow(label: "Playlists", value: "\(repository.playlists.count)")
-            statRow(label: "Favorites", value: "\(repository.favoriteTrackIds.count)")
-            statRow(label: "Recorded Plays", value: "\(repository.playHistory.count)")
-            statRow(label: "Listening Time", value: SnoozyFormat.formatDuration(Double(totalListeningSeconds)))
-
-            Button {
-                showClearHistoryAlert = true
-            } label: {
-                Text("Clear Recently Played & Listening History")
-                    .font(SnoozyTypography.body(14, bold: true))
-                    .foregroundStyle(theme.danger)
-                    .padding(.top, 4)
-            }
         }
-        .padding(16)
-        .liquidGlassSurface(
-            cornerRadius: 24,
-            glassMode: prefs.glassMode,
-            refractionIntensity: prefs.refractionIntensity,
-            tintColor: theme.accent
-        )
     }
 
-    private func diagnosticsCard(prefs: SnoozyPreferences) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    // MARK: - 5. Storage
+
+    private func storageSection(prefs: SnoozyPreferences) -> some View {
+        let totalListeningSeconds = repository.listeningSessions.reduce(Int64(0)) { $0 + $1.durationSeconds }
+        return VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Storage", icon: "internaldrive.fill")
+
+            SnoozyGroupedCard(theme: theme, preferences: prefs) {
+                statRow(label: "Songs", value: "\(repository.tracks.count)", showDivider: false)
+                statRow(label: "Albums", value: "\(repository.albums.count)", showDivider: true)
+                statRow(label: "Playlists", value: "\(repository.playlists.count)", showDivider: true)
+                statRow(label: "Favorites", value: "\(repository.favoriteTrackIds.count)", showDivider: true)
+                statRow(label: "Listening Time", value: SnoozyFormat.formatDuration(Double(totalListeningSeconds)), showDivider: true)
+
+                rowDivider
+
+                Button {
+                    showClearHistoryAlert = true
+                } label: {
+                    HStack {
+                        Text("Clear Listening History")
+                            .font(SnoozyTypography.body(15, bold: true))
+                            .foregroundStyle(theme.danger)
+                        Spacer()
+                        Image(systemName: "trash")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(theme.danger)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - 6. About Snoozy
+
+    private func aboutSection(prefs: SnoozyPreferences) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("About Snoozy", icon: "info.circle.fill")
+
+            SnoozyGroupedCard(theme: theme, preferences: prefs) {
+                statRow(label: "Version", value: "3.2.0", showDivider: false)
+                statRow(label: "Mode", value: "100% Offline Local Player", showDivider: true)
+
+                rowDivider
+
+                Button {
+                    showErrorLogSheet = true
+                } label: {
+                    HStack {
+                        Text("Error Log")
+                            .font(SnoozyTypography.body(15, bold: true))
+                            .foregroundStyle(theme.ink)
+                        Spacer()
+                        Text("\(repository.errorLog.count)")
+                            .font(SnoozyTypography.body(14, bold: true))
+                            .foregroundStyle(theme.inkMuted)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(theme.inkFaint)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func sectionTitle(_ title: String, icon: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(theme.accent)
+            Text(title)
+                .font(SnoozyTypography.headline(15))
+                .foregroundStyle(theme.inkMuted)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private var rowDivider: some View {
+        Rectangle()
+            .fill(Color.white.opacity(theme.isDark ? 0.08 : 0.14))
+            .frame(height: 0.5)
+            .padding(.leading, 16)
+    }
+
+    private func statRow(label: String, value: String, showDivider: Bool) -> some View {
+        VStack(spacing: 0) {
+            if showDivider {
+                rowDivider
+            }
             HStack {
-                Text("Diagnostics & Build")
-                    .font(SnoozyTypography.headline(16))
+                Text(label)
+                    .font(SnoozyTypography.body(15, bold: false))
                     .foregroundStyle(theme.ink)
                 Spacer()
-                Button("Error Log (\(repository.errorLog.count))") {
-                    showErrorLogSheet = true
-                }
-                .font(SnoozyTypography.caption(12, bold: true))
-                .foregroundStyle(theme.accent)
+                Text(value)
+                    .font(SnoozyTypography.body(14, bold: true))
+                    .foregroundStyle(theme.inkMuted)
             }
-
-            Text("Snoozy Native Swift + Metal · Sideloadly Personal Edition · Offline Only (Zero Network Requests)")
-                .font(SnoozyTypography.footnote(12))
-                .foregroundStyle(theme.inkMuted)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 46)
         }
-        .padding(16)
-        .liquidGlassSurface(
-            cornerRadius: 24,
-            glassMode: prefs.glassMode,
-            refractionIntensity: prefs.refractionIntensity,
-            tintColor: theme.accent
-        )
     }
 
-    private func statRow(label: String, value: String) -> some View {
-        HStack {
-            Text(label)
-                .font(SnoozyTypography.footnote(13))
-                .foregroundStyle(theme.inkMuted)
-            Spacer()
-            Text(value)
-                .font(SnoozyTypography.body(14, bold: true))
-                .foregroundStyle(theme.ink)
+    private func shortGlassLabel(_ mode: GlassMode) -> String {
+        switch mode {
+        case .liquidGlass: return "Liquid Glass"
+        case .frosted: return "Frosted"
+        case .reduceTransparency: return "Solid"
+        }
+    }
+
+    private func shortPaletteLabel(_ seed: PaletteSeed) -> String {
+        switch seed {
+        case .emerald: return "Emerald"
+        case .dynamicArtwork: return "Artwork"
+        case .cyan: return "Cyan"
+        case .violet: return "Violet"
+        case .rose: return "Rose"
+        case .amber: return "Amber"
         }
     }
 }

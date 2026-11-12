@@ -50,7 +50,8 @@ public struct PlayerScreen: View {
                 theme: theme,
                 palette: playback.activePalette,
                 preferences: repository.preferences,
-                isImmersivePlayer: true
+                isImmersivePlayer: true,
+                audioLevels: playback.audioLevels
             )
 
             // Subtle dark vignette for Apple Music contrast legibility
@@ -191,7 +192,10 @@ public struct PlayerScreen: View {
         VStack(spacing: 22) {
             Spacer(minLength: 4)
 
-            // Large centered Apple Music artwork with play/pause spring scale and depth shadow
+            // Large centered Apple Music artwork with play/pause spring scale and audio-reactive depth shadow
+            let reactiveBass = (repository.preferences.audioReactiveAuraEnabled && playback.isPlaying)
+                ? playback.audioLevels.bass
+                : 0.0
             ZStack {
                 let artView = SnoozyArtworkView(
                     artworkPath: track.artworkPath,
@@ -200,8 +204,8 @@ public struct PlayerScreen: View {
                     theme: theme
                 )
                 .shadow(
-                    color: playback.activePalette.primary.opacity(playback.isPlaying ? 0.46 : 0.16),
-                    radius: playback.isPlaying ? 28 : 10,
+                    color: playback.activePalette.primary.opacity(playback.isPlaying ? min(0.76, 0.46 + reactiveBass * 0.28) : 0.16),
+                    radius: playback.isPlaying ? (28 + CGFloat(reactiveBass * 18.0)) : 10,
                     x: 0,
                     y: playback.isPlaying ? 16 : 6
                 )
@@ -211,7 +215,7 @@ public struct PlayerScreen: View {
                     x: 0,
                     y: playback.isPlaying ? 12 : 4
                 )
-                .scaleEffect(playback.isPlaying ? 1.0 : 0.84)
+                .scaleEffect(playback.isPlaying ? (1.0 + CGFloat(reactiveBass * 0.025)) : 0.84)
                 .animation(.spring(response: 0.44, dampingFraction: 0.74), value: playback.isPlaying)
                 .id(track.id)
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))

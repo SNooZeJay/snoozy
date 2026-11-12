@@ -366,6 +366,7 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
     public var refractionIntensity: Double
     public var auraBackdropEnabled: Bool
     public var auraBackdropIntensity: Double
+    public var audioReactiveAuraEnabled: Bool
     public var motionMode: MotionMode
     public var hapticsEnabled: Bool
 
@@ -376,6 +377,7 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
         refractionIntensity: Double = 0.82,
         auraBackdropEnabled: Bool = true,
         auraBackdropIntensity: Double = 0.75,
+        audioReactiveAuraEnabled: Bool = true,
         motionMode: MotionMode = .full,
         hapticsEnabled: Bool = true
     ) {
@@ -385,8 +387,147 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
         self.refractionIntensity = refractionIntensity
         self.auraBackdropEnabled = auraBackdropEnabled
         self.auraBackdropIntensity = auraBackdropIntensity
+        self.audioReactiveAuraEnabled = audioReactiveAuraEnabled
         self.motionMode = motionMode
         self.hapticsEnabled = hapticsEnabled
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case themeMode
+        case paletteSeed
+        case glassMode
+        case refractionIntensity
+        case auraBackdropEnabled
+        case auraBackdropIntensity
+        case audioReactiveAuraEnabled
+        case motionMode
+        case hapticsEnabled
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.themeMode = try container.decodeIfPresent(ThemeMode.self, forKey: .themeMode) ?? .dark
+        self.paletteSeed = try container.decodeIfPresent(PaletteSeed.self, forKey: .paletteSeed) ?? .emerald
+        self.glassMode = try container.decodeIfPresent(GlassMode.self, forKey: .glassMode) ?? .liquidGlass
+        self.refractionIntensity = try container.decodeIfPresent(Double.self, forKey: .refractionIntensity) ?? 0.82
+        self.auraBackdropEnabled = try container.decodeIfPresent(Bool.self, forKey: .auraBackdropEnabled) ?? true
+        self.auraBackdropIntensity = try container.decodeIfPresent(Double.self, forKey: .auraBackdropIntensity) ?? 0.75
+        self.audioReactiveAuraEnabled = try container.decodeIfPresent(Bool.self, forKey: .audioReactiveAuraEnabled) ?? true
+        self.motionMode = try container.decodeIfPresent(MotionMode.self, forKey: .motionMode) ?? .full
+        self.hapticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? true
+    }
+}
+
+public struct AudioReactiveLevels: Equatable, Sendable {
+    public var bass: Double
+    public var mid: Double
+    public var high: Double
+    public var overall: Double
+
+    public static let zero = AudioReactiveLevels(bass: 0.0, mid: 0.0, high: 0.0, overall: 0.0)
+
+    public init(bass: Double = 0.0, mid: Double = 0.0, high: Double = 0.0, overall: Double = 0.0) {
+        self.bass = min(1.0, max(0.0, bass))
+        self.mid = min(1.0, max(0.0, mid))
+        self.high = min(1.0, max(0.0, high))
+        self.overall = min(1.0, max(0.0, overall))
+    }
+}
+
+public enum AudioReactiveAnalyzer {
+    /// Converts decibel meter readings (-60 dBFS ... 0 dBFS) and previous envelope state into
+    /// smoothed real-time Bass, Mid, High, and Overall visual energy levels (0.0 ... 1.0).
+    public static func computeLevels(
+        averagePowerLeftDb: Float,
+        averagePowerRightDb: Float,
+        peakPowerLeftDb: Float,
+        peakPowerRightDb: Float,
+        previous: AudioReactiveLevels
+    ) -> AudioReactiveLevels {
+        let avgLeft = normalizeDecibels(averagePowerLeftDb)
+        let avgRight = normalizeDecibels(averagePowerRightDb)
+        let peakLeft = normalizeDecibels(peakPowerLeftDb)
+        let peakRight = normalizeDecibels(peakPowerRightDb)
+
+        let avgMono = (avgLeft + avgRight) * 0.5
+        let peakMono = max(peakLeft, peakRight)
+        let stereoSpread = abs(avgLeft - avgRight)
+        let transientCrest = max(0.0, peakMono - avgMono)
+
+        // Bass responds to deep sustained body energy + low-end punch
+        let rawBass = min(1.0, pow(avgMono, 0.85) * 0.82 + peakMono * 0.28)
+        // Mid responds to harmonic core energy + stereo width modulation
+        let rawMid = min(1.0, avgMono * 0.72 + stereoSpread * 0.65 + transientCrest * 0.25)
+        // High responds to crisp transient peaks, crest factor, and stereo shimmer
+        let rawHigh = min(1.0, transientCrest * 1.45 + peakMono * 0.35 + stereoSpread * 0.40)
+        // Overall represents total perceived loudness
+        let rawOverall = min(1.0, avgMono * 0.76 + peakMono * 0.24)
+
+        return AudioReactiveLevels(
+            bass: smoothEnvelope(current: previous.bass, target: rawBass, attack: 0.42, release: 0.18),
+            mid: smoothEnvelope(current: previous.mid, target: rawMid, attack: 0.36, release: 0.20),
+            high: smoothEnvelope(current: previous.high, target: rawHigh, attack: 0.52, release: 0.26),
+            overall: smoothEnvelope(current: previous.overall, target: rawOverall, attack: 0.38, release: 0.16)
+        )
+    }
+
+    public static func decayToZero(from previous: AudioReactiveLevels, factor: Double = 0.72) -> AudioReactiveLevels {
+        let clampedFactor = min(0.95, max(0.0, factor))
+        let nextBass = previous.bass * clampedFactor
+        let nextMid = previous.mid * clampedFactor
+        let nextHigh = previous.high * clampedFactor
+        let nextOverall = previous.overall * clampedFactor
+        if nextOverall < 0.008 && nextBass < 0.008 && nextMid < 0.008 && nextHigh < 0.008 {
+            return .zero
+        }
+        return AudioReactiveLevels(bass: nextBass, mid: nextMid, high: nextHigh, overall: nextOverall)
+    }
+
+    public static func normalizeDecibels(_ db: Float) -> Double {
+        guard db.isFinite else { return 0.0 }
+        let minDb: Float = -54.0
+        if db <= minDb { return 0.0 }
+        if db >= 0.0 { return 1.0 }
+        let linear = Double((db - minDb) / (-minDb))
+        return min(1.0, max(0.0, linear * linear))
+    }
+
+    private static func smoothEnvelope(current: Double, target: Double, attack: Double, release: Double) -> Double {
+        let coeff = target > current ? attack : release
+        return min(1.0, max(0.0, current + (target - current) * coeff))
+    }
+}
+
+public struct LibrarySearchResults: Equatable, Sendable {
+    public let songs: [Track]
+    public let albums: [Album]
+    public let artists: [String]
+    public let playlists: [Playlist]
+    public let folders: [String]
+    public let genres: [String]
+
+    public var isEmpty: Bool {
+        songs.isEmpty && albums.isEmpty && artists.isEmpty && playlists.isEmpty && folders.isEmpty && genres.isEmpty
+    }
+
+    public var totalCount: Int {
+        songs.count + albums.count + artists.count + playlists.count + folders.count + genres.count
+    }
+
+    public init(
+        songs: [Track] = [],
+        albums: [Album] = [],
+        artists: [String] = [],
+        playlists: [Playlist] = [],
+        folders: [String] = [],
+        genres: [String] = []
+    ) {
+        self.songs = songs
+        self.albums = albums
+        self.artists = artists
+        self.playlists = playlists
+        self.folders = folders
+        self.genres = genres
     }
 }
 

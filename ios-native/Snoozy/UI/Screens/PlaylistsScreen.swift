@@ -26,7 +26,7 @@ public struct PlaylistsScreen: View {
     }
 
     public var body: some View {
-        let byId = Dictionary(uniqueKeysWithValues: repository.tracks.map { ($0.id, $0) })
+        let byId = repository.tracksById
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .center, spacing: 12) {
@@ -334,7 +334,7 @@ public struct PlaylistDetailScreen: View {
 
     private var tracks: [Track] {
         guard let playlist else { return [] }
-        let byId = Dictionary(uniqueKeysWithValues: repository.tracks.map { ($0.id, $0) })
+        let byId = repository.tracksById
         return playlist.trackIds.compactMap { byId[$0] }
     }
 
@@ -494,7 +494,8 @@ public struct PlaylistDetailScreen: View {
             LiquidAuraBackgroundView(
                 theme: theme,
                 palette: playback.activePalette,
-                preferences: repository.preferences
+                preferences: repository.preferences,
+                audioLevels: playback.audioLevels
             )
         )
         .navigationTitle(playlist?.name ?? "Playlist")

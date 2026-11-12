@@ -21,6 +21,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     @Published public private(set) var volume: Double = 1.0
     @Published public private(set) var activeLyrics: ParsedLyrics? = nil
     @Published public private(set) var activePalette: ArtworkPalette = .emeraldDefault
+    @Published public private(set) var audioLevels: AudioReactiveLevels = .zero
     @Published public var playbackError: String? = nil
 
     private var audioPlayer: AVAudioPlayer? = nil
@@ -30,6 +31,9 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     private var maxListenedMsForActiveTrack: Int64 = 0
     private var sessionStartedAtMs: Int64? = nil
     private var originalQueueTracks: [Track] = []
+    private var isAppInForeground: Bool = true
+    private var cachedNowPlayingArtworkKey: String? = nil
+    private var cachedNowPlayingArtwork: MPMediaItemArtwork? = nil
     private var notificationTokens: [NSObjectProtocol] = []
     private var cancellables = Set<AnyCancellable>()
 
@@ -171,6 +175,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     public func pause() {
         audioPlayer?.pause()
         isPlaying = false
+        audioLevels = .zero
         stopProgressTimer()
         finishActiveListeningSession()
         persistSession()
@@ -435,6 +440,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             let player = try AVAudioPlayer(contentsOf: url)
             player.delegate = self
             player.enableRate = true
+            player.isMeteringEnabled = true
             player.rate = Float(playbackRate)
             player.volume = Float(volume)
             player.prepareToPlay()
@@ -456,12 +462,14 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
                 startProgressTimer()
             } else {
                 isPlaying = false
+                audioLevels = .zero
             }
             updateNowPlayingInfo()
         } catch {
             let msg = "Unable to play \"\(track.title)\": \(error.localizedDescription)"
             playbackError = msg
             isPlaying = false
+            audioLevels = .zero
             repository.logError(category: "AudioPlayer", message: msg, trackId: track.id)
         }
     }
@@ -476,6 +484,8 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
                 if self.activeTrack?.id == track.id {
                     self.activePalette = palette
                     self.activeLyrics = lyrics
+                    self.cachedNowPlayingArtworkKey = nil
+                    self.updateNowPlayingInfo()
                 }
             }
         }
@@ -484,7 +494,8 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     private func startProgressTimer() {
         stopProgressTimer()
         ticksSinceSave = 0
-        progressTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        let interval: TimeInterval = isAppInForeground ? 0.08 : 0.50
+        progressTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.sampleProgress()
             }
@@ -507,8 +518,30 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         if posMs > maxListenedMsForActiveTrack {
             maxListenedMsForActiveTrack = posMs
         }
+
+        // Real-time lightweight audio-reactive level sampling (foreground only)
+        let prefs = repository.preferences
+        if isPlaying && isAppInForeground && prefs.auraBackdropEnabled && prefs.audioReactiveAuraEnabled && prefs.motionMode != .reduced {
+            player.updateMeters()
+            let channels = max(1, player.numberOfChannels)
+            let avgL = player.averagePower(forChannel: 0)
+            let avgR = channels > 1 ? player.averagePower(forChannel: 1) : avgL
+            let peakL = player.peakPower(forChannel: 0)
+            let peakR = channels > 1 ? player.peakPower(forChannel: 1) : peakL
+            audioLevels = AudioReactiveAnalyzer.computeLevels(
+                averagePowerLeftDb: avgL,
+                averagePowerRightDb: avgR,
+                peakPowerLeftDb: peakL,
+                peakPowerRightDb: peakR,
+                previous: audioLevels
+            )
+        } else if audioLevels != .zero {
+            audioLevels = AudioReactiveAnalyzer.decayToZero(from: audioLevels)
+        }
+
         ticksSinceSave += 1
-        if ticksSinceSave >= 20 {
+        let saveThreshold = isAppInForeground ? 60 : 10
+        if ticksSinceSave >= saveThreshold {
             ticksSinceSave = 0
             persistSession()
             updateNowPlayingInfo()
@@ -603,29 +636,187 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             }
             return .success
         }
+        center.changeShuffleModeCommand.isEnabled = true
+        center.changeShuffleModeCommand.addTarget { [weak self] _ in
+            Task { @MainActor in
+                self?.toggleShuffle()
+            }
+            return .success
+        }
+        center.changeRepeatModeCommand.isEnabled = true
+        center.changeRepeatModeCommand.addTarget { [weak self] _ in
+            Task { @MainActor in
+                self?.cycleRepeat()
+            }
+            return .success
+        }
     }
 
     private func updateNowPlayingInfo() {
         guard let track = activeTrack else {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            cachedNowPlayingArtworkKey = nil
+            cachedNowPlayingArtwork = nil
             return
         }
+
+        let center = MPRemoteCommandCenter.shared()
+        center.changeShuffleModeCommand.currentShuffleType = shuffle ? .items : .off
+        switch repeatMode {
+        case .off: center.changeRepeatModeCommand.currentRepeatType = .off
+        case .all: center.changeRepeatModeCommand.currentRepeatType = .all
+        case .one: center.changeRepeatModeCommand.currentRepeatType = .one
+        }
+
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: track.title,
             MPMediaItemPropertyArtist: track.artist,
             MPMediaItemPropertyAlbumTitle: track.album,
             MPMediaItemPropertyPlaybackDuration: max(durationSeconds, track.duration),
             MPNowPlayingInfoPropertyElapsedPlaybackTime: positionSeconds,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? playbackRate : 0.0
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? playbackRate : 0.0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
+            MPNowPlayingInfoPropertyPlaybackQueueIndex: max(0, queueIndex),
+            MPNowPlayingInfoPropertyPlaybackQueueCount: queueTracks.count,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue
         ]
-        if let artPath = track.artworkPath, let image = UIImage(contentsOfFile: artPath) {
-            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-            info[MPMediaItemPropertyArtwork] = artwork
-        } else if let brandImage = UIImage(named: "SnoozyBrandLogo") {
-            let artwork = MPMediaItemArtwork(boundsSize: brandImage.size) { _ in brandImage }
+        if let albumArtist = track.albumArtist, !albumArtist.isEmpty {
+            info[MPMediaItemPropertyAlbumArtist] = albumArtist
+        }
+        if let composer = track.composer, !composer.isEmpty {
+            info[MPMediaItemPropertyComposer] = composer
+        }
+        if let genre = track.genre, !genre.isEmpty {
+            info[MPMediaItemPropertyGenre] = genre
+        }
+        if let trackNum = track.trackNumber {
+            info[MPMediaItemPropertyAlbumTrackNumber] = trackNum
+        }
+        if let discNum = track.discNumber {
+            info[MPMediaItemPropertyDiscNumber] = discNum
+        }
+
+        let artKey = "\(track.id)|\(track.artworkPath ?? "")|\(track.title)|\(track.artist)"
+        if cachedNowPlayingArtworkKey != artKey || cachedNowPlayingArtwork == nil {
+            let highResSquare = Self.buildLockScreenFullResolutionArtwork(for: track, palette: activePalette)
+            let fullBounds = CGSize(width: 1024, height: 1024)
+            cachedNowPlayingArtwork = MPMediaItemArtwork(boundsSize: fullBounds) { requestedSize in
+                guard requestedSize.width > 0,
+                      requestedSize.height > 0,
+                      abs(requestedSize.width - fullBounds.width) > 4.0
+                else {
+                    return highResSquare
+                }
+                let side = max(256.0, min(1024.0, max(requestedSize.width, requestedSize.height)))
+                let targetSize = CGSize(width: side, height: side)
+                let format = UIGraphicsImageRendererFormat.default()
+                format.scale = 1.0
+                format.opaque = true
+                return UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
+                    highResSquare.draw(in: CGRect(origin: .zero, size: targetSize))
+                }
+            }
+            cachedNowPlayingArtworkKey = artKey
+        }
+        if let artwork = cachedNowPlayingArtwork {
             info[MPMediaItemPropertyArtwork] = artwork
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    /// Generates an opaque 1024x1024 square high-resolution album cover so iOS Lock Screen
+    /// supports tapping compact artwork to expand into full-screen Lock Screen album artwork.
+    private static func buildLockScreenFullResolutionArtwork(for track: Track, palette: ArtworkPalette) -> UIImage {
+        let canvasSize = CGSize(width: 1024, height: 1024)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1.0
+        format.opaque = true
+
+        if let artPath = track.artworkPath,
+           let sourceImage = SnoozyArtworkCache.shared.image(forPath: artPath, pointSize: 512, scale: 2.0) ?? UIImage(contentsOfFile: artPath) {
+            return UIGraphicsImageRenderer(size: canvasSize, format: format).image { ctx in
+                UIColor.black.setFill()
+                ctx.fill(CGRect(origin: .zero, size: canvasSize))
+
+                let srcSize = sourceImage.size
+                guard srcSize.width > 0, srcSize.height > 0 else { return }
+                let scale = max(canvasSize.width / srcSize.width, canvasSize.height / srcSize.height)
+                let drawWidth = srcSize.width * scale
+                let drawHeight = srcSize.height * scale
+                let drawRect = CGRect(
+                    x: (canvasSize.width - drawWidth) * 0.5,
+                    y: (canvasSize.height - drawHeight) * 0.5,
+                    width: drawWidth,
+                    height: drawHeight
+                )
+                sourceImage.draw(in: drawRect)
+            }
+        }
+
+        // High-resolution fallback cover when a track has no external/embedded artwork
+        return UIGraphicsImageRenderer(size: canvasSize, format: format).image { ctx in
+            let cg = ctx.cgContext
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            let topColor = UIColor(palette.primary)
+            let bottomColor = UIColor(red: 0.03, green: 0.06, blue: 0.09, alpha: 1.0)
+            let accentColor = UIColor(palette.secondary)
+
+            if let grad = CGGradient(
+                colorsSpace: colorSpace,
+                colors: [topColor.cgColor, bottomColor.cgColor] as CFArray,
+                locations: [0.0, 1.0]
+            ) {
+                cg.drawLinearGradient(
+                    grad,
+                    start: CGPoint(x: 0, y: 0),
+                    end: CGPoint(x: canvasSize.width, y: canvasSize.height),
+                    options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+                )
+            }
+
+            if let orb = CGGradient(
+                colorsSpace: colorSpace,
+                colors: [accentColor.withAlphaComponent(0.55).cgColor, accentColor.withAlphaComponent(0.0).cgColor] as CFArray,
+                locations: [0.0, 1.0]
+            ) {
+                cg.drawRadialGradient(
+                    orb,
+                    startCenter: CGPoint(x: 720, y: 280),
+                    startRadius: 20,
+                    endCenter: CGPoint(x: 720, y: 280),
+                    endRadius: 620,
+                    options: []
+                )
+            }
+
+            if let brand = SnoozyBrandAssetLoader.loadBrandLogoImage() {
+                let logoRect = CGRect(x: 312, y: 220, width: 400, height: 400)
+                let clip = UIBezierPath(roundedRect: logoRect, cornerRadius: 92)
+                cg.saveGState()
+                clip.addClip()
+                brand.draw(in: logoRect)
+                cg.restoreGState()
+            }
+
+            let titleFont = UIFont(name: "BricolageGrotesque-SemiBold", size: 54) ?? UIFont.systemFont(ofSize: 54, weight: .bold)
+            let subFont = UIFont(name: "AtkinsonHyperlegible-Bold", size: 34) ?? UIFont.systemFont(ofSize: 34, weight: .semibold)
+            let style = NSMutableParagraphStyle()
+            style.alignment = .center
+
+            let titleAttrs: [NSAttributedString.Key: Any] = [
+                .font: titleFont,
+                .foregroundColor: UIColor.white,
+                .paragraphStyle: style
+            ]
+            let subAttrs: [NSAttributedString.Key: Any] = [
+                .font: subFont,
+                .foregroundColor: UIColor.white.withAlphaComponent(0.78),
+                .paragraphStyle: style
+            ]
+
+            (track.title as NSString).draw(in: CGRect(x: 72, y: 700, width: 880, height: 76), withAttributes: titleAttrs)
+            (track.artist as NSString).draw(in: CGRect(x: 72, y: 784, width: 880, height: 54), withAttributes: subAttrs)
+        }
     }
 
     private func observeAudioNotifications() {
@@ -672,6 +863,40 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             }
         }
         notificationTokens.append(routeToken)
+
+        let bgToken = NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isAppInForeground = false
+                self.audioLevels = .zero
+                if self.isPlaying {
+                    self.startProgressTimer()
+                }
+                self.persistSession()
+                self.updateNowPlayingInfo()
+            }
+        }
+        notificationTokens.append(bgToken)
+
+        let fgToken = NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isAppInForeground = true
+                if self.isPlaying {
+                    self.startProgressTimer()
+                }
+                self.updateNowPlayingInfo()
+            }
+        }
+        notificationTokens.append(fgToken)
     }
 
     private func observeLibraryChanges() {

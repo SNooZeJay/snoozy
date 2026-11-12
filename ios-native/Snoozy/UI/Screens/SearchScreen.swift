@@ -51,50 +51,19 @@ public struct SearchScreen: View {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var matchingSongs: [Track] {
-        let q = trimmedQuery.lowercased()
-        guard !q.isEmpty else { return [] }
-        return repository.sortedSongs.filter {
-            $0.title.lowercased().contains(q) ||
-            $0.artist.lowercased().contains(q) ||
-            $0.album.lowercased().contains(q) ||
-            $0.folderName.lowercased().contains(q)
-        }
+    private var searchResults: LibrarySearchResults {
+        guard !trimmedQuery.isEmpty else { return LibrarySearchResults() }
+        return repository.searchLibrary(query: trimmedQuery)
     }
 
-    private var matchingAlbums: [Album] {
-        let q = trimmedQuery.lowercased()
-        guard !q.isEmpty else { return [] }
-        return repository.sortedAlbums.filter {
-            $0.title.lowercased().contains(q) ||
-            $0.artist.lowercased().contains(q)
-        }
-    }
-
-    private var matchingArtists: [String] {
-        let q = trimmedQuery.lowercased()
-        guard !q.isEmpty else { return [] }
-        return repository.artistNames.filter { $0.lowercased().contains(q) }
-    }
-
-    private var matchingPlaylists: [Playlist] {
-        let q = trimmedQuery.lowercased()
-        guard !q.isEmpty else { return [] }
-        return repository.playlists.filter { $0.name.lowercased().contains(q) }
-    }
-
-    private var matchingGenres: [String] {
-        let q = trimmedQuery.lowercased()
-        guard !q.isEmpty else { return [] }
-        return repository.genreNames.filter { $0.lowercased().contains(q) }
-    }
+    private var matchingSongs: [Track] { searchResults.songs }
+    private var matchingAlbums: [Album] { searchResults.albums }
+    private var matchingArtists: [String] { searchResults.artists }
+    private var matchingPlaylists: [Playlist] { searchResults.playlists }
+    private var matchingGenres: [String] { searchResults.genres }
 
     private var hasAnyMatches: Bool {
-        !matchingSongs.isEmpty ||
-        !matchingAlbums.isEmpty ||
-        !matchingArtists.isEmpty ||
-        !matchingPlaylists.isEmpty ||
-        !matchingGenres.isEmpty
+        !searchResults.isEmpty
     }
 
     public var body: some View {
@@ -215,7 +184,7 @@ public struct SearchScreen: View {
 
     @ViewBuilder
     private var searchResultsContent: some View {
-        let byId = Dictionary(uniqueKeysWithValues: repository.tracks.map { ($0.id, $0) })
+        let byId = repository.tracksById
 
         if (selectedScope == .all || selectedScope == .songs) && !matchingSongs.isEmpty {
             VStack(alignment: .leading, spacing: 10) {

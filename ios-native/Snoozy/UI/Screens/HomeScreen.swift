@@ -420,7 +420,7 @@ public struct HomeScreen: View {
     @ViewBuilder
     private var playlistsSection: some View {
         if !repository.playlists.isEmpty {
-            let byId = Dictionary(uniqueKeysWithValues: repository.tracks.map { ($0.id, $0) })
+            let byId = repository.tracksById
             VStack(alignment: .leading, spacing: 12) {
                 sectionHeader(
                     title: "Playlists",

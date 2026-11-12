@@ -208,4 +208,103 @@ final class PlaybackQueueOpsTests: XCTestCase {
         XCTAssertEqual(albums.count, 1)
         XCTAssertEqual(albums[0].trackIds, ["d1t1", "d1t2", "d2t1"])
     }
+
+    func testLibrarySearchFiltersSongsAlbumsArtistsAndPlaylists() {
+        let t1 = Track(
+            id: "1",
+            title: "Digital Love",
+            artist: "Daft Punk",
+            album: "Discovery",
+            genre: "Electronic",
+            duration: 301,
+            relativePath: "Daft Punk/Discovery/03 - Digital Love.flac",
+            addedAt: 200
+        )
+        let t2 = Track(
+            id: "2",
+            title: "Midnight City",
+            artist: "M83",
+            album: "Hurry Up, We're Dreaming",
+            genre: "Synthpop",
+            duration: 243,
+            relativePath: "M83/Hurry Up/01 - Midnight City.mp3",
+            addedAt: 100
+        )
+        let albums = LibraryRepository.buildAlbums(from: [t1, t2], overrides: [:])
+        let playlists = [
+            Playlist(id: "p1", name: "Late Night Synth", trackIds: ["1", "2"], createdAt: 100)
+        ]
+
+        let results = LibraryRepository.filterLibrary(
+            query: "daft disc",
+            sortedSongs: [t1, t2],
+            sortedAlbums: albums,
+            artistNames: ["Daft Punk", "M83"],
+            playlists: playlists,
+            folderNames: ["Daft Punk/Discovery", "M83/Hurry Up"],
+            genreNames: ["Electronic", "Synthpop"]
+        )
+        XCTAssertEqual(results.songs.map(\.id), ["1"])
+        XCTAssertEqual(results.albums.map(\.title), ["Discovery"])
+        XCTAssertTrue(results.playlists.isEmpty)
+        XCTAssertFalse(results.isEmpty)
+
+        let playlistMatch = LibraryRepository.filterLibrary(
+            query: "late synth",
+            sortedSongs: [t1, t2],
+            sortedAlbums: albums,
+            artistNames: ["Daft Punk", "M83"],
+            playlists: playlists
+        )
+        XCTAssertEqual(playlistMatch.playlists.map(\.id), ["p1"])
+
+        let emptyMatch = LibraryRepository.filterLibrary(
+            query: "nonexistent track xyz",
+            sortedSongs: [t1, t2],
+            sortedAlbums: albums,
+            artistNames: ["Daft Punk", "M83"],
+            playlists: playlists
+        )
+        XCTAssertTrue(emptyMatch.isEmpty)
+        XCTAssertEqual(emptyMatch.totalCount, 0)
+    }
+
+    func testAudioReactiveAnalyzerLevelsAndDecay() {
+        let active = AudioReactiveAnalyzer.computeLevels(
+            averagePowerLeftDb: -8.0,
+            averagePowerRightDb: -12.0,
+            peakPowerLeftDb: -1.5,
+            peakPowerRightDb: -3.0,
+            previous: .zero
+        )
+        XCTAssertGreaterThan(active.bass, 0.15)
+        XCTAssertGreaterThan(active.mid, 0.10)
+        XCTAssertGreaterThan(active.high, 0.10)
+        XCTAssertGreaterThan(active.overall, 0.15)
+        XCTAssertLessThanOrEqual(active.bass, 1.0)
+        XCTAssertLessThanOrEqual(active.overall, 1.0)
+
+        var decaying = active
+        for _ in 0..<25 {
+            decaying = AudioReactiveAnalyzer.decayToZero(from: decaying, factor: 0.65)
+        }
+        XCTAssertEqual(decaying, .zero)
+    }
+
+    func testPreferencesBackwardCompatibleDecoding() throws {
+        let legacyJSON = """
+        {
+            "themeMode": "dark",
+            "paletteSeed": "emerald",
+            "glassMode": "liquidGlass",
+            "refractionIntensity": 0.8,
+            "auraBackdropEnabled": true,
+            "auraBackdropIntensity": 0.7,
+            "motionMode": "full",
+            "hapticsEnabled": true
+        }
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(SnoozyPreferences.self, from: legacyJSON)
+        XCTAssertTrue(decoded.audioReactiveAuraEnabled)
+    }
 }

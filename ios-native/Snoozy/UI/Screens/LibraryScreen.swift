@@ -18,6 +18,8 @@ public struct LibraryScreen: View {
     @State private var showAlbumSortDialog: Bool = false
     @State private var showNewPlaylistAlert: Bool = false
     @State private var newPlaylistName: String = ""
+    @State private var searchText: String = ""
+    @FocusState private var isSearchFieldFocused: Bool
 
     public init(
         repository: LibraryRepository,
@@ -45,34 +47,52 @@ public struct LibraryScreen: View {
         self.onSelectTrackForMenu = onSelectTrackForMenu
     }
 
+    private var trimmedSearchQuery: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isSearchActive: Bool {
+        !trimmedSearchQuery.isEmpty
+    }
+
+    private var searchResults: LibrarySearchResults {
+        repository.searchLibrary(query: trimmedSearchQuery)
+    }
+
     public var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 16) {
                 headerRow
+
+                librarySearchBar
 
                 categoryFilterPills
 
-                if selectedTab != .overview {
-                    toolbarRow
-                }
+                if isSearchActive {
+                    activeLibrarySearchContent
+                } else {
+                    if selectedTab != .overview {
+                        toolbarRow
+                    }
 
-                switch selectedTab {
-                case .overview:
-                    appleMusicLibraryOverview
-                case .songs:
-                    songsList
-                case .albums:
-                    albumsContent
-                case .artists:
-                    artistsList
-                case .playlists:
-                    playlistsList
-                case .folders:
-                    foldersList
-                case .genres:
-                    genresList
-                case .favorites:
-                    favoritesList
+                    switch selectedTab {
+                    case .overview:
+                        appleMusicLibraryOverview
+                    case .songs:
+                        songsList(songs: repository.sortedSongs)
+                    case .albums:
+                        albumsContent(albums: repository.sortedAlbums)
+                    case .artists:
+                        artistsList(names: repository.artistNames)
+                    case .playlists:
+                        playlistsList(playlists: repository.playlists)
+                    case .folders:
+                        foldersList(folders: repository.folderNames)
+                    case .genres:
+                        genresList(genres: repository.genreNames)
+                    case .favorites:
+                        favoritesList(favs: repository.favoriteTracks)
+                    }
                 }
             }
             .padding(.horizontal, 16)
@@ -160,6 +180,155 @@ public struct LibraryScreen: View {
                         preferences: repository.preferences,
                         action: onImportFiles
                     )
+                }
+            }
+        }
+    }
+
+    private var librarySearchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(isSearchActive ? theme.accent : theme.inkMuted)
+
+            TextField("Search songs, albums, artists, playlists", text: $searchText)
+                .font(SnoozyTypography.body(15))
+                .foregroundStyle(theme.ink)
+                .focused($isSearchFieldFocused)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled(true)
+                .submitLabel(.search)
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                    isSearchFieldFocused = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(theme.inkMuted)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear library search")
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 44)
+        .liquidGlassSurface(
+            cornerRadius: 22,
+            glassMode: repository.preferences.glassMode,
+            refractionIntensity: repository.preferences.refractionIntensity,
+            tintColor: theme.accent,
+            variant: .ultraClear
+        )
+    }
+
+    @ViewBuilder
+    private var activeLibrarySearchContent: some View {
+        let results = searchResults
+        if results.isEmpty {
+            VStack(spacing: 12) {
+                emptySectionCard(
+                    icon: "magnifyingglass",
+                    title: "No Results for \"\(trimmedSearchQuery)\"",
+                    message: "Check the spelling or try searching by song title, artist, album, or playlist."
+                )
+                LiquidGlassButton(
+                    title: "Clear Search",
+                    systemImage: "xmark.circle",
+                    theme: theme,
+                    preferences: repository.preferences
+                ) {
+                    searchText = ""
+                    isSearchFieldFocused = false
+                }
+            }
+        } else {
+            switch selectedTab {
+            case .songs:
+                if results.songs.isEmpty {
+                    unifiedSearchSections(results: results)
+                } else {
+                    songsList(songs: results.songs)
+                }
+            case .albums:
+                if results.albums.isEmpty {
+                    unifiedSearchSections(results: results)
+                } else {
+                    albumsContent(albums: results.albums)
+                }
+            case .artists:
+                if results.artists.isEmpty {
+                    unifiedSearchSections(results: results)
+                } else {
+                    artistsList(names: results.artists)
+                }
+            case .playlists:
+                if results.playlists.isEmpty {
+                    unifiedSearchSections(results: results)
+                } else {
+                    playlistsList(playlists: results.playlists)
+                }
+            case .folders:
+                if results.folders.isEmpty {
+                    unifiedSearchSections(results: results)
+                } else {
+                    foldersList(folders: results.folders)
+                }
+            case .genres:
+                if results.genres.isEmpty {
+                    unifiedSearchSections(results: results)
+                } else {
+                    genresList(genres: results.genres)
+                }
+            case .favorites:
+                let matchedFavs = results.songs.filter { repository.isFavorite($0.id) }
+                if matchedFavs.isEmpty {
+                    unifiedSearchSections(results: results)
+                } else {
+                    favoritesList(favs: matchedFavs)
+                }
+            case .overview:
+                unifiedSearchSections(results: results)
+            }
+        }
+    }
+
+    private func unifiedSearchSections(results: LibrarySearchResults) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            if !results.songs.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Songs (\(results.songs.count))")
+                        .font(SnoozyTypography.headline(16))
+                        .foregroundStyle(theme.ink)
+                    songsList(songs: results.songs)
+                }
+            }
+
+            if !results.albums.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Albums (\(results.albums.count))")
+                        .font(SnoozyTypography.headline(16))
+                        .foregroundStyle(theme.ink)
+                    albumGrid(albums: results.albums)
+                }
+            }
+
+            if !results.artists.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Artists (\(results.artists.count))")
+                        .font(SnoozyTypography.headline(16))
+                        .foregroundStyle(theme.ink)
+                    artistsList(names: results.artists)
+                }
+            }
+
+            if !results.playlists.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Playlists (\(results.playlists.count))")
+                        .font(SnoozyTypography.headline(16))
+                        .foregroundStyle(theme.ink)
+                    playlistsList(playlists: results.playlists)
                 }
             }
         }
@@ -376,8 +545,7 @@ public struct LibraryScreen: View {
     }
 
     @ViewBuilder
-    private var songsList: some View {
-        let songs = repository.sortedSongs
+    private func songsList(songs: [Track]) -> some View {
         if songs.isEmpty {
             emptySectionCard(
                 icon: "music.note",
@@ -410,8 +578,7 @@ public struct LibraryScreen: View {
     }
 
     @ViewBuilder
-    private var albumsContent: some View {
-        let albums = repository.sortedAlbums
+    private func albumsContent(albums: [Album]) -> some View {
         if albums.isEmpty {
             emptySectionCard(
                 icon: "square.stack.fill",
@@ -470,7 +637,7 @@ public struct LibraryScreen: View {
 
     private func albumGrid(albums: [Album]) -> some View {
         let cols = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
-        let tracksById = Dictionary(uniqueKeysWithValues: repository.tracks.map { ($0.id, $0) })
+        let tracksById = repository.tracksById
         return LazyVGrid(columns: cols, spacing: 18) {
             ForEach(albums) { album in
                 let albumTracks = album.trackIds.compactMap { tracksById[$0] }
@@ -520,8 +687,7 @@ public struct LibraryScreen: View {
     }
 
     @ViewBuilder
-    private var artistsList: some View {
-        let names = repository.artistNames
+    private func artistsList(names: [String]) -> some View {
         if names.isEmpty {
             emptySectionCard(
                 icon: "music.mic",
@@ -588,9 +754,9 @@ public struct LibraryScreen: View {
     }
 
     @ViewBuilder
-    private var playlistsList: some View {
-        let byId = Dictionary(uniqueKeysWithValues: repository.tracks.map { ($0.id, $0) })
-        if repository.playlists.isEmpty {
+    private func playlistsList(playlists: [Playlist]) -> some View {
+        let byId = repository.tracksById
+        if playlists.isEmpty {
             VStack(spacing: 12) {
                 emptySectionCard(
                     icon: "music.note.list",
@@ -611,7 +777,7 @@ public struct LibraryScreen: View {
         } else {
             SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(repository.playlists.enumerated()), id: \.element.id) { index, playlist in
+                    ForEach(Array(playlists.enumerated()), id: \.element.id) { index, playlist in
                         let tracks = playlist.trackIds.compactMap { byId[$0] }
                         VStack(spacing: 0) {
                             if index > 0 {
@@ -657,8 +823,7 @@ public struct LibraryScreen: View {
     }
 
     @ViewBuilder
-    private var foldersList: some View {
-        let folders = repository.folderNames
+    private func foldersList(folders: [String]) -> some View {
         if folders.isEmpty {
             emptySectionCard(
                 icon: "folder.fill",
@@ -717,8 +882,7 @@ public struct LibraryScreen: View {
     }
 
     @ViewBuilder
-    private var genresList: some View {
-        let genres = repository.genreNames
+    private func genresList(genres: [String]) -> some View {
         if genres.isEmpty {
             emptySectionCard(
                 icon: "guitars.fill",
@@ -774,8 +938,7 @@ public struct LibraryScreen: View {
         }
     }
 
-    private var favoritesList: some View {
-        let favs = repository.favoriteTracks
+    private func favoritesList(favs: [Track]) -> some View {
         return Group {
             if favs.isEmpty {
                 emptySectionCard(
