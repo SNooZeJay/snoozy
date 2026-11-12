@@ -7,6 +7,7 @@ public struct AlbumDetailScreen: View {
     public let theme: SnoozyThemeColors
     public var onOpenArtist: ((String) -> Void)? = nil
     public let onSelectTrackForMenu: (Track) -> Void
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.snoozyLayout) private var layout
 
     public init(
@@ -38,6 +39,20 @@ public struct AlbumDetailScreen: View {
     public var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 18) {
+                HStack(spacing: 10) {
+                    LiquidGlassIconButton(
+                        systemImage: "chevron.left",
+                        accessibilityLabel: "Back",
+                        size: layout.headerButtonSize,
+                        theme: theme,
+                        preferences: repository.preferences
+                    ) {
+                        dismiss()
+                    }
+                    Spacer()
+                }
+                .padding(.top, layout.isLandscape ? 8 : 10)
+
                 if let album {
                     // Apple Music Centered Large Album Artwork
                     SnoozyArtworkView(
@@ -47,7 +62,7 @@ public struct AlbumDetailScreen: View {
                         theme: theme
                     )
                     .shadow(color: Color.black.opacity(0.38), radius: 18, x: 0, y: 10)
-                    .padding(.top, 8)
+                    .padding(.top, 2)
 
                     // Apple Music Album Title + Tappable Accent Artist + Metadata Overline
                     VStack(spacing: 5) {
@@ -157,8 +172,7 @@ public struct AlbumDetailScreen: View {
                 audioLevels: playback.audioLevels
             )
         )
-        .navigationTitle(album?.title ?? "Album")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
@@ -169,6 +183,7 @@ public struct ArtistDetailScreen: View {
     public let theme: SnoozyThemeColors
     public let onOpenAlbum: (String) -> Void
     public let onSelectTrackForMenu: (Track) -> Void
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.snoozyLayout) private var layout
 
     private var tracks: [Track] {
@@ -182,11 +197,24 @@ public struct ArtistDetailScreen: View {
     public var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
+                HStack(spacing: 10) {
+                    LiquidGlassIconButton(
+                        systemImage: "chevron.left",
+                        accessibilityLabel: "Back",
+                        size: layout.headerButtonSize,
+                        theme: theme,
+                        preferences: repository.preferences
+                    ) {
+                        dismiss()
+                    }
+                    Spacer()
+                }
+
                 HStack(spacing: 16) {
                     SnoozyArtworkView(
                         artworkPath: tracks.compactMap(\.artworkPath).first,
-                        size: 84,
-                        cornerRadius: 42,
+                        size: 76,
+                        cornerRadius: 38,
                         theme: theme
                     )
                     .shadow(color: Color.black.opacity(0.28), radius: 10, x: 0, y: 5)
@@ -195,6 +223,7 @@ public struct ArtistDetailScreen: View {
                         Text(artistName)
                             .font(SnoozyTypography.display(26))
                             .foregroundStyle(theme.ink)
+                            .lineLimit(2)
                         Text("\(SnoozyFormat.countLabel(tracks.count, "song", "songs")) · \(SnoozyFormat.countLabel(albums.count, "album", "albums"))")
                             .font(SnoozyTypography.footnote(13))
                             .foregroundStyle(theme.inkMuted)
@@ -223,7 +252,7 @@ public struct ArtistDetailScreen: View {
 
                 if !albums.isEmpty {
                     Text("Albums")
-                        .font(SnoozyTypography.title(20))
+                        .font(SnoozyTypography.title(layout.sectionTitleSize))
                         .foregroundStyle(theme.ink)
 
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -241,7 +270,7 @@ public struct ArtistDetailScreen: View {
                                             .lineLimit(1)
                                         if let year = album.year {
                                             Text(year)
-                                                                                        .font(SnoozyTypography.footnote(12))
+                                                .font(SnoozyTypography.footnote(12))
                                                 .foregroundStyle(theme.inkMuted)
                                         }
                                     }
@@ -251,10 +280,11 @@ public struct ArtistDetailScreen: View {
                             }
                         }
                     }
+                    .snoozyHorizontalScrollZone(id: "artist-albums-shelf")
                 }
 
                 Text("Songs")
-                    .font(SnoozyTypography.title(20))
+                    .font(SnoozyTypography.title(layout.sectionTitleSize))
                     .foregroundStyle(theme.ink)
 
                 SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
@@ -280,7 +310,7 @@ public struct ArtistDetailScreen: View {
                 }
             }
             .padding(.horizontal, layout.horizontalPadding)
-            .padding(.top, 12)
+            .padding(.top, layout.isLandscape ? 8 : 10)
             .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .background(
@@ -291,8 +321,7 @@ public struct ArtistDetailScreen: View {
                 audioLevels: playback.audioLevels
             )
         )
-        .navigationTitle(artistName)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
@@ -302,6 +331,7 @@ public struct GenreDetailScreen: View {
     @ObservedObject public var playback: PlaybackController
     public let theme: SnoozyThemeColors
     public let onSelectTrackForMenu: (Track) -> Void
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.snoozyLayout) private var layout
 
     private var tracks: [Track] {
@@ -310,14 +340,39 @@ public struct GenreDetailScreen: View {
 
     public var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(genreName)
-                        .font(SnoozyTypography.display(26))
-                        .foregroundStyle(theme.ink)
-                    Text(SnoozyFormat.countLabel(tracks.count, "song", "songs"))
-                        .font(SnoozyTypography.footnote(13))
-                        .foregroundStyle(theme.inkMuted)
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 10) {
+                    LiquidGlassIconButton(
+                        systemImage: "chevron.left",
+                        accessibilityLabel: "Back",
+                        size: layout.headerButtonSize,
+                        theme: theme,
+                        preferences: repository.preferences
+                    ) {
+                        dismiss()
+                    }
+                    Spacer()
+                }
+
+                HStack(spacing: 16) {
+                    SnoozyPlaylistCollageView(
+                        artworkPaths: tracks.map(\.artworkPath),
+                        size: 76,
+                        cornerRadius: 18,
+                        theme: theme
+                    )
+                    .shadow(color: Color.black.opacity(0.26), radius: 10, x: 0, y: 5)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(genreName)
+                            .font(SnoozyTypography.display(26))
+                            .foregroundStyle(theme.ink)
+                            .lineLimit(2)
+                        Text("\(SnoozyFormat.countLabel(tracks.count, "song", "songs")) · Local Genre")
+                            .font(SnoozyTypography.footnote(13))
+                            .foregroundStyle(theme.inkMuted)
+                    }
+                    Spacer()
                 }
 
                 SnoozyCollectionActionsRow(
@@ -362,7 +417,7 @@ public struct GenreDetailScreen: View {
                 }
             }
             .padding(.horizontal, layout.horizontalPadding)
-            .padding(.top, 12)
+            .padding(.top, layout.isLandscape ? 8 : 10)
             .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .background(
@@ -373,8 +428,7 @@ public struct GenreDetailScreen: View {
                 audioLevels: playback.audioLevels
             )
         )
-        .navigationTitle(genreName)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
@@ -384,6 +438,7 @@ public struct FolderDetailScreen: View {
     @ObservedObject public var playback: PlaybackController
     public let theme: SnoozyThemeColors
     public let onSelectTrackForMenu: (Track) -> Void
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.snoozyLayout) private var layout
 
     private var tracks: [Track] {
@@ -392,20 +447,47 @@ public struct FolderDetailScreen: View {
 
     public var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(theme.accent.opacity(0.20))
-                        .frame(width: 54, height: 54)
-                        .overlay(
-                            Image(systemName: "folder.fill")
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundStyle(theme.accent)
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 10) {
+                    LiquidGlassIconButton(
+                        systemImage: "chevron.left",
+                        accessibilityLabel: "Back",
+                        size: layout.headerButtonSize,
+                        theme: theme,
+                        preferences: repository.preferences
+                    ) {
+                        dismiss()
+                    }
+                    Spacer()
+                }
+
+                HStack(spacing: 16) {
+                    ZStack(alignment: .bottomTrailing) {
+                        SnoozyArtworkView(
+                            artworkPath: tracks.compactMap(\.artworkPath).first,
+                            size: 76,
+                            cornerRadius: 18,
+                            theme: theme,
+                            placeholderSymbol: "folder.fill"
                         )
-                    VStack(alignment: .leading, spacing: 3) {
+                        .shadow(color: Color.black.opacity(0.26), radius: 10, x: 0, y: 5)
+
+                        Circle()
+                            .fill(theme.accent)
+                            .frame(width: 24, height: 24)
+                            .overlay(
+                                Image(systemName: "folder.fill")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(Color.white)
+                            )
+                            .offset(x: 3, y: 3)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(folderName)
-                            .font(SnoozyTypography.title(22))
+                            .font(SnoozyTypography.display(26))
                             .foregroundStyle(theme.ink)
+                            .lineLimit(2)
                         Text("\(SnoozyFormat.countLabel(tracks.count, "song", "songs")) · On My iPhone > Snoozy")
                             .font(SnoozyTypography.footnote(13))
                             .foregroundStyle(theme.inkMuted)
@@ -455,7 +537,7 @@ public struct FolderDetailScreen: View {
                 }
             }
             .padding(.horizontal, layout.horizontalPadding)
-            .padding(.top, 12)
+            .padding(.top, layout.isLandscape ? 8 : 10)
             .padding(.bottom, layout.scrollBottomPadding(hasMiniPlayer: playback.activeTrack != nil))
         }
         .background(
@@ -466,7 +548,6 @@ public struct FolderDetailScreen: View {
                 audioLevels: playback.audioLevels
             )
         )
-        .navigationTitle(folderName)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
     }
 }

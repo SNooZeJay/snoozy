@@ -8,6 +8,9 @@ on:
       - master
       - "release/**"
 
+permissions:
+  contents: write
+
 jobs:
   build-unsigned-ipa:
     name: Build Unsigned Snoozy.ipa (iPhone 13 mini / arm64)
@@ -94,3 +97,15 @@ jobs:
           path: ios-native/build/Snoozy-iOS-Sideloadly.ipa
           if-no-files-found: error
           retention-days: 90
+
+      - name: Publish Direct Download GitHub Release (v3.4.0)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v3.4.0 >/dev/null 2>&1; then
+            gh release upload v3.4.0 ios-native/build/Snoozy-iOS-Sideloadly.ipa --clobber
+          else
+            gh release create v3.4.0 ios-native/build/Snoozy-iOS-Sideloadly.ipa \
+              --title "Snoozy v3.4.0 (Sideloadly IPA)" \
+              --notes "Unsigned iOS arm64 Sideloadly package for Snoozy v3.4.0 (UI/UX Correction & Interaction Refinement Update)."
+          fi

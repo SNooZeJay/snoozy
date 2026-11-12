@@ -184,6 +184,7 @@ public struct SearchScreen: View {
                 }
             }
         }
+        .snoozyHorizontalScrollZone(id: "search-scope-pills")
     }
 
     @ViewBuilder

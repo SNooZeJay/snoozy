@@ -314,12 +314,13 @@ final class PlaybackQueueOpsTests: XCTestCase {
         XCTAssertTrue(mini.isCompactWidth)
         XCTAssertFalse(mini.isExpandedWidth)
         XCTAssertFalse(mini.isLandscape)
-        XCTAssertEqual(mini.horizontalPadding, 14)
+        XCTAssertEqual(mini.horizontalPadding, 16)
         XCTAssertEqual(mini.gridColumnCount, 2)
-        // (375 - 28 - 12) / 2 = 167.5 -> floor 167
-        XCTAssertEqual(mini.gridTileSize, 167)
-        XCTAssertEqual(mini.tabBarHeight, 52)
-        XCTAssertEqual(mini.miniPlayerHeight, 52)
+        // (375 - 32 - 14) / 2 = 164.5 -> floor 164
+        XCTAssertEqual(mini.gridTileSize, 164)
+        XCTAssertEqual(mini.tabBarHeight, 56)
+        XCTAssertEqual(mini.miniPlayerHeight, 56)
+        XCTAssertEqual(mini.detailHeroArtworkSize, 224)
 
         // iPhone 16 / 15 Pro (393 x 852 pt)
         let standard = SnoozyResponsiveLayout(width: 393, height: 852)
@@ -347,5 +348,58 @@ final class PlaybackQueueOpsTests: XCTestCase {
         XCTAssertTrue(landscape.isLandscape)
         XCTAssertEqual(landscape.gridColumnCount, 4)
         XCTAssertEqual(landscape.tabBarHeight, 50)
+    }
+
+    func testSwipeGestureGateExcludesHorizontalScrollZonesAndLocksVerticalAxis() {
+        let containerSize = CGSize(width: 375, height: 812)
+        let libraryPillsFrame = CGRect(x: 16, y: 150, width: 343, height: 40)
+
+        // 1. Touch starting inside Library category pills must be excluded (.childHorizontalScroll)
+        let insidePills = SnoozySwipeGestureGate.classify(
+            startLocation: CGPoint(x: 120, y: 168),
+            translation: CGSize(width: -80, height: 2),
+            containerSize: containerSize,
+            bottomChromeAllowance: 140,
+            isNavigationStackRoot: true,
+            isModalPresented: false,
+            horizontalScrollFrames: [libraryPillsFrame]
+        )
+        XCTAssertEqual(insidePills, .childHorizontalScroll)
+
+        // 2. Touch starting in vertical scroll area moving primarily vertically must lock to .verticalScroll
+        let verticalDrag = SnoozySwipeGestureGate.classify(
+            startLocation: CGPoint(x: 180, y: 320),
+            translation: CGSize(width: -20, height: 48),
+            containerSize: containerSize,
+            bottomChromeAllowance: 140,
+            isNavigationStackRoot: true,
+            isModalPresented: false,
+            horizontalScrollFrames: [libraryPillsFrame]
+        )
+        XCTAssertEqual(verticalDrag, .verticalScroll)
+
+        // 3. Touch starting inside a modal sheet or non-root stack must never trigger tab swipe
+        let modalDrag = SnoozySwipeGestureGate.classify(
+            startLocation: CGPoint(x: 180, y: 320),
+            translation: CGSize(width: -90, height: 4),
+            containerSize: containerSize,
+            bottomChromeAllowance: 140,
+            isNavigationStackRoot: true,
+            isModalPresented: true,
+            horizontalScrollFrames: [libraryPillsFrame]
+        )
+        XCTAssertEqual(modalDrag, .excludedZone)
+
+        // 4. Clean horizontal swipe in open content area activates .tabNavigation
+        let validTabSwipe = SnoozySwipeGestureGate.classify(
+            startLocation: CGPoint(x: 180, y: 360),
+            translation: CGSize(width: -65, height: 6),
+            containerSize: containerSize,
+            bottomChromeAllowance: 140,
+            isNavigationStackRoot: true,
+            isModalPresented: false,
+            horizontalScrollFrames: [libraryPillsFrame]
+        )
+        XCTAssertEqual(validTabSwipe, .tabNavigation)
     }
 }

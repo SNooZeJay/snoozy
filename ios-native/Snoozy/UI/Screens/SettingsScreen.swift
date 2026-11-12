@@ -549,7 +549,7 @@ public struct SettingsScreen: View {
             sectionTitle("About Snoozy", icon: "info.circle.fill")
 
             SnoozyGroupedCard(theme: theme, preferences: prefs) {
-                statRow(label: "Version", value: "3.3.0", showDivider: false)
+                statRow(label: "Version", value: "3.4.0", showDivider: false)
                 statRow(label: "Mode", value: "100% Offline Local Player", showDivider: true)
 
                 rowDivider

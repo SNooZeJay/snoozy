@@ -240,26 +240,26 @@ public struct PlaylistsScreen: View {
                             Rectangle()
                                 .fill(Color.white.opacity(theme.isDark ? 0.08 : 0.14))
                                 .frame(height: 0.5)
-                                .padding(.leading, 80)
+                                .padding(.leading, 72)
                         }
                         HStack(spacing: 12) {
                             Button {
                                 onOpenPlaylist(playlist.id)
                             } label: {
-                                HStack(spacing: 14) {
+                                HStack(spacing: 12) {
                                     SnoozyPlaylistCollageView(
                                         artworkPaths: tracks.map(\.artworkPath),
-                                        size: 54,
-                                        cornerRadius: 12,
+                                        size: 48,
+                                        cornerRadius: 10,
                                         theme: theme
                                     )
-                                    VStack(alignment: .leading, spacing: 3) {
+                                    VStack(alignment: .leading, spacing: 2) {
                                         Text(playlist.name)
-                                            .font(SnoozyTypography.body(16, bold: true))
+                                            .font(SnoozyTypography.body(15, bold: true))
                                             .foregroundStyle(theme.ink)
                                             .lineLimit(1)
                                         Text(SnoozyFormat.countLabel(tracks.count, "song", "songs"))
-                                            .font(SnoozyTypography.footnote(13))
+                                            .font(SnoozyTypography.footnote(12))
                                             .foregroundStyle(theme.inkMuted)
                                     }
                                     Spacer()
@@ -289,7 +289,7 @@ public struct PlaylistsScreen: View {
                                 }
                             } label: {
                                 Image(systemName: "ellipsis")
-                                    .font(.system(size: 15, weight: .bold))
+                                    .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(theme.inkMuted)
                                     .frame(width: 40, height: 44)
                             }
@@ -297,7 +297,7 @@ public struct PlaylistsScreen: View {
                         }
                         .padding(.leading, 12)
                         .padding(.trailing, 8)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 7)
                     }
                 }
             }
@@ -310,6 +310,7 @@ public struct PlaylistDetailScreen: View {
     @ObservedObject public var repository: LibraryRepository
     @ObservedObject public var playback: PlaybackController
     public let theme: SnoozyThemeColors
+    public var onSelectTrackForMenu: ((Track) -> Void)? = nil
 
     @State private var showAddSongsSheet: Bool = false
     @State private var showRenameAlert: Bool = false
@@ -322,12 +323,14 @@ public struct PlaylistDetailScreen: View {
         playlistId: String,
         repository: LibraryRepository,
         playback: PlaybackController,
-        theme: SnoozyThemeColors
+        theme: SnoozyThemeColors,
+        onSelectTrackForMenu: ((Track) -> Void)? = nil
     ) {
         self.playlistId = playlistId
         self.repository = repository
         self.playback = playback
         self.theme = theme
+        self.onSelectTrackForMenu = onSelectTrackForMenu
     }
 
     private var playlist: Playlist? {
@@ -343,6 +346,60 @@ public struct PlaylistDetailScreen: View {
     public var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 18) {
+                HStack(spacing: 10) {
+                    LiquidGlassIconButton(
+                        systemImage: "chevron.left",
+                        accessibilityLabel: "Back",
+                        size: layout.headerButtonSize,
+                        theme: theme,
+                        preferences: repository.preferences
+                    ) {
+                        dismiss()
+                    }
+
+                    Spacer()
+
+                    if let playlist {
+                        SnoozyGlassEffectContainer(spacing: 8) {
+                            HStack(spacing: 8) {
+                                LiquidGlassIconButton(
+                                    systemImage: "plus",
+                                    accessibilityLabel: "Add songs",
+                                    size: layout.headerButtonSize,
+                                    theme: theme,
+                                    preferences: repository.preferences
+                                ) {
+                                    showAddSongsSheet = true
+                                }
+
+                                Menu {
+                                    Button("Rename Playlist", systemImage: "pencil") {
+                                        renameText = playlist.name
+                                        showRenameAlert = true
+                                    }
+                                    Button("Delete Playlist", systemImage: "trash", role: .destructive) {
+                                        showDeleteAlert = true
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis")
+                                        .font(.system(size: max(15, layout.headerButtonSize * 0.42), weight: .semibold))
+                                        .foregroundStyle(theme.ink)
+                                        .frame(width: layout.headerButtonSize, height: layout.headerButtonSize)
+                                        .liquidGlassSurface(
+                                            cornerRadius: layout.headerButtonSize * 0.5,
+                                            glassMode: repository.preferences.glassMode,
+                                            refractionIntensity: repository.preferences.refractionIntensity,
+                                            tintColor: theme.accent,
+                                            elevation: .ultraClear
+                                        )
+                                }
+                                .accessibilityLabel("Playlist options")
+                            }
+                        }
+                    }
+                }
+                .padding(.top, layout.isLandscape ? 8 : 10)
+
                 if let playlist {
                     SnoozyPlaylistCollageView(
                         artworkPaths: tracks.map(\.artworkPath),
@@ -351,7 +408,7 @@ public struct PlaylistDetailScreen: View {
                         theme: theme
                     )
                     .shadow(color: Color.black.opacity(theme.isDark ? 0.45 : 0.18), radius: 22, x: 0, y: 12)
-                    .padding(.top, 10)
+                    .padding(.top, 2)
 
                     VStack(spacing: 5) {
                         Text(playlist.name)
@@ -406,82 +463,45 @@ public struct PlaylistDetailScreen: View {
                         SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
                             LazyVStack(spacing: 0) {
                                 ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
-                                    let isActive = (playback.activeTrack?.id == track.id)
-                                    VStack(spacing: 0) {
+                                    SnoozyTrackRowView(
+                                        track: track,
+                                        subtitle: "\(track.artist) · \(track.album)",
+                                        isActive: playback.activeTrack?.id == track.id,
+                                        isFavorite: repository.isFavorite(track.id),
+                                        showTopSeparator: index > 0,
+                                        isGrouped: true,
+                                        theme: theme,
+                                        preferences: repository.preferences,
+                                        onTap: { playback.playTrack(track, queue: tracks) },
+                                        onMenu: {
+                                            if let onSelectTrackForMenu {
+                                                onSelectTrackForMenu(track)
+                                            }
+                                        },
+                                        onPlayNext: { playback.playNext(track) },
+                                        onAddToQueue: { playback.addToQueue(track) },
+                                        onToggleFavorite: { repository.toggleFavorite(track.id) }
+                                    )
+                                    .contextMenu {
+                                        Button("Play Next", systemImage: "text.insert") {
+                                            playback.playNext(track)
+                                        }
+                                        Button("Add to Queue", systemImage: "text.append") {
+                                            playback.addToQueue(track)
+                                        }
                                         if index > 0 {
-                                            Rectangle()
-                                                .fill(Color.white.opacity(theme.isDark ? 0.08 : 0.14))
-                                                .frame(height: 0.5)
-                                                .padding(.leading, 68)
-                                        }
-                                        HStack(spacing: 10) {
-                                            Button {
-                                                playback.playTrack(track, queue: tracks)
-                                            } label: {
-                                                HStack(spacing: 12) {
-                                                    SnoozyArtworkView(
-                                                        artworkPath: track.artworkPath,
-                                                        size: 46,
-                                                        cornerRadius: 8,
-                                                        theme: theme
-                                                    )
-                                                    VStack(alignment: .leading, spacing: 2) {
-                                                        HStack(spacing: 5) {
-                                                            if isActive {
-                                                                SnoozySoundWaveView(
-                                                                    isActive: true,
-                                                                    color: theme.accent,
-                                                                    bars: 3,
-                                                                    height: 11
-                                                                )
-                                                            }
-                                                            Text(track.title)
-                                                                .font(SnoozyTypography.body(15, bold: isActive))
-                                                                .foregroundStyle(isActive ? theme.accent : theme.ink)
-                                                                .lineLimit(1)
-                                                        }
-                                                        Text("\(track.artist) · \(track.album)")
-                                                            .font(SnoozyTypography.footnote(13))
-                                                            .foregroundStyle(theme.inkMuted)
-                                                            .lineLimit(1)
-                                                    }
-                                                    Spacer()
-                                                }
-                                                .contentShape(Rectangle())
+                                            Button("Move Up", systemImage: "arrow.up") {
+                                                repository.movePlaylistTrack(playlistId: playlist.id, from: index, to: index - 1)
                                             }
-                                            .buttonStyle(.plain)
-
-                                            Menu {
-                                                Button("Play Next", systemImage: "text.insert") {
-                                                    playback.playNext(track)
-                                                }
-                                                Button("Add to Queue", systemImage: "text.append") {
-                                                    playback.addToQueue(track)
-                                                }
-                                                if index > 0 {
-                                                    Button("Move Up", systemImage: "arrow.up") {
-                                                        repository.movePlaylistTrack(playlistId: playlist.id, from: index, to: index - 1)
-                                                    }
-                                                }
-                                                if index + 1 < tracks.count {
-                                                    Button("Move Down", systemImage: "arrow.down") {
-                                                        repository.movePlaylistTrack(playlistId: playlist.id, from: index, to: index + 1)
-                                                    }
-                                                }
-                                                Button("Remove from Playlist", systemImage: "trash", role: .destructive) {
-                                                    repository.removeFromPlaylist(playlistId: playlist.id, trackId: track.id)
-                                                }
-                                            } label: {
-                                                Image(systemName: "ellipsis")
-                                                    .font(.system(size: 15, weight: .bold))
-                                                    .foregroundStyle(theme.inkMuted)
-                                                    .frame(width: 40, height: 44)
-                                            }
-                                            .accessibilityLabel("Manage \(track.title) in \(playlist.name)")
                                         }
-                                        .padding(.leading, 12)
-                                        .padding(.trailing, 6)
-                                        .padding(.vertical, 7)
+                                        if index + 1 < tracks.count {
+                                            Button("Move Down", systemImage: "arrow.down") {
+                                                repository.movePlaylistTrack(playlistId: playlist.id, from: index, to: index + 1)
+                                            }
+                                        }
+                                        Button("Remove from Playlist", systemImage: "trash", role: .destructive) {
+                                            repository.removeFromPlaylist(playlistId: playlist.id, trackId: track.id)
+                                        }
                                     }
                                 }
                             }
@@ -500,33 +520,7 @@ public struct PlaylistDetailScreen: View {
                 audioLevels: playback.audioLevels
             )
         )
-        .navigationTitle(playlist?.name ?? "Playlist")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if let playlist {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        showAddSongsSheet = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityLabel("Add songs")
-
-                    Menu {
-                        Button("Rename Playlist", systemImage: "pencil") {
-                            renameText = playlist.name
-                            showRenameAlert = true
-                        }
-                        Button("Delete Playlist", systemImage: "trash", role: .destructive) {
-                            showDeleteAlert = true
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                    .accessibilityLabel("Playlist options")
-                }
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showAddSongsSheet) {
             AddSongsToPlaylistSheetView(
                 playlistId: playlistId,

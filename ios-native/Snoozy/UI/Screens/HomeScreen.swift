@@ -280,6 +280,7 @@ public struct HomeScreen: View {
                         }
                     }
                 }
+                .snoozyHorizontalScrollZone(id: "home-recently-played")
             }
         }
     }
@@ -310,6 +311,7 @@ public struct HomeScreen: View {
                         }
                     }
                 }
+                .snoozyHorizontalScrollZone(id: "home-recently-played-albums")
             }
         }
     }
@@ -420,6 +422,7 @@ public struct HomeScreen: View {
                         }
                     }
                 }
+                .snoozyHorizontalScrollZone(id: "home-favorites")
             }
         }
     }
@@ -467,6 +470,7 @@ public struct HomeScreen: View {
                         }
                     }
                 }
+                .snoozyHorizontalScrollZone(id: "home-playlists")
             }
         }
     }

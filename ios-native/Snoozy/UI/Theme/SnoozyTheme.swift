@@ -235,27 +235,27 @@ public struct SnoozyResponsiveLayout: Equatable, Sendable {
         self.isCompactHeight = compactH
         self.isExpandedWidth = expandedW
 
-        let hPad: CGFloat = compactW ? 14 : (expandedW || landscape ? 20 : 16)
+        let hPad: CGFloat = (expandedW || landscape) ? 20 : 16
         self.horizontalPadding = hPad
-        self.sectionSpacing = compactW ? 20 : (expandedW ? 26 : 24)
-        self.headerTitleSize = compactW ? 26 : (expandedW ? 32 : 30)
-        self.sectionTitleSize = compactW ? 19 : (expandedW ? 22 : 21)
-        self.brandIconSize = compactW ? 38 : (expandedW ? 44 : 40)
-        self.headerButtonSize = compactW ? 36 : (expandedW ? 42 : 40)
-        self.shelfItemSize = compactW ? 138 : (expandedW ? 164 : (landscape ? 142 : 152))
+        self.sectionSpacing = expandedW ? 26 : 24
+        self.headerTitleSize = expandedW ? 33 : 31
+        self.sectionTitleSize = expandedW ? 22 : 21
+        self.brandIconSize = expandedW ? 42 : 40
+        self.headerButtonSize = expandedW ? 42 : 40
+        self.shelfItemSize = landscape ? 144 : (compactW ? 154 : (expandedW ? 168 : 158))
 
         let cols = landscape ? (safeW >= 740 ? 4 : 3) : 2
-        let gSpace: CGFloat = compactW ? 12 : (expandedW ? 16 : 14)
+        let gSpace: CGFloat = expandedW ? 16 : 14
         let contentW = max(240, safeW - hPad * 2)
         let tile = floor((contentW - gSpace * CGFloat(cols - 1)) / CGFloat(cols))
 
         self.gridColumnCount = cols
         self.gridSpacing = gSpace
         self.gridTileSize = max(128, tile)
-        self.detailHeroArtworkSize = landscape ? 176 : (compactW ? 194 : (expandedW ? 242 : 220))
-        self.tabBarPillHeight = landscape ? 50 : (compactW ? 52 : (expandedW ? 58 : 56))
-        self.tabBarIndicatorHeight = landscape ? 38 : (compactW ? 40 : (expandedW ? 46 : 44))
-        self.miniPlayerHeight = landscape ? 50 : (compactW ? 52 : (expandedW ? 58 : 56))
+        self.detailHeroArtworkSize = landscape ? 180 : (compactW ? 224 : (expandedW ? 248 : 232))
+        self.tabBarPillHeight = landscape ? 50 : (expandedW ? 58 : 56)
+        self.tabBarIndicatorHeight = landscape ? 38 : (expandedW ? 46 : 44)
+        self.miniPlayerHeight = landscape ? 50 : (expandedW ? 58 : 56)
         self.bottomChromeMaxWidth = landscape ? 460 : 500
     }
 
@@ -269,9 +269,9 @@ public struct SnoozyResponsiveLayout: Equatable, Sendable {
 
     public func scrollBottomPadding(hasActiveTrack: Bool) -> CGFloat {
         if hasActiveTrack {
-            return tabBarPillHeight + miniPlayerHeight + (isCompactHeight ? 32 : 42)
+            return tabBarPillHeight + miniPlayerHeight + 48
         }
-        return tabBarPillHeight + (isCompactHeight ? 24 : 32)
+        return tabBarPillHeight + 36
     }
 
     public func scrollBottomPadding(hasMiniPlayer: Bool) -> CGFloat {
@@ -282,22 +282,22 @@ public struct SnoozyResponsiveLayout: Equatable, Sendable {
         if isLandscape {
             return min(containerHeight * 0.58, containerWidth * 0.34)
         }
-        let maxByWidth = containerWidth - horizontalPadding * 2 - 12
-        let heightRatio: CGFloat = containerHeight <= 700 ? 0.34 : (containerHeight <= 820 ? 0.38 : 0.42)
+        let maxByWidth = containerWidth - horizontalPadding * 2 - 8
+        let heightRatio: CGFloat = containerHeight <= 700 ? 0.35 : (containerHeight <= 820 ? 0.40 : 0.43)
         let maxByHeight = containerHeight * heightRatio
-        return max(188, min(352, min(maxByWidth, maxByHeight)))
+        return max(196, min(356, min(maxByWidth, maxByHeight)))
     }
 
     public var nowPlayingSectionSpacing: CGFloat {
         if isLandscape { return 10 }
-        if containerHeight <= 700 { return 10 }
-        if containerHeight <= 820 { return 13 }
+        if containerHeight <= 700 { return 11 }
+        if containerHeight <= 820 { return 14 }
         return 17
     }
 
     public var nowPlayingPlayButtonSize: CGFloat {
-        if isLandscape || containerHeight <= 700 { return 58 }
-        if containerHeight <= 820 { return 64 }
+        if isLandscape || containerHeight <= 700 { return 60 }
+        if containerHeight <= 820 { return 68 }
         return 72
     }
 
@@ -317,6 +317,108 @@ public struct SnoozyResponsiveLayout: Equatable, Sendable {
         if isLandscape || containerHeight <= 700 { return 25 }
         if containerHeight <= 820 { return 27 }
         return 30
+    }
+}
+
+/// Deterministic gesture ownership state for root tab swipe vs nested vertical/horizontal scrolling.
+public enum SnoozySwipeGestureClassification: Equatable, Sendable {
+    case undecided
+    case horizontalTabSwipe
+    case verticalScroll
+    case claimedByChild
+}
+
+public enum SnoozySwipeGestureGate {
+    public static let rootCoordinateSpaceName = "SnoozyRootSpace"
+
+    /// Evaluates whether a drag gesture should be owned by root tab navigation, vertical scrolling, or a child component.
+    public static func classify(
+        current: SnoozySwipeGestureClassification,
+        startLocation: CGPoint,
+        translation: CGSize,
+        containerSize: CGSize,
+        bottomChromeHeight: CGFloat,
+        isAtRootNavigation: Bool,
+        isModalPresented: Bool,
+        horizontalScrollZones: [String: CGRect]
+    ) -> SnoozySwipeGestureClassification {
+        // Once locked for this touch lifetime, never flip ownership mid-gesture
+        if current != .undecided {
+            return current
+        }
+
+        // 1. Never intercept gestures when a modal sheet/cover is active or when inside a pushed detail route
+        if isModalPresented || !isAtRootNavigation {
+            return .claimedByChild
+        }
+
+        // 2. Reserve left/right system edge gestures and the bottom floating chrome zone
+        let edgeMargin: CGFloat = 18
+        if startLocation.x < edgeMargin || startLocation.x > (containerSize.width - edgeMargin) {
+            return .claimedByChild
+        }
+        if startLocation.y > (containerSize.height - bottomChromeHeight) {
+            return .claimedByChild
+        }
+
+        // 3. If the touch began inside any horizontal ScrollView (Library category pills, Home carousels, Search scopes),
+        // yield 100% ownership to the child horizontal ScrollView.
+        for rect in horizontalScrollZones.values {
+            if rect.insetBy(dx: -6, dy: -10).contains(startLocation) {
+                return .claimedByChild
+            }
+        }
+
+        let dx = abs(translation.width)
+        let dy = abs(translation.height)
+        let distance = hypot(dx, dy)
+
+        // Wait until the user moves at least 12pt before locking axis
+        guard distance >= 12 else {
+            return .undecided
+        }
+
+        // 4. Any vertical or diagonal-vertical movement locks to vertical scrolling for the rest of the touch
+        if dy > dx * 0.58 {
+            return .verticalScroll
+        }
+
+        // 5. Clean horizontal movement outside child horizontal scroll zones claims root tab swipe
+        if dx >= 20 && dx > dy * 1.75 {
+            return .horizontalTabSwipe
+        }
+
+        return .undecided
+    }
+}
+
+public struct SnoozyHorizontalScrollFramesPreferenceKey: PreferenceKey {
+    public static var defaultValue: [String: CGRect] { [:] }
+
+    public static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+    }
+}
+
+private struct SnoozyHorizontalScrollZoneModifier: ViewModifier {
+    let id: String
+
+    func body(content: Content) -> some View {
+        content.background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: SnoozyHorizontalScrollFramesPreferenceKey.self,
+                    value: [id: proxy.frame(in: .named(SnoozySwipeGestureGate.rootCoordinateSpaceName))]
+                )
+            }
+        )
+    }
+}
+
+public extension View {
+    /// Marks a horizontally scrollable child view so root tab swipe navigation never steals touches starting inside it.
+    func snoozyHorizontalScrollZone(id: String) -> some View {
+        modifier(SnoozyHorizontalScrollZoneModifier(id: id))
     }
 }
 

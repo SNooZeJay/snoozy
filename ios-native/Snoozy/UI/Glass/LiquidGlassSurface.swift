@@ -170,83 +170,84 @@ public struct LiquidGlassModifier: ViewModifier {
     @ViewBuilder
     private func liquidGlassBody(content: Content, shape: RoundedRectangle) -> some View {
         let clampedRefraction = min(1.0, max(0.0, refractionIntensity))
-        let tintOpacity: Double = {
-            switch variant {
-            case .ultraClear: return 0.06 * clampedRefraction
-            case .regular: return 0.13 * clampedRefraction
-            case .tinted: return 0.24 * clampedRefraction
-            case .prominent: return 0.88
-            }
-        }()
 
         content
             .background(
                 ZStack {
-                    // 1. Real-time translucent backdrop blur (UIGlassEffect / ultraThinMaterial)
-                    shape.fill(.ultraThinMaterial)
-
-                    // 2. Optical refractive lens tint & chromatic dispersion wash
                     if isProminent || variant == .prominent {
+                        // Prominent accent capsule (for example, Play button or active filter pill)
                         shape.fill(
                             LinearGradient(
                                 colors: [
-                                    tintColor.opacity(0.94),
-                                    tintColor.opacity(0.76)
+                                    tintColor.opacity(0.95),
+                                    tintColor.opacity(0.84)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        shape.fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.18),
+                                    Color.clear
+                                ],
+                                startPoint: .top,
+                                endPoint: .center
+                            )
+                        )
+                    } else if variant == .ultraClear {
+                        // Floating optical Liquid Glass (used by Main Navigation Bar, Mini Player, and Header Icon Pills)
+                        shape.fill(.ultraThinMaterial)
+                        shape.fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.07 * max(0.4, clampedRefraction)),
+                                    Color.black.opacity(0.14),
+                                    tintColor.opacity(0.03 * clampedRefraction)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                     } else {
-                        shape.fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.16 * clampedRefraction),
-                                    tintColor.opacity(tintOpacity),
-                                    Color(red: 0.04, green: 0.68, blue: 0.82).opacity(0.06 * clampedRefraction),
-                                    Color.white.opacity(0.04 * clampedRefraction)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    }
-
-                    // 3. Top-edge curved liquid meniscus specular reflection
-                    VStack(spacing: 0) {
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(isProminent ? 0.36 : (0.34 * max(0.35, clampedRefraction))),
-                                Color.white.opacity(0.06 * clampedRefraction),
-                                Color.clear
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 18)
-                        Spacer(minLength: 0)
+                        // Selective inline control surface (Search bar, secondary action buttons, cards)
+                        shape.fill(Color(UIColor.secondarySystemGroupedBackground).opacity(0.82))
+                        shape.fill(.ultraThinMaterial.opacity(0.55))
+                        if variant == .tinted {
+                            shape.fill(tintColor.opacity(0.10 * clampedRefraction))
+                        }
                     }
                 }
                 .clipShape(shape)
             )
             .clipShape(shape)
             .overlay(
-                // 4. Prismatic specular edge reflection rim
+                // Crisp, physical 1px-thin neutral specular rim (matches the main navigation bar)
                 shape.strokeBorder(
                     LinearGradient(
-                        colors: [
-                            Color.white.opacity(isProminent ? 0.62 : (0.48 * max(0.4, clampedRefraction))),
-                            tintColor.opacity(0.38 * max(0.4, clampedRefraction)),
-                            Color.white.opacity(0.10),
-                            Color(red: 0.15, green: 0.85, blue: 0.72).opacity(0.28 * clampedRefraction)
-                        ],
+                        colors: isProminent
+                            ? [
+                                Color.white.opacity(0.46),
+                                Color.white.opacity(0.12)
+                            ]
+                            : [
+                                Color.white.opacity(variant == .ultraClear ? 0.34 : 0.18),
+                                Color.white.opacity(variant == .ultraClear ? 0.07 : 0.05),
+                                Color.white.opacity(variant == .ultraClear ? 0.18 : 0.09)
+                            ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
-                    lineWidth: 0.95
+                    lineWidth: variant == .ultraClear ? 0.85 : 0.65
                 )
             )
-            .shadow(color: Color.black.opacity(0.26), radius: 14, x: 0, y: 7)
+            .shadow(
+                color: Color.black.opacity(variant == .ultraClear ? 0.24 : (isProminent ? 0.18 : 0.08)),
+                radius: variant == .ultraClear ? 14 : (isProminent ? 8 : 4),
+                x: 0,
+                y: variant == .ultraClear ? 6 : 2
+            )
     }
 }
 
@@ -455,9 +456,11 @@ public struct LiquidAuraBackgroundView: View {
             let overall = reactiveActive ? audioLevels.overall : 0.0
 
             let baseIntensity = isImmersivePlayer
-                ? max(0.78, preferences.auraBackdropIntensity)
-                : max(0.48, preferences.auraBackdropIntensity * 0.68)
-            let effectiveIntensity = min(1.0, baseIntensity + overall * 0.24)
+                ? max(0.76, preferences.auraBackdropIntensity)
+                : min(0.26, preferences.auraBackdropIntensity * 0.28)
+            let effectiveIntensity = isImmersivePlayer
+                ? min(1.0, baseIntensity + overall * 0.24)
+                : min(0.32, baseIntensity + overall * 0.08)
 
             TimelineView(.animation(minimumInterval: preferences.motionMode == .reduced ? 2.0 : 1.0 / 24.0)) { timeline in
                 let t = preferences.motionMode == .reduced

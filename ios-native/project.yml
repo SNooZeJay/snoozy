@@ -9,8 +9,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    MARKETING_VERSION: "3.3.0"
-    CURRENT_PROJECT_VERSION: "17"
+    MARKETING_VERSION: "3.4.0"
+    CURRENT_PROJECT_VERSION: "18"
     TARGETED_DEVICE_FAMILY: "1"
     SUPPORTS_MACCATALYST: NO
     SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
@@ -29,8 +29,8 @@ targets:
       path: Snoozy/Info.plist
       properties:
         CFBundleDisplayName: Snoozy
-        CFBundleShortVersionString: "3.3.0"
-        CFBundleVersion: "17"
+        CFBundleShortVersionString: "3.4.0"
+        CFBundleVersion: "18"
         CFBundleIcons:
           CFBundlePrimaryIcon:
             CFBundleIconFiles:
