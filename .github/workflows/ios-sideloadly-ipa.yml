@@ -14,7 +14,7 @@ permissions:
 jobs:
   build-unsigned-ipa:
     name: Build Unsigned Snoozy.ipa (iPhone 13 mini / arm64)
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -66,7 +66,7 @@ jobs:
             --minimum-deployment-target 17.0 \
             --app-icon AppIcon \
             --output-partial-info-plist build/assetcatalog_generated_info.plist \
-            --output-format human-readable-text || true
+            --output-format human-readable-text
           cp -f Snoozy/Resources/SnoozyBrandLogo.png build/ipa/Payload/Snoozy.app/SnoozyBrandLogo.png
           cp -f Snoozy/Resources/Assets.xcassets/SnoozyIconLayer0.imageset/SnoozyIconLayer0@3x.png build/ipa/Payload/Snoozy.app/SnoozyIconLayer0@3x.png
           cp -f Snoozy/Resources/Assets.xcassets/SnoozyIconLayer1.imageset/SnoozyIconLayer1@3x.png build/ipa/Payload/Snoozy.app/SnoozyIconLayer1@3x.png

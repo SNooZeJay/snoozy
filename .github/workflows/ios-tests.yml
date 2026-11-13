@@ -10,7 +10,7 @@ on:
 jobs:
   test:
     name: Run Snoozy unit tests
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
             -project Snoozy.xcodeproj \
             -scheme Snoozy \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,OS=latest,name=iPhone 16' \
+            -destination 'platform=iOS Simulator,OS=latest,name=iPhone 17' \
             -derivedDataPath build/TestDerivedData \
             CODE_SIGNING_ALLOWED=NO \
             test 2>&1 | tee build/xcodebuild-test.log
