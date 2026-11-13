@@ -372,9 +372,11 @@ public struct RootScaffoldView: View {
                             progress: progress,
                             theme: theme,
                             preferences: repository.preferences,
+                            isFavorite: repository.isFavorite(active.id),
                             artworkNamespace: artworkNamespace,
                             onOpenPlayer: { showFullPlayer = true },
                             onTogglePlay: { playback.togglePlayback() },
+                            onToggleFavorite: { repository.toggleFavorite(active.id) },
                             onNext: { playback.next() },
                             onPrevious: { playback.previous() }
                         )
@@ -392,9 +394,11 @@ public struct RootScaffoldView: View {
                             progress: progress,
                             theme: theme,
                             preferences: repository.preferences,
+                            isFavorite: repository.isFavorite(active.id),
                             artworkNamespace: artworkNamespace,
                             onOpenPlayer: { showFullPlayer = true },
                             onTogglePlay: { playback.togglePlayback() },
+                            onToggleFavorite: { repository.toggleFavorite(active.id) },
                             onNext: { playback.next() },
                             onPrevious: { playback.previous() }
                         )

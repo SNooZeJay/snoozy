@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 public struct SnoozyMiniPlayerView: View {
     public let track: Track
@@ -6,9 +7,11 @@ public struct SnoozyMiniPlayerView: View {
     public let progress: Double
     public let theme: SnoozyThemeColors
     public let preferences: SnoozyPreferences
+    public let isFavorite: Bool
     public var artworkNamespace: Namespace.ID? = nil
     public let onOpenPlayer: () -> Void
     public let onTogglePlay: () -> Void
+    public let onToggleFavorite: () -> Void
     public let onNext: () -> Void
     public var onPrevious: (() -> Void)? = nil
     @Environment(\.snoozyLayout) private var layout
@@ -19,9 +22,11 @@ public struct SnoozyMiniPlayerView: View {
         progress: Double,
         theme: SnoozyThemeColors,
         preferences: SnoozyPreferences,
+        isFavorite: Bool,
         artworkNamespace: Namespace.ID? = nil,
         onOpenPlayer: @escaping () -> Void,
         onTogglePlay: @escaping () -> Void,
+        onToggleFavorite: @escaping () -> Void,
         onNext: @escaping () -> Void,
         onPrevious: (() -> Void)? = nil
     ) {
@@ -30,9 +35,11 @@ public struct SnoozyMiniPlayerView: View {
         self.progress = progress
         self.theme = theme
         self.preferences = preferences
+        self.isFavorite = isFavorite
         self.artworkNamespace = artworkNamespace
         self.onOpenPlayer = onOpenPlayer
         self.onTogglePlay = onTogglePlay
+        self.onToggleFavorite = onToggleFavorite
         self.onNext = onNext
         self.onPrevious = onPrevious
     }
@@ -40,6 +47,7 @@ public struct SnoozyMiniPlayerView: View {
     public var body: some View {
         let pillHeight = layout.miniPlayerHeight
         let thumbSize = max(34, pillHeight - 14)
+        let containerRadius = pillHeight * 0.30
 
         ZStack(alignment: .bottom) {
             HStack(spacing: 11) {
@@ -64,11 +72,34 @@ public struct SnoozyMiniPlayerView: View {
                 .buttonStyle(LiquidGlassInteractiveBounceStyle(scale: 0.98))
 
                 HStack(spacing: 2) {
+                    ZStack {
+                        AudioRoutePickerRepresentable(
+                            tintColor: UIColor(theme.ink.opacity(0.88)),
+                            activeTintColor: UIColor(theme.accent)
+                        )
+                        .frame(width: 40, height: pillHeight)
+                    }
+                    .accessibilityLabel("Audio output")
+
+                    controlDivider
+
+                    Button(action: onToggleFavorite) {
+                        Image(systemName: isFavorite ? "star.fill" : "star")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(isFavorite ? theme.accent : theme.ink.opacity(0.88))
+                            .frame(width: 40, height: pillHeight)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(LiquidGlassInteractiveBounceStyle(scale: 0.88))
+                    .accessibilityLabel(isFavorite ? "Remove from Favorites" : "Add to Favorites")
+
+                    controlDivider
+
                     Button(action: onTogglePlay) {
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: 19, weight: .bold))
                             .foregroundStyle(theme.ink)
-                            .frame(width: 42, height: pillHeight)
+                            .frame(width: 40, height: pillHeight)
                             .contentShape(Rectangle())
                             .contentTransition(.symbolEffect(.replace))
                     }
@@ -79,7 +110,7 @@ public struct SnoozyMiniPlayerView: View {
                         Image(systemName: "forward.fill")
                             .font(.system(size: 18, weight: .bold))
                             .foregroundStyle(theme.ink.opacity(0.88))
-                            .frame(width: 42, height: pillHeight)
+                            .frame(width: 40, height: pillHeight)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(LiquidGlassInteractiveBounceStyle(scale: 0.88))
@@ -90,7 +121,7 @@ public struct SnoozyMiniPlayerView: View {
             .padding(.trailing, 8)
             .frame(height: pillHeight)
 
-            // Subtle integrated playback progress hairline inside the bottom of the capsule
+            // Subtle integrated playback progress hairline inside the bottom of the container
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule()
@@ -111,7 +142,7 @@ public struct SnoozyMiniPlayerView: View {
         }
         .frame(height: pillHeight)
         .liquidGlassSurface(
-            cornerRadius: pillHeight * 0.5,
+            cornerRadius: containerRadius,
             glassMode: preferences.glassMode,
             refractionIntensity: preferences.refractionIntensity,
             tintColor: theme.accent,
@@ -119,7 +150,7 @@ public struct SnoozyMiniPlayerView: View {
         )
         .overlay(
             // Identical physical top rim specular highlight + subtle bottom reflection as the main navigation bar
-            Capsule()
+            RoundedRectangle(cornerRadius: containerRadius, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         colors: [
@@ -153,14 +184,15 @@ public struct SnoozyMiniPlayerView: View {
 
     @ViewBuilder
     private func artworkThumbnail(size: CGFloat) -> some View {
+        let radius = size * 0.30
         let base = SnoozyArtworkView(
             artworkPath: track.artworkPath,
             size: size,
-            cornerRadius: size * 0.5,
+            cornerRadius: radius,
             theme: theme
         )
         .overlay(
-            Circle()
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.6)
         )
         .shadow(color: Color.black.opacity(0.28), radius: 5, x: 0, y: 2)
@@ -170,5 +202,13 @@ public struct SnoozyMiniPlayerView: View {
         } else {
             base
         }
+    }
+
+    private var controlDivider: some View {
+        Rectangle()
+            .fill(theme.ink.opacity(theme.isDark ? 0.18 : 0.14))
+            .frame(width: 0.5, height: 18)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
