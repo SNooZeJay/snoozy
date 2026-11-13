@@ -25,6 +25,16 @@ jobs:
         working-directory: ios-native
         run: xcodegen generate
 
+      - name: Select simulator
+        run: |
+          xcrun simctl list devices available
+          UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name == "iPhone 17")][0].udid')
+          if [ -z "$UDID" ] || [ "$UDID" = "null" ]; then
+            echo "::error::No iPhone 17 simulator is available on this runner"
+            exit 1
+          fi
+          echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
+
       - name: Run unit tests
         working-directory: ios-native
         run: |
@@ -34,7 +44,7 @@ jobs:
             -project Snoozy.xcodeproj \
             -scheme Snoozy \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,OS=latest,name=iPhone 17' \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -derivedDataPath build/TestDerivedData \
             CODE_SIGNING_ALLOWED=NO \
             test 2>&1 | tee build/xcodebuild-test.log
