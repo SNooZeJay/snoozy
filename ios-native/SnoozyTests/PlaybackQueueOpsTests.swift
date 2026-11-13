@@ -381,7 +381,8 @@ final class PlaybackQueueOpsTests: XCTestCase {
         let landscape = SnoozyResponsiveLayout(width: 812, height: 375)
         XCTAssertTrue(landscape.isLandscape)
         XCTAssertEqual(landscape.gridColumnCount, 4)
-        XCTAssertEqual(landscape.tabBarHeight, 50)
+        XCTAssertEqual(landscape.tabBarHeight, 52)
+        XCTAssertEqual(landscape.miniPlayerHeight, 54)
     }
 
 }
