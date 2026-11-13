@@ -15,7 +15,7 @@ final class LibraryScanTests: XCTestCase {
     }
 
     @MainActor
-    private func makeRepository() throws -> LibraryRepository {
+    private func makeRepository(prepare: (SnoozyStore) -> Void = { _ in }) throws -> LibraryRepository {
         let support = rootURL.appendingPathComponent("Support", isDirectory: true)
         let documents = rootURL.appendingPathComponent("Documents", isDirectory: true)
         try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
@@ -25,12 +25,12 @@ final class LibraryScanTests: XCTestCase {
             supportDirectory: support,
             documentsDirectory: documents
         )
+        prepare(store)
         return LibraryRepository(store: store)
     }
 
     @MainActor
     func testEmptyScanKeepsExistingLibraryAndPlaylistMembership() async throws {
-        let repository = try makeRepository()
         let track = Track(
             id: "track-1",
             title: "Kept Song",
@@ -40,12 +40,14 @@ final class LibraryScanTests: XCTestCase {
             relativePath: "Kept Song.mp3",
             addedAt: 1
         )
-        repository.store.update { state in
-            state.scannedTracks = [track]
-            state.favoriteTrackIds = [track.id]
-            state.playlists = [
-                Playlist(id: "p1", name: "Keep", trackIds: [track.id], createdAt: 1)
-            ]
+        let repository = try makeRepository { store in
+            store.update { state in
+                state.scannedTracks = [track]
+                state.favoriteTrackIds = [track.id]
+                state.playlists = [
+                    Playlist(id: "p1", name: "Keep", trackIds: [track.id], createdAt: 1)
+                ]
+            }
         }
 
         await repository.scanLibrary()
@@ -54,6 +56,33 @@ final class LibraryScanTests: XCTestCase {
         XCTAssertEqual(repository.favoriteTrackIds, Set([track.id]))
         XCTAssertEqual(repository.playlists.first?.trackIds, [track.id])
         XCTAssertNotNil(repository.bannerMessage)
+    }
+
+    @MainActor
+    func testDeletingPlaylistKeepsLibraryTracks() throws {
+        let track = Track(
+            id: "track-2",
+            title: "Still Here",
+            artist: "Artist",
+            album: "Album",
+            duration: 120,
+            relativePath: "Still Here.mp3",
+            addedAt: 2
+        )
+        let repository = try makeRepository { store in
+            store.update { state in
+                state.scannedTracks = [track]
+                state.playlists = [
+                    Playlist(id: "p2", name: "Remove Me", trackIds: [track.id], createdAt: 2)
+                ]
+            }
+        }
+
+        repository.deletePlaylist(id: "p2")
+
+        XCTAssertTrue(repository.playlists.isEmpty)
+        XCTAssertEqual(repository.rawTracks.map(\.id), [track.id])
+        XCTAssertEqual(repository.tracks.map(\.id), [track.id])
     }
 
     func testImportWithDuplicateNamePreservesExistingFile() throws {
@@ -79,5 +108,17 @@ final class LibraryScanTests: XCTestCase {
         ).map(\.lastPathComponent)
 
         XCTAssertTrue(names.contains("Same Name (2).mp3"), "Imported duplicate should get a unique name, got \(names)")
+    }
+
+    func testForegroundScanThrottleSkipsRescanWithinMinimumInterval() {
+        var throttle = ForegroundScanThrottle(minimumInterval: 60)
+        let start = Date(timeIntervalSince1970: 1_000)
+
+        XCTAssertTrue(throttle.shouldScan(at: start))
+
+        throttle.recordScan(at: start)
+
+        XCTAssertFalse(throttle.shouldScan(at: start.addingTimeInterval(59)))
+        XCTAssertTrue(throttle.shouldScan(at: start.addingTimeInterval(60)))
     }
 }

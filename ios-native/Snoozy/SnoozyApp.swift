@@ -5,6 +5,7 @@ import UIKit
 public struct SnoozyApp: App {
     @StateObject private var repository: LibraryRepository
     @StateObject private var playback: PlaybackController
+    @State private var foregroundScanThrottle = ForegroundScanThrottle()
     @Environment(\.scenePhase) private var scenePhase
 
     public init() {
@@ -27,17 +28,18 @@ public struct SnoozyApp: App {
                 .task {
                     await repository.seedShowcaseLibraryIfNeeded()
                     await repository.scanLibrary()
+                    foregroundScanThrottle.recordScan(at: .now)
                     playback.restoreColdStartIfNeeded()
                     if playback.activeTrack == nil, let first = repository.recentTracks.first ?? repository.sortedSongs.first {
                         playback.prepareInitialTrackIfNeeded(first, queue: repository.sortedSongs)
                     }
                 }
                 .onChange(of: scenePhase) { _, newPhase in
-                    if newPhase == .active {
-                        Task {
-                            await repository.scanLibrary()
-                            playback.restoreColdStartIfNeeded()
-                        }
+                    guard newPhase == .active, foregroundScanThrottle.shouldScan(at: .now) else { return }
+                    foregroundScanThrottle.recordScan(at: .now)
+                    Task {
+                        await repository.scanLibrary()
+                        playback.restoreColdStartIfNeeded()
                     }
                 }
                 .onOpenURL { url in
