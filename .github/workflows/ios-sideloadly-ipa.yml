@@ -2,6 +2,11 @@ name: Build Snoozy iOS IPA for Sideloadly
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish the built IPA to the v3.4.0 GitHub Release"
+        type: boolean
+        default: true
   push:
     branches:
       - main
@@ -99,6 +104,7 @@ jobs:
           retention-days: 90
 
       - name: Publish Direct Download GitHub Release (v3.4.0)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
