@@ -4,7 +4,6 @@ import UIKit
 public enum RootTab: String, CaseIterable, Identifiable, Sendable {
     case home
     case library
-    case playlists
     case search
     case settings
 
@@ -14,9 +13,8 @@ public enum RootTab: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .home: return 0
         case .library: return 1
-        case .playlists: return 2
-        case .search: return 3
-        case .settings: return 4
+        case .search: return 2
+        case .settings: return 3
         }
     }
 
@@ -31,7 +29,6 @@ public enum RootTab: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .home: return "Home"
         case .library: return "Library"
-        case .playlists: return "Playlists"
         case .search: return "Search"
         case .settings: return "Settings"
         }
@@ -41,7 +38,6 @@ public enum RootTab: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .home: return "house.fill"
         case .library: return "square.stack.fill"
-        case .playlists: return "music.note.list"
         case .search: return "magnifyingglass"
         case .settings: return "gearshape.fill"
         }
@@ -49,52 +45,6 @@ public enum RootTab: String, CaseIterable, Identifiable, Sendable {
 }
 
 public enum RootTabSwipeMath {
-    /// Computes the continuous floating indicator position (0 ... tabCount - 1) from a horizontal swipe gesture.
-    /// Applies smooth rubber-band resistance when swiping past the first or last tab.
-    public static func continuousProgress(
-        currentIndex: Int,
-        tabCount: Int,
-        translationWidth: Double,
-        containerWidth: Double
-    ) -> Double {
-        let safeWidth = max(1.0, containerWidth)
-        let maxIdx = Double(max(0, tabCount - 1))
-        let delta = -translationWidth / safeWidth
-        let raw = Double(currentIndex) + delta
-        if raw < 0.0 {
-            return raw * 0.22
-        } else if raw > maxIdx {
-            return maxIdx + (raw - maxIdx) * 0.22
-        }
-        return raw
-    }
-
-    /// Resolves which tab index the navigation should settle into when a horizontal swipe gesture ends.
-    /// Returns `currentIndex` if the swipe is incomplete.
-    public static func resolveSwipeTargetIndex(
-        currentIndex: Int,
-        tabCount: Int,
-        translationWidth: Double,
-        predictedEndTranslationWidth: Double,
-        containerWidth: Double
-    ) -> Int {
-        guard tabCount > 1 else { return 0 }
-        let safeWidth = max(1.0, containerWidth)
-        let normalizedDrag = -translationWidth / safeWidth
-        let normalizedPredicted = -predictedEndTranslationWidth / safeWidth
-
-        let distanceThreshold = 0.26
-        let velocityThreshold = 0.46
-
-        var target = currentIndex
-        if normalizedDrag >= distanceThreshold || (normalizedDrag > 0.06 && normalizedPredicted >= velocityThreshold) {
-            target = currentIndex + 1
-        } else if normalizedDrag <= -distanceThreshold || (normalizedDrag < -0.06 && normalizedPredicted <= -velocityThreshold) {
-            target = currentIndex - 1
-        }
-        return min(max(0, target), tabCount - 1)
-    }
-
     /// Maps a horizontal touch location inside the floating Liquid Glass pill to continuous tab index space.
     public static func pillScrubProgress(
         locationX: Double,
@@ -133,11 +83,8 @@ public struct RootScaffoldView: View {
     @State private var navPath = NavigationPath()
     @State private var isTabBarMinimized: Bool = false
 
-    // Instagram-inspired interactive horizontal swipe + pill scrub state
-    @State private var horizontalSwipeTranslation: CGFloat = 0.0
-    @State private var isHorizontalSwiping: Bool = false
+    // Instagram-inspired floating pill scrub state
     @State private var pillScrubProgressValue: Double? = nil
-    @State private var gestureClassification: SnoozySwipeGestureClassification = .undecided
     @State private var horizontalScrollZones: [String: CGRect] = [:]
 
     @State private var showFullPlayer: Bool = false
@@ -162,11 +109,7 @@ public struct RootScaffoldView: View {
     }
 
     private var isDarkEffective: Bool {
-        switch repository.preferences.themeMode {
-        case .dark: return true
-        case .light: return false
-        case .system: return systemColorScheme == .dark
-        }
+        systemColorScheme == .dark
     }
 
     private var theme: SnoozyThemeColors {
@@ -177,30 +120,8 @@ public struct RootScaffoldView: View {
         )
     }
 
-    private func effectiveIndicatorProgress(screenWidth: CGFloat) -> Double {
-        if let pillProgress = pillScrubProgressValue {
-            return pillProgress
-        }
-        if isHorizontalSwiping || abs(horizontalSwipeTranslation) > 0.5 {
-            return RootTabSwipeMath.continuousProgress(
-                currentIndex: selectedTab.index,
-                tabCount: RootTab.allCases.count,
-                translationWidth: Double(horizontalSwipeTranslation),
-                containerWidth: Double(max(1.0, screenWidth))
-            )
-        }
-        return Double(selectedTab.index)
-    }
-
-    private var neighborSwipeTab: RootTab? {
-        guard abs(horizontalSwipeTranslation) > 1.0 else { return nil }
-        let currentIdx = selectedTab.index
-        if horizontalSwipeTranslation < 0, currentIdx + 1 < RootTab.allCases.count {
-            return RootTab.from(index: currentIdx + 1)
-        } else if horizontalSwipeTranslation > 0, currentIdx - 1 >= 0 {
-            return RootTab.from(index: currentIdx - 1)
-        }
-        return nil
+    private func effectiveIndicatorProgress() -> Double {
+        pillScrubProgressValue ?? Double(selectedTab.index)
     }
 
     public var body: some View {
@@ -208,7 +129,7 @@ public struct RootScaffoldView: View {
             let screenWidth = max(1.0, proxy.size.width)
             let screenHeight = max(1.0, proxy.size.height)
             let layout = SnoozyResponsiveLayout(width: screenWidth, height: screenHeight)
-            let indicatorProgress = effectiveIndicatorProgress(screenWidth: screenWidth)
+            let indicatorProgress = effectiveIndicatorProgress()
 
             ZStack(alignment: .bottom) {
                 LiquidAuraBackgroundView(
@@ -220,7 +141,6 @@ public struct RootScaffoldView: View {
 
                 NavigationStack(path: $navPath) {
                     tabContentView(for: selectedTab)
-                        .offset(x: navPath.isEmpty ? (horizontalSwipeTranslation * 0.14) : 0)
                         .navigationDestination(for: NavigationDestination.self) { destination in
                             switch destination {
                             case .album(let key):
@@ -269,89 +189,38 @@ public struct RootScaffoldView: View {
                         }
                 }
                 .simultaneousGesture(
-                    DragGesture(minimumDistance: 12, coordinateSpace: .named(SnoozySwipeGestureGate.rootCoordinateSpaceName))
-                        .onChanged { value in
-                            let bottomChromeHeight = layout.tabBarPillHeight
-                                + (playback.activeTrack != nil ? layout.miniPlayerHeight + 16 : 16)
-                                + 20
+                    DragGesture(
+                        minimumDistance: 12,
+                        coordinateSpace: .named(SnoozyTabBarMinimizationGate.rootCoordinateSpaceName)
+                    )
+                    .onChanged { value in
+                        let bottomChromeHeight = layout.tabBarPillHeight
+                            + (playback.activeTrack != nil ? layout.miniPlayerHeight + 16 : 16)
+                            + 20
 
-                            let resolved = SnoozySwipeGestureGate.classify(
-                                current: gestureClassification,
-                                startLocation: value.startLocation,
-                                translation: value.translation,
-                                containerSize: CGSize(width: screenWidth, height: screenHeight),
-                                bottomChromeHeight: bottomChromeHeight,
-                                isAtRootNavigation: navPath.isEmpty,
-                                isModalPresented: isAnyModalPresented,
-                                horizontalScrollZones: horizontalScrollZones
-                            )
-                            if gestureClassification != resolved {
-                                gestureClassification = resolved
+                        guard SnoozyTabBarMinimizationGate.shouldEvaluate(
+                            startLocation: value.startLocation,
+                            translation: value.translation,
+                            containerSize: CGSize(width: screenWidth, height: screenHeight),
+                            bottomChromeHeight: bottomChromeHeight,
+                            isAtRootNavigation: navPath.isEmpty,
+                            isModalPresented: isAnyModalPresented,
+                            horizontalScrollZones: horizontalScrollZones
+                        ) else {
+                            return
+                        }
+
+                        let dy = value.translation.height
+                        if dy < -38 && !isTabBarMinimized {
+                            withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
+                                isTabBarMinimized = true
                             }
-
-                            let dx = value.translation.width
-                            let dy = value.translation.height
-
-                            switch resolved {
-                            case .claimedByChild, .undecided:
-                                return
-
-                            case .horizontalTabSwipe:
-                                if !isHorizontalSwiping {
-                                    isHorizontalSwiping = true
-                                    if isTabBarMinimized {
-                                        withAnimation(.spring(response: 0.30, dampingFraction: 0.82)) {
-                                            isTabBarMinimized = false
-                                        }
-                                    }
-                                }
-                                let currentIdx = selectedTab.index
-                                let isOverscrollingLeft = (currentIdx == 0 && dx > 0)
-                                let isOverscrollingRight = (currentIdx == RootTab.allCases.count - 1 && dx < 0)
-                                horizontalSwipeTranslation = (isOverscrollingLeft || isOverscrollingRight) ? (dx * 0.24) : dx
-
-                            case .verticalScroll:
-                                if dy < -38 && !isTabBarMinimized {
-                                    withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
-                                        isTabBarMinimized = true
-                                    }
-                                } else if dy > 30 && isTabBarMinimized {
-                                    withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
-                                        isTabBarMinimized = false
-                                    }
-                                }
+                        } else if dy > 30 && isTabBarMinimized {
+                            withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
+                                isTabBarMinimized = false
                             }
                         }
-                        .onEnded { value in
-                            defer {
-                                gestureClassification = .undecided
-                            }
-                            guard isHorizontalSwiping else {
-                                if horizontalSwipeTranslation != 0 {
-                                    horizontalSwipeTranslation = 0
-                                }
-                                return
-                            }
-                            let targetIdx = RootTabSwipeMath.resolveSwipeTargetIndex(
-                                currentIndex: selectedTab.index,
-                                tabCount: RootTab.allCases.count,
-                                translationWidth: Double(value.translation.width),
-                                predictedEndTranslationWidth: Double(value.predictedEndTranslation.width),
-                                containerWidth: Double(screenWidth)
-                            )
-                            let nextTab = RootTab.from(index: targetIdx)
-                            let didChange = (nextTab != selectedTab)
-
-                            withAnimation(.interpolatingSpring(mass: 1.0, stiffness: 280, damping: 26)) {
-                                selectedTab = nextTab
-                                horizontalSwipeTranslation = 0.0
-                                isHorizontalSwiping = false
-                            }
-
-                            if didChange {
-                                triggerSelectionHaptic()
-                            }
-                        }
+                    }
                 )
 
                 bottomChromeContainer(indicatorProgress: indicatorProgress, layout: layout)
@@ -359,18 +228,13 @@ public struct RootScaffoldView: View {
                     .padding(.horizontal, layout.horizontalPadding)
                     .padding(.bottom, layout.isCompactHeight ? 6 : 8)
             }
-            .coordinateSpace(name: SnoozySwipeGestureGate.rootCoordinateSpaceName)
+            .coordinateSpace(name: SnoozyTabBarMinimizationGate.rootCoordinateSpaceName)
             .onPreferenceChange(SnoozyHorizontalScrollFramesPreferenceKey.self) { frames in
                 horizontalScrollZones = frames
             }
             .environment(\.snoozyLayout, layout)
         }
         .tint(theme.accent)
-        .preferredColorScheme(
-            repository.preferences.themeMode == .system
-                ? nil
-                : (repository.preferences.themeMode == .dark ? .dark : .light)
-        )
         .fullScreenCover(isPresented: $showFullPlayer) {
             PlayerScreen(
                 repository: repository,
@@ -461,13 +325,6 @@ public struct RootScaffoldView: View {
                 onOpenFolder: { navPath.append(NavigationDestination.folder($0)) },
                 onImportFiles: { showFileImporter = true },
                 onSelectTrackForMenu: { menuTrack = $0 }
-            )
-        case .playlists:
-            PlaylistsScreen(
-                repository: repository,
-                playback: playback,
-                theme: theme,
-                onOpenPlaylist: { navPath.append(NavigationDestination.playlist($0)) }
             )
         case .search:
             SearchScreen(
@@ -772,10 +629,7 @@ public struct RootScaffoldView: View {
 
             selectedTab = tab
             isTabBarMinimized = false
-            horizontalSwipeTranslation = 0.0
-            isHorizontalSwiping = false
             pillScrubProgressValue = nil
-            gestureClassification = .undecided
         }
 
         if didNavigate {

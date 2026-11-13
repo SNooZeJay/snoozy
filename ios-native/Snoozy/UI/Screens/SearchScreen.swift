@@ -95,8 +95,6 @@ public struct SearchScreen: View {
 
     private var headerRow: some View {
         HStack(alignment: .center, spacing: 12) {
-            SnoozyBrandIconView(size: layout.brandIconSize)
-
             VStack(alignment: .leading, spacing: 2) {
                 Text("Search")
                     .font(SnoozyTypography.display(layout.headerTitleSize))

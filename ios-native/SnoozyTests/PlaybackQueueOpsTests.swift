@@ -68,53 +68,86 @@ final class PlaybackQueueOpsTests: XCTestCase {
         XCTAssertEqual(SnoozyFormat.formatRemainingClock(elapsed: 250, duration: 245), "-0:00")
     }
 
-    func testRootTabSwipeMathContinuousProgressAndSettle() {
-        // Swiping left (-150 pt on a 300 pt width) from tab 1 moves indicator halfway toward tab 2 (1.5)
-        let midProgress = RootTabSwipeMath.continuousProgress(
-            currentIndex: 1,
-            tabCount: 5,
-            translationWidth: -150,
-            containerWidth: 300
-        )
-        XCTAssertEqual(midProgress, 1.5, accuracy: 0.001)
+    func testRootTabsExcludeStandalonePlaylistsDestination() {
+        XCTAssertEqual(RootTab.allCases.map(\.rawValue), ["home", "library", "search", "settings"])
+        XCTAssertEqual(RootTab.allCases.indices.map { RootTab.from(index: $0) }, RootTab.allCases)
+    }
 
-        // Swiping right at index 0 applies rubber-band damping instead of exceeding bounds
-        let overscrollLeft = RootTabSwipeMath.continuousProgress(
-            currentIndex: 0,
-            tabCount: 5,
-            translationWidth: 150,
-            containerWidth: 300
-        )
-        XCTAssertLessThan(overscrollLeft, 0.0)
-        XCTAssertGreaterThan(overscrollLeft, -0.25)
-
-        // Completed swipe left (> 28% of width) advances to next tab
-        let settledNext = RootTabSwipeMath.resolveSwipeTargetIndex(
-            currentIndex: 1,
-            tabCount: 5,
-            translationWidth: -110,
-            predictedEndTranslationWidth: -140,
-            containerWidth: 300
-        )
-        XCTAssertEqual(settledNext, 2)
-
-        // Incomplete swipe (< 28% of width and low velocity) returns to original tab
-        let incomplete = RootTabSwipeMath.resolveSwipeTargetIndex(
-            currentIndex: 2,
-            tabCount: 5,
-            translationWidth: -40,
-            predictedEndTranslationWidth: -60,
-            containerWidth: 300
-        )
-        XCTAssertEqual(incomplete, 2)
-
-        // Pill scrub progress maps touch X across pill width to tab index space
-        let pillScrub = RootTabSwipeMath.pillScrubProgress(
+    func testPillScrubProgressMapsAcrossFourTabs() {
+        let middle = RootTabSwipeMath.pillScrubProgress(
             locationX: 150,
             pillWidth: 300,
-            tabCount: 5
+            tabCount: 4
         )
-        XCTAssertEqual(pillScrub, 2.0, accuracy: 0.001)
+        XCTAssertEqual(middle, 1.5, accuracy: 0.001)
+
+        let leadingOverscroll = RootTabSwipeMath.pillScrubProgress(
+            locationX: 0,
+            pillWidth: 300,
+            tabCount: 4
+        )
+        XCTAssertEqual(leadingOverscroll, -0.09, accuracy: 0.001)
+
+        let trailingOverscroll = RootTabSwipeMath.pillScrubProgress(
+            locationX: 300,
+            pillWidth: 300,
+            tabCount: 4
+        )
+        XCTAssertEqual(trailingOverscroll, 3.09, accuracy: 0.001)
+    }
+
+    func testTabBarMinimizationGateIgnoresHorizontalChildAndChromeDrags() {
+        let container = CGSize(width: 375, height: 812)
+        let horizontalZone = CGRect(x: 16, y: 150, width: 343, height: 40)
+        let bottomChrome: CGFloat = 140
+
+        XCTAssertFalse(
+            SnoozyTabBarMinimizationGate.shouldEvaluate(
+                startLocation: CGPoint(x: 120, y: 168),
+                translation: CGSize(width: -80, height: 2),
+                containerSize: container,
+                bottomChromeHeight: bottomChrome,
+                isAtRootNavigation: true,
+                isModalPresented: false,
+                horizontalScrollZones: ["pills": horizontalZone]
+            )
+        )
+
+        XCTAssertFalse(
+            SnoozyTabBarMinimizationGate.shouldEvaluate(
+                startLocation: CGPoint(x: 180, y: 760),
+                translation: CGSize(width: 2, height: -60),
+                containerSize: container,
+                bottomChromeHeight: bottomChrome,
+                isAtRootNavigation: true,
+                isModalPresented: false,
+                horizontalScrollZones: [:]
+            )
+        )
+
+        XCTAssertFalse(
+            SnoozyTabBarMinimizationGate.shouldEvaluate(
+                startLocation: CGPoint(x: 180, y: 320),
+                translation: CGSize(width: -70, height: 6),
+                containerSize: container,
+                bottomChromeHeight: bottomChrome,
+                isAtRootNavigation: true,
+                isModalPresented: false,
+                horizontalScrollZones: [:]
+            )
+        )
+
+        XCTAssertTrue(
+            SnoozyTabBarMinimizationGate.shouldEvaluate(
+                startLocation: CGPoint(x: 180, y: 320),
+                translation: CGSize(width: -10, height: 48),
+                containerSize: container,
+                bottomChromeHeight: bottomChrome,
+                isAtRootNavigation: true,
+                isModalPresented: false,
+                horizontalScrollZones: [:]
+            )
+        )
     }
 
     func testParseFilenameMetadataFallback() {
@@ -318,8 +351,8 @@ final class PlaybackQueueOpsTests: XCTestCase {
         XCTAssertEqual(mini.gridColumnCount, 2)
         // (375 - 32 - 14) / 2 = 164.5 -> floor 164
         XCTAssertEqual(mini.gridTileSize, 164)
-        XCTAssertEqual(mini.tabBarHeight, 56)
-        XCTAssertEqual(mini.miniPlayerHeight, 56)
+        XCTAssertEqual(mini.tabBarHeight, 62)
+        XCTAssertEqual(mini.miniPlayerHeight, 64)
         XCTAssertEqual(mini.detailHeroArtworkSize, 224)
 
         // iPhone 16 / 15 Pro (393 x 852 pt)
@@ -330,7 +363,8 @@ final class PlaybackQueueOpsTests: XCTestCase {
         XCTAssertEqual(standard.gridColumnCount, 2)
         // (393 - 32 - 14) / 2 = 173.5 -> floor 173
         XCTAssertEqual(standard.gridTileSize, 173)
-        XCTAssertEqual(standard.tabBarHeight, 56)
+        XCTAssertEqual(standard.tabBarHeight, 62)
+        XCTAssertEqual(standard.miniPlayerHeight, 64)
 
         // iPhone 16 Pro Max (440 x 956 pt)
         let proMax = SnoozyResponsiveLayout(width: 440, height: 956)

@@ -82,8 +82,6 @@ public struct HomeScreen: View {
 
     private var headerSection: some View {
         HStack(alignment: .center, spacing: layout.isCompactWidth ? 10 : 12) {
-            SnoozyBrandIconView(size: layout.brandIconSize, tintColor: theme.accent)
-
             VStack(alignment: .leading, spacing: 2) {
                 Text("Home")
                     .font(SnoozyTypography.display(layout.headerTitleSize))

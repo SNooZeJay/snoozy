@@ -9,7 +9,6 @@ public struct SettingsScreen: View {
 
     @State private var showClearHistoryAlert: Bool = false
     @State private var showErrorLogSheet: Bool = false
-    @State private var iconPreviewMode: SnoozyIconAppearanceMode = .automatic
     @Environment(\.snoozyLayout) private var layout
 
     private static let speedChoices: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -19,12 +18,6 @@ public struct SettingsScreen: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .center, spacing: 12) {
-                    SnoozyBrandIconView(
-                        size: layout.brandIconSize,
-                        appearanceMode: iconPreviewMode,
-                        tintColor: theme.accent
-                    )
-
                     Text("Settings")
                         .font(SnoozyTypography.display(layout.headerTitleSize))
                         .foregroundStyle(theme.ink)
@@ -273,62 +266,6 @@ public struct SettingsScreen: View {
 
             SnoozyGroupedCard(theme: theme, preferences: prefs) {
                 HStack {
-                    Text("Theme")
-                        .font(SnoozyTypography.body(15, bold: true))
-                        .foregroundStyle(theme.ink)
-                    Spacer()
-                    Picker(
-                        "Theme",
-                        selection: Binding(
-                            get: { prefs.themeMode },
-                            set: { mode in repository.updatePreferences { $0.themeMode = mode } }
-                        )
-                    ) {
-                        ForEach(ThemeMode.allCases, id: \.self) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: layout.isCompactWidth ? 172 : 196)
-                }
-                .padding(.horizontal, 16)
-                .frame(minHeight: 50)
-
-                rowDivider
-
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 12) {
-                        SnoozyBrandIconView(
-                            size: 52,
-                            appearanceMode: iconPreviewMode,
-                            tintColor: theme.accent
-                        )
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Liquid Glass App Icon")
-                                .font(SnoozyTypography.body(15, bold: true))
-                                .foregroundStyle(theme.ink)
-                            Text("4-layer composition · Light, Dark & Tinted")
-                                .font(SnoozyTypography.caption(12))
-                                .foregroundStyle(theme.inkMuted)
-                        }
-
-                        Spacer()
-                    }
-
-                    Picker("App Icon Appearance", selection: $iconPreviewMode) {
-                        ForEach(SnoozyIconAppearanceMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-
-                rowDivider
-
-                HStack {
                     Text("Accent Color")
                         .font(SnoozyTypography.body(15, bold: true))
                         .foregroundStyle(theme.ink)
@@ -391,32 +328,6 @@ public struct SettingsScreen: View {
                 }
                 .padding(.horizontal, 16)
                 .frame(minHeight: 48)
-
-                if prefs.glassMode == .liquidGlass {
-                    rowDivider
-
-                    VStack(spacing: 6) {
-                        HStack {
-                            Text("Glass Refraction")
-                                .font(SnoozyTypography.body(14, bold: true))
-                                .foregroundStyle(theme.ink)
-                            Spacer()
-                            Text("\(Int((prefs.refractionIntensity * 100).rounded()))%")
-                                .font(SnoozyTypography.caption(12, bold: true))
-                                .foregroundStyle(theme.accent)
-                        }
-                        Slider(
-                            value: Binding(
-                                get: { prefs.refractionIntensity },
-                                set: { val in repository.updatePreferences { $0.refractionIntensity = val } }
-                            ),
-                            in: 0.0...1.0
-                        )
-                        .tint(theme.accent)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                }
 
                 rowDivider
 

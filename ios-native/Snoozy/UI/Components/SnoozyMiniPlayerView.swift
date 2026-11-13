@@ -38,7 +38,7 @@ public struct SnoozyMiniPlayerView: View {
     }
 
     public var body: some View {
-        let pillHeight = layout.tabBarPillHeight
+        let pillHeight = layout.miniPlayerHeight
         let thumbSize = max(34, pillHeight - 14)
 
         ZStack(alignment: .bottom) {

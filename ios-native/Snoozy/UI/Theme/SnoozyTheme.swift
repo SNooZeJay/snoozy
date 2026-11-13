@@ -116,7 +116,7 @@ public enum SnoozyTypography {
     public static func display(_ size: CGFloat = 30) -> Font {
         SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         if UIFont(name: "BricolageGrotesque-SemiBold", size: size) != nil {
-            return .custom("BricolageGrotesque-SemiBold", size: size)
+            return .custom("BricolageGrotesque-SemiBold", size: size, relativeTo: .largeTitle)
         }
         return .system(size: size, weight: .bold, design: .rounded)
     }
@@ -124,7 +124,7 @@ public enum SnoozyTypography {
     public static func title(_ size: CGFloat = 21) -> Font {
         SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         if UIFont(name: "BricolageGrotesque-Medium", size: size) != nil {
-            return .custom("BricolageGrotesque-Medium", size: size)
+            return .custom("BricolageGrotesque-Medium", size: size, relativeTo: .title2)
         }
         return .system(size: size, weight: .semibold, design: .rounded)
     }
@@ -132,7 +132,7 @@ public enum SnoozyTypography {
     public static func headline(_ size: CGFloat = 17) -> Font {
         SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         if UIFont(name: "AtkinsonHyperlegible-Bold", size: size) != nil {
-            return .custom("AtkinsonHyperlegible-Bold", size: size)
+            return .custom("AtkinsonHyperlegible-Bold", size: size, relativeTo: .headline)
         }
         return .system(size: size, weight: .semibold)
     }
@@ -141,7 +141,7 @@ public enum SnoozyTypography {
         SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         let name = bold ? "AtkinsonHyperlegible-Bold" : "AtkinsonHyperlegible-Regular"
         if UIFont(name: name, size: size) != nil {
-            return .custom(name, size: size)
+            return .custom(name, size: size, relativeTo: .body)
         }
         return .system(size: size, weight: bold ? .semibold : .regular)
     }
@@ -149,7 +149,7 @@ public enum SnoozyTypography {
     public static func footnote(_ size: CGFloat = 13) -> Font {
         SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         if UIFont(name: "AtkinsonHyperlegible-Regular", size: size) != nil {
-            return .custom("AtkinsonHyperlegible-Regular", size: size)
+            return .custom("AtkinsonHyperlegible-Regular", size: size, relativeTo: .footnote)
         }
         return .system(size: size, weight: .regular)
     }
@@ -158,7 +158,7 @@ public enum SnoozyTypography {
         SnoozyFontRegistrar.registerBundledFontsIfNeeded()
         let name = bold ? "AtkinsonHyperlegible-Bold" : "AtkinsonHyperlegible-Regular"
         if UIFont(name: name, size: size) != nil {
-            return .custom(name, size: size)
+            return .custom(name, size: size, relativeTo: .caption)
         }
         return .system(size: size, weight: bold ? .semibold : .medium)
     }
@@ -208,7 +208,6 @@ public struct SnoozyResponsiveLayout: Equatable, Sendable {
     public let sectionSpacing: CGFloat
     public let headerTitleSize: CGFloat
     public let sectionTitleSize: CGFloat
-    public let brandIconSize: CGFloat
     public let headerButtonSize: CGFloat
     public let shelfItemSize: CGFloat
     public let gridColumnCount: Int
@@ -240,7 +239,6 @@ public struct SnoozyResponsiveLayout: Equatable, Sendable {
         self.sectionSpacing = expandedW ? 26 : 24
         self.headerTitleSize = expandedW ? 33 : 31
         self.sectionTitleSize = expandedW ? 22 : 21
-        self.brandIconSize = expandedW ? 42 : 40
         self.headerButtonSize = expandedW ? 42 : 40
         self.shelfItemSize = landscape ? 144 : (compactW ? 154 : (expandedW ? 168 : 158))
 
@@ -253,9 +251,9 @@ public struct SnoozyResponsiveLayout: Equatable, Sendable {
         self.gridSpacing = gSpace
         self.gridTileSize = max(128, tile)
         self.detailHeroArtworkSize = landscape ? 180 : (compactW ? 224 : (expandedW ? 248 : 232))
-        self.tabBarPillHeight = landscape ? 50 : (expandedW ? 58 : 56)
-        self.tabBarIndicatorHeight = landscape ? 38 : (expandedW ? 46 : 44)
-        self.miniPlayerHeight = landscape ? 50 : (expandedW ? 58 : 56)
+        self.tabBarPillHeight = landscape ? 52 : 62
+        self.tabBarIndicatorHeight = landscape ? 40 : 50
+        self.miniPlayerHeight = landscape ? 54 : 64
         self.bottomChromeMaxWidth = landscape ? 460 : 500
     }
 
@@ -320,20 +318,11 @@ public struct SnoozyResponsiveLayout: Equatable, Sendable {
     }
 }
 
-/// Deterministic gesture ownership state for root tab swipe vs nested vertical/horizontal scrolling.
-public enum SnoozySwipeGestureClassification: Equatable, Sendable {
-    case undecided
-    case horizontalTabSwipe
-    case verticalScroll
-    case claimedByChild
-}
-
-public enum SnoozySwipeGestureGate {
+/// Decides when a drag may drive floating tab bar minimization without stealing scroll gestures.
+public enum SnoozyTabBarMinimizationGate {
     public static let rootCoordinateSpaceName = "SnoozyRootSpace"
 
-    /// Evaluates whether a drag gesture should be owned by root tab navigation, vertical scrolling, or a child component.
-    public static func classify(
-        current: SnoozySwipeGestureClassification,
+    public static func shouldEvaluate(
         startLocation: CGPoint,
         translation: CGSize,
         containerSize: CGSize,
@@ -341,54 +330,27 @@ public enum SnoozySwipeGestureGate {
         isAtRootNavigation: Bool,
         isModalPresented: Bool,
         horizontalScrollZones: [String: CGRect]
-    ) -> SnoozySwipeGestureClassification {
-        // Once locked for this touch lifetime, never flip ownership mid-gesture
-        if current != .undecided {
-            return current
-        }
+    ) -> Bool {
+        guard !isModalPresented, isAtRootNavigation else { return false }
 
-        // 1. Never intercept gestures when a modal sheet/cover is active or when inside a pushed detail route
-        if isModalPresented || !isAtRootNavigation {
-            return .claimedByChild
-        }
-
-        // 2. Reserve left/right system edge gestures and the bottom floating chrome zone
         let edgeMargin: CGFloat = 18
         if startLocation.x < edgeMargin || startLocation.x > (containerSize.width - edgeMargin) {
-            return .claimedByChild
+            return false
         }
         if startLocation.y > (containerSize.height - bottomChromeHeight) {
-            return .claimedByChild
+            return false
         }
 
-        // 3. If the touch began inside any horizontal ScrollView (Library category pills, Home carousels, Search scopes),
-        // yield 100% ownership to the child horizontal ScrollView.
         for rect in horizontalScrollZones.values {
             if rect.insetBy(dx: -6, dy: -10).contains(startLocation) {
-                return .claimedByChild
+                return false
             }
         }
 
         let dx = abs(translation.width)
         let dy = abs(translation.height)
-        let distance = hypot(dx, dy)
-
-        // Wait until the user moves at least 12pt before locking axis
-        guard distance >= 12 else {
-            return .undecided
-        }
-
-        // 4. Any vertical or diagonal-vertical movement locks to vertical scrolling for the rest of the touch
-        if dy > dx * 0.58 {
-            return .verticalScroll
-        }
-
-        // 5. Clean horizontal movement outside child horizontal scroll zones claims root tab swipe
-        if dx >= 20 && dx > dy * 1.75 {
-            return .horizontalTabSwipe
-        }
-
-        return .undecided
+        guard hypot(dx, dy) >= 12 else { return false }
+        return dy > dx * 0.58
     }
 }
 
@@ -408,7 +370,7 @@ private struct SnoozyHorizontalScrollZoneModifier: ViewModifier {
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: SnoozyHorizontalScrollFramesPreferenceKey.self,
-                    value: [id: proxy.frame(in: .named(SnoozySwipeGestureGate.rootCoordinateSpaceName))]
+                    value: [id: proxy.frame(in: .named(SnoozyTabBarMinimizationGate.rootCoordinateSpaceName))]
                 )
             }
         )
@@ -416,7 +378,7 @@ private struct SnoozyHorizontalScrollZoneModifier: ViewModifier {
 }
 
 public extension View {
-    /// Marks a horizontally scrollable child view so root tab swipe navigation never steals touches starting inside it.
+    /// Marks a horizontally scrollable child view so tab bar minimization never reacts to drags starting inside it.
     func snoozyHorizontalScrollZone(id: String) -> some View {
         modifier(SnoozyHorizontalScrollZoneModifier(id: id))
     }

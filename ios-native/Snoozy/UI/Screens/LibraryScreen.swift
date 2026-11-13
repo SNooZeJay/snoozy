@@ -19,6 +19,9 @@ public struct LibraryScreen: View {
     @State private var showAlbumSortDialog: Bool = false
     @State private var showNewPlaylistAlert: Bool = false
     @State private var newPlaylistName: String = ""
+    @State private var renameTarget: Playlist? = nil
+    @State private var renameText: String = ""
+    @State private var deleteTarget: Playlist? = nil
     @State private var searchText: String = ""
     @FocusState private var isSearchFieldFocused: Bool
     @Environment(\.snoozyLayout) private var layout
@@ -125,6 +128,39 @@ public struct LibraryScreen: View {
                 }
             }
         }
+        .alert(
+            "Rename Playlist",
+            isPresented: Binding(
+                get: { renameTarget != nil },
+                set: { if !$0 { renameTarget = nil } }
+            )
+        ) {
+            TextField("Playlist name", text: $renameText)
+            Button("Cancel", role: .cancel) { renameTarget = nil }
+            Button("Save") {
+                if let target = renameTarget {
+                    repository.renamePlaylist(id: target.id, name: renameText)
+                }
+                renameTarget = nil
+            }
+        }
+        .alert(
+            "Delete playlist?",
+            isPresented: Binding(
+                get: { deleteTarget != nil },
+                set: { if !$0 { deleteTarget = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) { deleteTarget = nil }
+            Button("Delete", role: .destructive) {
+                if let target = deleteTarget {
+                    repository.deletePlaylist(id: target.id)
+                }
+                deleteTarget = nil
+            }
+        } message: {
+            Text("\"\(deleteTarget?.name ?? "")\" will be removed. Your songs stay in the library.")
+        }
     }
 
     private var headerRow: some View {
@@ -141,8 +177,6 @@ public struct LibraryScreen: View {
                         selectedTab = .overview
                     }
                 }
-            } else {
-                SnoozyBrandIconView(size: layout.brandIconSize)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -912,6 +946,21 @@ public struct LibraryScreen: View {
                                 Label("Shuffle Playlist", systemImage: "shuffle")
                             }
                         }
+
+                        Divider()
+
+                        Button {
+                            renameText = playlist.name
+                            renameTarget = playlist
+                        } label: {
+                            Label("Rename Playlist", systemImage: "pencil")
+                        }
+
+                        Button(role: .destructive) {
+                            deleteTarget = playlist
+                        } label: {
+                            Label("Delete Playlist", systemImage: "trash")
+                        }
                     }
                 }
             }
@@ -956,6 +1005,38 @@ public struct LibraryScreen: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                if let first = tracks.first {
+                                    Button {
+                                        playback.playTrack(first, queue: tracks, shuffleOverride: false)
+                                    } label: {
+                                        Label("Play Playlist", systemImage: "play.fill")
+                                    }
+                                    Button {
+                                        let shuffled = tracks.shuffled()
+                                        if let sFirst = shuffled.first {
+                                            playback.playTrack(sFirst, queue: shuffled, shuffleOverride: true)
+                                        }
+                                    } label: {
+                                        Label("Shuffle Playlist", systemImage: "shuffle")
+                                    }
+                                }
+
+                                Divider()
+
+                                Button {
+                                    renameText = playlist.name
+                                    renameTarget = playlist
+                                } label: {
+                                    Label("Rename Playlist", systemImage: "pencil")
+                                }
+
+                                Button(role: .destructive) {
+                                    deleteTarget = playlist
+                                } label: {
+                                    Label("Delete Playlist", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                 }
