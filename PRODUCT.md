@@ -2,11 +2,11 @@
 
 ## Platform
 
-Android
+iOS (native SwiftUI, deployment target iOS 17)
 
 ## Product truth
 
-Snoozy is a mobile music player named Snoozy. It is a Spotify-like local and online music player: browse a library, search tracks, manage playlists, play with a persistent queue, and control playback from a mini-player and notifications. The first build focuses on local device audio and a clean Material-style music UI; online resolution can be added through a backend or public API later.
+Snoozy is a local-first music player for iPhone. It scans audio files stored in the app's Documents folder, reads embedded metadata and artwork, and plays them with a persistent queue, playlists, favorites, synced lyrics, a mini-player, and a full-screen player. Playback continues in the background with Lock Screen and Control Center controls. The app has no streaming backend and does not send library data off the device.
 
 ## Users and context
 
@@ -23,21 +23,23 @@ Snoozy is a mobile music player named Snoozy. It is a Spotify-like local and onl
 4. Control playback from a compact mini-player anywhere in the app.
 5. See album artwork and basic track metadata.
 6. Keep playback reliable in the background.
+7. Import files from the Files app or a folder picker without losing the existing library.
 
 ## Capabilities in v1
 
 - Home: greeting, recently played, playlists, quick access to library.
-- Search: local track, album, and artist search.
-- Library: songs, albums, artists, playlists, and favorites.
-- Player: full-screen now-playing view, artwork, seek, skip, shuffle, repeat, favorite, queue.
+- Search: local track, album, artist, genre, and folder search.
+- Library: songs, albums, artists, genres, folders, playlists, and favorites.
+- Player: full-screen now-playing view, artwork, seek, skip, shuffle, repeat, favorite, queue, and synced lyrics.
 - Mini-player: compact playback controls on every tab.
-- Settings: library scan, permissions, preferences, about.
-- Native background playback and notification controls (RNTP).
+- Settings: rescan, import, appearance, playback, storage, and error log.
+- Native background playback and Lock Screen controls through `AVAudioSession` and `MPNowPlayingInfoCenter`.
 - Dynamic color from album artwork.
+- Native Liquid Glass through SwiftUI `glassEffect` on iOS 26 and later, with a system material fallback on iOS 17 through iOS 25.
 
 ## Content
 
-Local audio files from the device media library. Bundled demo tracks may be included for first-run testing. No bundled ambient loops are the product.
+Local audio files in the app Documents folder: `.mp3`, `.flac`, `.wav`, `.m4a`, `.aac`, `.alac`, `.aiff`, `.aif`, `.caf`, and `.mp4`. Sidecar `.lrc` lyrics and folder cover images are supported. A synthesized demo track is offered only when the library is empty.
 
 ## Brand commitments
 
@@ -52,17 +54,19 @@ Local audio files from the device media library. Bundled demo tracks may be incl
 - One-thumb first: primary actions sit low and stay large.
 - Fast search and playback start.
 - Legible in motion: high contrast, clear hierarchy, no tiny metadata.
-- Local and private by default where possible.
+- Local and private by default.
 - Motion supports playback and navigation, not decoration.
+- Never trade existing library data for a visual change.
 
 ## Accessibility
 
-- 48 dp minimum touch targets; 44 dp for secondary icon buttons.
+- 44 pt minimum touch targets.
 - Body text contrast at least 4.5:1.
-- Dynamic type support with wrapping.
+- Dynamic Type support with wrapping and scalable custom fonts.
 - Playback state announced to screen readers.
+- Reduce Motion respected.
 - Haptics optional.
 
 ## Success for this build
 
-A signed arm64 APK installs on the Oppo A55 4G, scans local music, plays tracks in the background, supports playlists and queue controls, persists preferences, and passes TypeScript, lint, and a release build.
+An unsigned arm64 IPA builds on GitHub Actions, installs through Sideloadly, scans local music, plays tracks in the background, supports playlists and queue controls, persists preferences, and passes the XCTest suite in CI.
