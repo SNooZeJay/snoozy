@@ -329,6 +329,20 @@ public enum AudioScanner {
     }
 
     /// Infers fallback Artist, Album, and Genre from relative folder paths (`Artist/Album/Track.mp3` or `Music/Rock/Song.mp3`).
+    /// Matches disc subfolders such as "CD1", "Disc 2", or "Disk-3" without
+    /// mistaking album names like "Discovery" for a disc folder.
+    private static func isDiscFolderName(_ raw: String) -> Bool {
+        let lower = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        for prefix in ["disc", "disk", "cd"] {
+            guard lower.hasPrefix(prefix) else { continue }
+            let suffix = lower.dropFirst(prefix.count).drop {
+                $0 == " " || $0 == "-" || $0 == "_" || $0 == "."
+            }
+            return !suffix.isEmpty && suffix.allSatisfy(\.isNumber)
+        }
+        return false
+    }
+
     public static func inferFolderHierarchyMetadata(relativePath: String) -> FolderHierarchyMetadata {
         let normalized = relativePath.replacingOccurrences(of: "\\", with: "/")
         let allSegments = normalized.split(separator: "/").map(String.init)
@@ -349,7 +363,7 @@ public enum AudioScanner {
             let grandparent = dirSegments[dirSegments.count - 2]
 
             // Handle "Artist / Album / CD1 / Track.mp3"
-            if parent.lowercased().hasPrefix("cd") || parent.lowercased().hasPrefix("disc") || parent.lowercased().hasPrefix("disk") {
+            if isDiscFolderName(parent) {
                 let albumSeg = grandparent
                 let artistSeg = dirSegments.count >= 3 ? dirSegments[dirSegments.count - 3] : nil
                 return FolderHierarchyMetadata(artist: artistSeg, album: albumSeg, genre: nil)
@@ -689,7 +703,11 @@ public enum AudioScanner {
 
         let indicesByFolderAndAlbum = Dictionary(grouping: updated.indices) { idx -> String in
             let t = updated[idx]
-            return "\(t.folderName.lowercased())::\(t.album.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+            var folderSegments = t.folderName.split(separator: "/").map(String.init)
+            if let last = folderSegments.last, isDiscFolderName(last) {
+                folderSegments.removeLast()
+            }
+            return "\(folderSegments.joined(separator: "/").lowercased())::\(t.album.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
         }
 
         for (_, indices) in indicesByFolderAndAlbum where indices.count > 1 {
