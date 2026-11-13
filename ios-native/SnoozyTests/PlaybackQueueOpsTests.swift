@@ -170,24 +170,25 @@ final class PlaybackQueueOpsTests: XCTestCase {
     }
 
     func testInferFolderHierarchyMetadata() {
-        let h1 = AudioScanner.inferFolderHierarchyMetadata(fromRelativePath: "Daft Punk/Discovery/01 - One More Time.mp3")
+        let h1 = AudioScanner.inferFolderHierarchyMetadata(relativePath: "Daft Punk/Discovery/01 - One More Time.mp3")
         XCTAssertEqual(h1.artist, "Daft Punk")
         XCTAssertEqual(h1.album, "Discovery")
         XCTAssertNil(h1.discNumber)
 
-        let h2 = AudioScanner.inferFolderHierarchyMetadata(fromRelativePath: "Music/Rock/01 - Song One.mp3")
+        let h2 = AudioScanner.inferFolderHierarchyMetadata(relativePath: "Music/Rock/01 - Song One.mp3")
         XCTAssertEqual(h2.genre, "Rock")
 
-        let h3 = AudioScanner.inferFolderHierarchyMetadata(fromRelativePath: "Pink Floyd/The Wall/CD2/01 - Hey You.flac")
+        let h3 = AudioScanner.inferFolderHierarchyMetadata(relativePath: "Pink Floyd/The Wall/CD2/01 - Hey You.flac")
         XCTAssertEqual(h3.artist, "Pink Floyd")
         XCTAssertEqual(h3.album, "The Wall")
         XCTAssertEqual(h3.discNumber, 2)
 
-        let h4 = AudioScanner.inferFolderHierarchyMetadata(fromRelativePath: "Radiohead - OK Computer/01 - Airbag.m4a")
+        let h4 = AudioScanner.inferFolderHierarchyMetadata(relativePath: "Radiohead - OK Computer/01 - Airbag.m4a")
         XCTAssertEqual(h4.artist, "Radiohead")
         XCTAssertEqual(h4.album, "OK Computer")
     }
 
+    @MainActor
     func testMultiDiscAlbumSortingAndCompilationGrouping() {
         let tracks: [Track] = [
             Track(
@@ -242,6 +243,7 @@ final class PlaybackQueueOpsTests: XCTestCase {
         XCTAssertEqual(albums[0].trackIds, ["d1t1", "d1t2", "d2t1"])
     }
 
+    @MainActor
     func testLibrarySearchFiltersSongsAlbumsArtistsAndPlaylists() {
         let t1 = Track(
             id: "1",
