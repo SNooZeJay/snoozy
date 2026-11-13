@@ -22,7 +22,13 @@ public struct SnoozyGlassEffectContainer<Content: View>: View {
     }
 
     public var body: some View {
-        content()
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) {
+                content()
+            }
+        } else {
+            content()
+        }
     }
 }
 
@@ -48,44 +54,6 @@ public struct LiquidGlassInteractiveBounceStyle: ButtonStyle {
 
 /// UIKit UIVisualEffectView bridge that activates native UIGlassEffect when available at runtime,
 /// with real-time systemUltraThinMaterial backdrop blur fallback.
-public struct UIGlassVisualEffectRepresentable: UIViewRepresentable {
-    public let cornerRadius: CGFloat
-    public let isInteractive: Bool
-
-    public init(cornerRadius: CGFloat = 24, isInteractive: Bool = true) {
-        self.cornerRadius = cornerRadius
-        self.isInteractive = isInteractive
-    }
-
-    public func makeUIView(context: Context) -> UIVisualEffectView {
-        let effect = Self.makePreferredEffect(isInteractive: isInteractive)
-        let view = UIVisualEffectView(effect: effect)
-        view.backgroundColor = .clear
-        view.layer.cornerRadius = cornerRadius
-        view.layer.cornerCurve = .continuous
-        view.clipsToBounds = true
-        return view
-    }
-
-    public func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
-        uiView.layer.cornerRadius = cornerRadius
-        uiView.layer.cornerCurve = .continuous
-        uiView.clipsToBounds = true
-    }
-
-    private static func makePreferredEffect(isInteractive: Bool) -> UIVisualEffect {
-        if let glassClass = NSClassFromString("UIGlassEffect") as? NSObject.Type {
-            let instance = glassClass.init()
-            if isInteractive, instance.responds(to: NSSelectorFromString("setInteractive:")) {
-                instance.setValue(true, forKey: "interactive")
-            }
-            if let visualEffect = instance as? UIVisualEffect {
-                return visualEffect
-            }
-        }
-        return UIBlurEffect(style: .systemUltraThinMaterial)
-    }
-}
 
 public struct LiquidGlassModifier: ViewModifier {
     public let cornerRadius: CGFloat
@@ -169,85 +137,108 @@ public struct LiquidGlassModifier: ViewModifier {
 
     @ViewBuilder
     private func liquidGlassBody(content: Content, shape: RoundedRectangle) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .glassEffect(nativeGlass, in: shape)
+                .overlay(specularRim(shape: shape))
+                .shadow(
+                    color: Color.black.opacity(variant == .ultraClear ? 0.24 : (isProminent ? 0.18 : 0.08)),
+                    radius: variant == .ultraClear ? 14 : (isProminent ? 8 : 4),
+                    x: 0,
+                    y: variant == .ultraClear ? 6 : 2
+                )
+        } else {
+            content
+                .background(materialGlassBackground(shape: shape))
+                .clipShape(shape)
+                .overlay(specularRim(shape: shape))
+                .shadow(
+                    color: Color.black.opacity(variant == .ultraClear ? 0.24 : (isProminent ? 0.18 : 0.08)),
+                    radius: variant == .ultraClear ? 14 : (isProminent ? 8 : 4),
+                    x: 0,
+                    y: variant == .ultraClear ? 6 : 2
+                )
+        }
+    }
+
+    @available(iOS 26.0, *)
+    private var nativeGlass: Glass {
+        if isProminent || variant == .prominent || variant == .tinted {
+            return .regular.tint(tintColor).interactive()
+        }
+        return .regular.interactive()
+    }
+
+    private func materialGlassBackground(shape: RoundedRectangle) -> some View {
         let clampedRefraction = min(1.0, max(0.0, refractionIntensity))
 
-        content
-            .background(
-                ZStack {
-                    if isProminent || variant == .prominent {
-                        // Prominent accent capsule (for example, Play button or active filter pill)
-                        shape.fill(
-                            LinearGradient(
-                                colors: [
-                                    tintColor.opacity(0.95),
-                                    tintColor.opacity(0.84)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        shape.fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.18),
-                                    Color.clear
-                                ],
-                                startPoint: .top,
-                                endPoint: .center
-                            )
-                        )
-                    } else if variant == .ultraClear {
-                        // Floating optical Liquid Glass (used by Main Navigation Bar, Mini Player, and Header Icon Pills)
-                        shape.fill(.ultraThinMaterial)
-                        shape.fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.07 * max(0.4, clampedRefraction)),
-                                    Color.black.opacity(0.14),
-                                    tintColor.opacity(0.03 * clampedRefraction)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    } else {
-                        // Selective inline control surface (Search bar, secondary action buttons, cards)
-                        shape.fill(Color(UIColor.secondarySystemGroupedBackground).opacity(0.82))
-                        shape.fill(.ultraThinMaterial.opacity(0.55))
-                        if variant == .tinted {
-                            shape.fill(tintColor.opacity(0.10 * clampedRefraction))
-                        }
-                    }
-                }
-                .clipShape(shape)
-            )
-            .clipShape(shape)
-            .overlay(
-                // Crisp, physical 1px-thin neutral specular rim (matches the main navigation bar)
-                shape.strokeBorder(
+        return ZStack {
+            if isProminent || variant == .prominent {
+                // Prominent accent capsule (for example, Play button or active filter pill)
+                shape.fill(
                     LinearGradient(
-                        colors: isProminent
-                            ? [
-                                Color.white.opacity(0.46),
-                                Color.white.opacity(0.12)
-                            ]
-                            : [
-                                Color.white.opacity(variant == .ultraClear ? 0.34 : 0.18),
-                                Color.white.opacity(variant == .ultraClear ? 0.07 : 0.05),
-                                Color.white.opacity(variant == .ultraClear ? 0.18 : 0.09)
-                            ],
+                        colors: [
+                            tintColor.opacity(0.95),
+                            tintColor.opacity(0.84)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                shape.fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.18),
+                            Color.clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                )
+            } else if variant == .ultraClear {
+                // Floating optical surface (used by Main Navigation Bar, Mini Player, and Header Icon Pills)
+                shape.fill(.ultraThinMaterial)
+                shape.fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.07 * max(0.4, clampedRefraction)),
+                            Color.black.opacity(0.14),
+                            tintColor.opacity(0.03 * clampedRefraction)
+                        ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
-                    ),
-                    lineWidth: variant == .ultraClear ? 0.85 : 0.65
+                    )
                 )
-            )
-            .shadow(
-                color: Color.black.opacity(variant == .ultraClear ? 0.24 : (isProminent ? 0.18 : 0.08)),
-                radius: variant == .ultraClear ? 14 : (isProminent ? 8 : 4),
-                x: 0,
-                y: variant == .ultraClear ? 6 : 2
-            )
+            } else {
+                // Selective inline control surface (Search bar, secondary action buttons, cards)
+                shape.fill(Color(UIColor.secondarySystemGroupedBackground).opacity(0.82))
+                shape.fill(.ultraThinMaterial.opacity(0.55))
+                if variant == .tinted {
+                    shape.fill(tintColor.opacity(0.10 * clampedRefraction))
+                }
+            }
+        }
+    }
+
+    private func specularRim(shape: RoundedRectangle) -> some View {
+        // Crisp, physical 1px-thin neutral specular rim (matches the main navigation bar)
+        shape.strokeBorder(
+            LinearGradient(
+                colors: isProminent
+                    ? [
+                        Color.white.opacity(0.46),
+                        Color.white.opacity(0.12)
+                    ]
+                    : [
+                        Color.white.opacity(variant == .ultraClear ? 0.34 : 0.18),
+                        Color.white.opacity(variant == .ultraClear ? 0.07 : 0.05),
+                        Color.white.opacity(variant == .ultraClear ? 0.18 : 0.09)
+                    ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            lineWidth: variant == .ultraClear ? 0.85 : 0.65
+        )
     }
 }
 
