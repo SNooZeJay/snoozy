@@ -56,14 +56,16 @@ public struct SnoozyMiniPlayerView: View {
                         artworkThumbnail(size: thumbSize)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(track.title)
-                                .font(SnoozyTypography.body(15, bold: true))
-                                .foregroundStyle(theme.ink)
-                                .lineLimit(1)
-                            Text(track.artist)
-                                .font(SnoozyTypography.footnote(12))
-                                .foregroundStyle(theme.inkMuted)
-                                .lineLimit(1)
+                            SnoozyMarqueeText(
+                                track.title,
+                                font: SnoozyTypography.body(15, bold: true),
+                                color: theme.ink
+                            )
+                            SnoozyMarqueeText(
+                                track.artist,
+                                font: SnoozyTypography.footnote(12),
+                                color: theme.inkMuted
+                            )
                         }
                         Spacer(minLength: 4)
                     }

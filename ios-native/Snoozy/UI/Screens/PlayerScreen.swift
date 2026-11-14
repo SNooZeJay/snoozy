@@ -294,11 +294,11 @@ public struct PlayerScreen: View {
             // Apple Music Song Information Row: Left-aligned Title + Artist, Right-aligned Favorite + More Menu
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(track.title)
-                        .font(SnoozyTypography.title(layout.isCompactWidth ? 20 : 22))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
+                    SnoozyMarqueeText(
+                        track.title,
+                        font: SnoozyTypography.title(layout.isCompactWidth ? 20 : 22),
+                        color: .white
+                    )
 
                     HStack(spacing: 6) {
                         Button {
@@ -307,10 +307,11 @@ public struct PlayerScreen: View {
                                 onOpenArtist(track.artist)
                             }
                         } label: {
-                            Text(track.artist)
-                                .font(SnoozyTypography.body(16, bold: false))
-                                .foregroundStyle(Color.white.opacity(0.78))
-                                .lineLimit(1)
+                            SnoozyMarqueeText(
+                                track.artist,
+                                font: SnoozyTypography.body(16, bold: false),
+                                color: Color.white.opacity(0.78)
+                            )
                         }
                         .buttonStyle(.plain)
 
@@ -324,10 +325,11 @@ public struct PlayerScreen: View {
                                     onOpenAlbum(track.albumKey)
                                 }
                             } label: {
-                                Text(track.album)
-                                    .font(SnoozyTypography.body(15, bold: false))
-                                    .foregroundStyle(Color.white.opacity(0.62))
-                                    .lineLimit(1)
+                                SnoozyMarqueeText(
+                                    track.album,
+                                    font: SnoozyTypography.body(15, bold: false),
+                                    color: Color.white.opacity(0.62)
+                                )
                             }
                             .buttonStyle(.plain)
                         }
@@ -380,14 +382,16 @@ public struct PlayerScreen: View {
                     .shadow(color: Color.black.opacity(0.32), radius: 6, x: 0, y: 3)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(track.title)
-                            .font(SnoozyTypography.body(16, bold: true))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                        Text("\(track.artist) · \(track.album)")
-                            .font(SnoozyTypography.footnote(13))
-                            .foregroundStyle(Color.white.opacity(0.68))
-                            .lineLimit(1)
+                        SnoozyMarqueeText(
+                            track.title,
+                            font: SnoozyTypography.body(16, bold: true),
+                            color: .white
+                        )
+                        SnoozyMarqueeText(
+                            "\(track.artist) · \(track.album)",
+                            font: SnoozyTypography.footnote(13),
+                            color: Color.white.opacity(0.68)
+                        )
                     }
                     Spacer(minLength: 4)
                 }
