@@ -413,6 +413,9 @@ public struct LiquidGlassThumblessSlider: View {
     }
 }
 
+/// Reference instant for the aura shader clock, so float uniforms keep sub-frame precision.
+private let liquidAuraEpoch = Date.timeIntervalSinceReferenceDate
+
 /// Hardware-accelerated native SwiftUI Aurora Mesh backdrop that breathes with the active track's artwork palette
 /// and reacts smoothly to real-time audio characteristics (Bass, Mid, High, and Overall energy).
 public struct LiquidAuraBackgroundView: View {
@@ -441,122 +444,54 @@ public struct LiquidAuraBackgroundView: View {
             theme.background.ignoresSafeArea()
         } else {
             let reactiveActive = preferences.audioReactiveAuraEnabled && preferences.motionMode != .reduced
-            let bass = reactiveActive ? audioLevels.bass : 0.0
-            let mid = reactiveActive ? audioLevels.mid : 0.0
-            let high = reactiveActive ? audioLevels.high : 0.0
-            let overall = reactiveActive ? audioLevels.overall : 0.0
+            let levels = reactiveActive ? audioLevels : .zero
 
             let baseIntensity = isImmersivePlayer
                 ? max(0.76, preferences.auraBackdropIntensity)
                 : min(0.26, preferences.auraBackdropIntensity * 0.28)
-            let effectiveIntensity = isImmersivePlayer
-                ? min(1.0, baseIntensity + overall * 0.24)
-                : min(0.32, baseIntensity + overall * 0.08)
+            let intensity = isImmersivePlayer
+                ? min(1.0, baseIntensity + levels.overall * 0.24)
+                : min(0.32, baseIntensity + levels.overall * 0.08)
 
-            TimelineView(.animation(minimumInterval: preferences.motionMode == .reduced ? 2.0 : 1.0 / 24.0)) { timeline in
-                let t = preferences.motionMode == .reduced
-                    ? 0.0
-                    : timeline.date.timeIntervalSinceReferenceDate
-
-                GeometryReader { proxy in
-                    let w = max(1.0, proxy.size.width)
-                    let h = max(1.0, proxy.size.height)
-
-                    ZStack {
-                        theme.background
-
-                        // Orb 1: Primary Bass-Reactive Artwork Aura (expands and brightens with low frequencies)
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [
-                                        palette.primary.opacity(min(0.92, (0.52 + bass * 0.28) * effectiveIntensity)),
-                                        palette.primary.opacity(min(0.48, (0.16 + bass * 0.14) * effectiveIntensity)),
-                                        Color.clear
-                                    ],
-                                    center: .center,
-                                    startRadius: 8,
-                                    endRadius: w * CGFloat(0.78 + bass * 0.18)
-                                )
-                            )
-                            .frame(width: w * 1.35, height: w * 1.35)
-                            .scaleEffect(1.0 + CGFloat(bass * 0.24))
-                            .offset(
-                                x: -w * 0.24 + CGFloat(cos(t * 0.34)) * CGFloat(28.0 + bass * 22.0),
-                                y: -h * 0.26 + CGFloat(sin(t * 0.40)) * CGFloat(24.0 + bass * 18.0)
-                            )
-
-                        // Orb 2: Secondary Mid-Frequency Fluid Wave Aura (subtle waves and fluid motion)
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [
-                                        palette.secondary.opacity(min(0.88, (0.44 + mid * 0.26) * effectiveIntensity)),
-                                        theme.accent.opacity(min(0.46, (0.18 + mid * 0.14) * effectiveIntensity)),
-                                        Color.clear
-                                    ],
-                                    center: .center,
-                                    startRadius: 10,
-                                    endRadius: w * CGFloat(0.72 + mid * 0.16)
-                                )
-                            )
-                            .frame(width: w * 1.25, height: w * 1.25)
-                            .scaleEffect(x: 1.0 + CGFloat(mid * 0.18), y: 1.0 + CGFloat(bass * 0.10))
-                            .offset(
-                                x: w * 0.28 + CGFloat(sin(t * 0.29 + mid * 1.3)) * CGFloat(26.0 + mid * 28.0),
-                                y: h * 0.04 + CGFloat(cos(t * 0.33 + mid * 1.1)) * CGFloat(30.0 + mid * 24.0)
-                            )
-
-                        // Orb 3: Tertiary Deep Aura & Overall Energy Expansion (illuminates floating Liquid Glass pill)
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [
-                                        palette.tertiary.opacity(min(0.86, (0.48 + overall * 0.24) * effectiveIntensity)),
-                                        theme.accentStrong.opacity(min(0.45, (0.22 + bass * 0.14) * effectiveIntensity)),
-                                        Color.clear
-                                    ],
-                                    center: .center,
-                                    startRadius: 8,
-                                    endRadius: w * CGFloat(0.75 + overall * 0.15)
-                                )
-                            )
-                            .frame(width: w * 1.30, height: w * 1.30)
-                            .scaleEffect(1.0 + CGFloat(overall * 0.16))
-                            .offset(
-                                x: CGFloat(sin(t * 0.24 + 1.2)) * CGFloat(32.0 + mid * 20.0),
-                                y: h * 0.36 + CGFloat(cos(t * 0.35)) * CGFloat(20.0 + bass * 16.0)
-                            )
-
-                        // Orb 4: High-Frequency Specular Shimmer Highlight (finer visual details on treble/transients)
-                        if high > 0.02 || isImmersivePlayer {
-                            Circle()
-                                .fill(
-                                    RadialGradient(
-                                        colors: [
-                                            Color.white.opacity(min(0.34, (0.06 + high * 0.26) * effectiveIntensity)),
-                                            palette.primary.opacity(min(0.42, (0.08 + high * 0.24) * effectiveIntensity)),
-                                            Color.clear
-                                        ],
-                                        center: .center,
-                                        startRadius: 4,
-                                        endRadius: w * CGFloat(0.46 + high * 0.18)
-                                    )
-                                )
-                                .frame(width: w * 0.92, height: w * 0.92)
-                                .scaleEffect(0.92 + CGFloat(high * 0.28))
-                                .offset(
-                                    x: CGFloat(cos(t * 0.52 + high * 1.6)) * CGFloat(36.0 + high * 24.0),
-                                    y: -h * 0.08 + CGFloat(sin(t * 0.48 + mid * 1.2)) * CGFloat(28.0 + high * 20.0)
-                                )
-                        }
-                    }
-                    .frame(width: w, height: h)
-                    .clipped()
+            if isImmersivePlayer && preferences.motionMode != .reduced {
+                TimelineView(.animation(minimumInterval: 1.0 / 24.0)) { timeline in
+                    auraField(
+                        time: timeline.date.timeIntervalSinceReferenceDate - liquidAuraEpoch,
+                        intensity: intensity,
+                        levels: levels
+                    )
                 }
-                .ignoresSafeArea()
+            } else {
+                auraField(time: 0.0, intensity: intensity, levels: levels)
             }
         }
+    }
+
+    private func auraField(time: Double, intensity: Double, levels: AudioReactiveLevels) -> some View {
+        GeometryReader { proxy in
+            let w = max(1.0, proxy.size.width)
+            let h = max(1.0, proxy.size.height)
+
+            Rectangle()
+                .fill(theme.background)
+                .frame(width: w, height: h)
+                .colorEffect(
+                    ShaderLibrary.liquidAuraBackdrop(
+                        .float2(Float(w), Float(h)),
+                        .float(Float(time)),
+                        .float(Float(intensity)),
+                        .float(isImmersivePlayer ? 0.36 : 0.42),
+                        .float(Float(levels.bass)),
+                        .float(Float(levels.mid)),
+                        .float(Float(levels.high)),
+                        .float(Float(levels.overall)),
+                        .color(palette.primary),
+                        .color(palette.secondary),
+                        .color(palette.tertiary)
+                    )
+                )
+        }
+        .ignoresSafeArea()
     }
 }
 
