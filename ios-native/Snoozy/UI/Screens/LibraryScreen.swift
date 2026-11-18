@@ -13,18 +13,29 @@ public struct LibraryScreen: View {
     public let onImportFiles: () -> Void
     public let onSelectTrackForMenu: (Track) -> Void
 
-    @State private var albumGridMode: Bool = true
-    @State private var playlistGridMode: Bool = true
     @State private var showSongSortDialog: Bool = false
     @State private var showAlbumSortDialog: Bool = false
     @State private var showNewPlaylistAlert: Bool = false
     @State private var newPlaylistName: String = ""
-    @State private var renameTarget: Playlist? = nil
-    @State private var renameText: String = ""
+    @State private var editAlbum: Album? = nil
+    @State private var editArtistName: String? = nil
+    @State private var editPlaylist: Playlist? = nil
     @State private var deleteTarget: Playlist? = nil
     @State private var searchText: String = ""
     @FocusState private var isSearchFieldFocused: Bool
     @Environment(\.snoozyLayout) private var layout
+
+    private var visibleLibraryTabs: [LibraryTab] {
+        [.overview] + repository.librarySections
+    }
+
+    private var albumGridMode: Bool {
+        repository.preferences.albumLayout == .grid
+    }
+
+    private var playlistGridMode: Bool {
+        repository.preferences.playlistLayout == .grid
+    }
 
     public init(
         repository: LibraryRepository,
@@ -129,22 +140,6 @@ public struct LibraryScreen: View {
             }
         }
         .alert(
-            "Rename Playlist",
-            isPresented: Binding(
-                get: { renameTarget != nil },
-                set: { if !$0 { renameTarget = nil } }
-            )
-        ) {
-            TextField("Playlist name", text: $renameText)
-            Button("Cancel", role: .cancel) { renameTarget = nil }
-            Button("Save") {
-                if let target = renameTarget {
-                    repository.renamePlaylist(id: target.id, name: renameText)
-                }
-                renameTarget = nil
-            }
-        }
-        .alert(
             "Delete playlist?",
             isPresented: Binding(
                 get: { deleteTarget != nil },
@@ -160,6 +155,37 @@ public struct LibraryScreen: View {
             }
         } message: {
             Text("\"\(deleteTarget?.name ?? "")\" will be removed. Your songs stay in the library.")
+        }
+        .sheet(item: $editAlbum) { album in
+            AlbumEditSheetView(
+                album: album,
+                repository: repository,
+                theme: theme,
+                preferences: repository.preferences
+            )
+        }
+        .sheet(item: $editPlaylist) { playlist in
+            PlaylistEditSheetView(
+                playlist: playlist,
+                repository: repository,
+                theme: theme,
+                preferences: repository.preferences
+            )
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { editArtistName != nil },
+                set: { if !$0 { editArtistName = nil } }
+            )
+        ) {
+            if let artistName = editArtistName {
+                ArtistEditSheetView(
+                    artistName: artistName,
+                    repository: repository,
+                    theme: theme,
+                    preferences: repository.preferences
+                )
+            }
         }
     }
 
@@ -227,7 +253,9 @@ public struct LibraryScreen: View {
                             preferences: repository.preferences
                         ) {
                             withAnimation(.spring(response: 0.28, dampingFraction: 0.80)) {
-                                albumGridMode.toggle()
+                                repository.updatePreferences {
+                                    $0.albumLayout = albumGridMode ? .list : .grid
+                                }
                             }
                         }
                     }
@@ -241,7 +269,9 @@ public struct LibraryScreen: View {
                             preferences: repository.preferences
                         ) {
                             withAnimation(.spring(response: 0.28, dampingFraction: 0.80)) {
-                                playlistGridMode.toggle()
+                                repository.updatePreferences {
+                                    $0.playlistLayout = playlistGridMode ? .list : .grid
+                                }
                             }
                         }
                     }
@@ -427,7 +457,7 @@ public struct LibraryScreen: View {
         ScrollView(.horizontal, showsIndicators: false) {
             SnoozyGlassEffectContainer(spacing: 6) {
                 HStack(spacing: 6) {
-                    ForEach(LibraryTab.allCases) { tab in
+                    ForEach(visibleLibraryTabs) { tab in
                         let isSelected = (tab == selectedTab)
                         Button {
                             withAnimation(.spring(response: 0.28, dampingFraction: 0.80)) {
@@ -464,7 +494,7 @@ public struct LibraryScreen: View {
     private var appleMusicLibraryOverview: some View {
         VStack(alignment: .leading, spacing: 24) {
             SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
-                ForEach(Array(LibraryTab.appleMusicCategories.enumerated()), id: \.element.id) { index, category in
+                ForEach(Array(repository.librarySections.enumerated()), id: \.element.id) { index, category in
                     VStack(spacing: 0) {
                         if index > 0 {
                             Rectangle()
@@ -733,6 +763,20 @@ public struct LibraryScreen: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    if let first = repository.tracks(forAlbum: album.id).first {
+                                        playback.playTrack(first, queue: repository.tracks(forAlbum: album.id), shuffleOverride: false)
+                                    }
+                                } label: {
+                                    Label("Play Album", systemImage: "play.fill")
+                                }
+                                Button {
+                                    editAlbum = album
+                                } label: {
+                                    Label("Edit Album Details", systemImage: "slider.horizontal.3")
+                                }
+                            }
                         }
                     }
                 }
@@ -787,6 +831,12 @@ public struct LibraryScreen: View {
                     } label: {
                         Label("Shuffle Album", systemImage: "shuffle")
                     }
+                    Divider()
+                    Button {
+                        editAlbum = album
+                    } label: {
+                        Label("Edit Album Details", systemImage: "slider.horizontal.3")
+                    }
                 }
             }
         }
@@ -806,7 +856,8 @@ public struct LibraryScreen: View {
                     ForEach(Array(names.enumerated()), id: \.element) { index, name in
                         let artistTracks = repository.tracksForArtist(name)
                         let artistAlbums = repository.albumsForArtist(name)
-                        let sampleArtwork = artistTracks.compactMap(\.artworkPath).first
+                        let sampleArtwork = repository.artistOverrideArtwork(for: name)
+                            ?? artistTracks.compactMap(\.artworkPath).first
                         VStack(spacing: 0) {
                             if index > 0 {
                                 Rectangle()
@@ -871,6 +922,12 @@ public struct LibraryScreen: View {
                                         Label("Shuffle Artist", systemImage: "shuffle")
                                     }
                                 }
+                                Divider()
+                                Button {
+                                    editArtistName = name
+                                } label: {
+                                    Label("Edit Artist", systemImage: "slider.horizontal.3")
+                                }
                             }
                         }
                     }
@@ -909,13 +966,23 @@ public struct LibraryScreen: View {
                         onOpenPlaylist(playlist.id)
                     } label: {
                         VStack(alignment: .leading, spacing: 7) {
-                            SnoozyPlaylistCollageView(
-                                artworkPaths: tracks.map(\.artworkPath),
-                                size: tileSize,
-                                cornerRadius: 16,
-                                theme: theme
-                            )
-                            .shadow(color: Color.black.opacity(theme.isDark ? 0.30 : 0.14), radius: 10, x: 0, y: 5)
+                            if let art = playlist.artworkPath, !art.isEmpty {
+                                SnoozyArtworkView(
+                                    artworkPath: art,
+                                    size: tileSize,
+                                    cornerRadius: 16,
+                                    theme: theme
+                                )
+                                .shadow(color: Color.black.opacity(theme.isDark ? 0.30 : 0.14), radius: 10, x: 0, y: 5)
+                            } else {
+                                SnoozyPlaylistCollageView(
+                                    artworkPaths: tracks.map(\.artworkPath),
+                                    size: tileSize,
+                                    cornerRadius: 16,
+                                    theme: theme
+                                )
+                                .shadow(color: Color.black.opacity(theme.isDark ? 0.30 : 0.14), radius: 10, x: 0, y: 5)
+                            }
 
                             Text(playlist.name)
                                 .font(SnoozyTypography.body(14, bold: true))
@@ -950,10 +1017,15 @@ public struct LibraryScreen: View {
                         Divider()
 
                         Button {
-                            renameText = playlist.name
-                            renameTarget = playlist
+                            editPlaylist = playlist
                         } label: {
-                            Label("Rename Playlist", systemImage: "pencil")
+                            Label("Edit Playlist", systemImage: "slider.horizontal.3")
+                        }
+
+                        Button {
+                            repository.duplicatePlaylist(id: playlist.id)
+                        } label: {
+                            Label("Duplicate Playlist", systemImage: "plus.square.on.square")
                         }
 
                         Button(role: .destructive) {
@@ -980,12 +1052,21 @@ public struct LibraryScreen: View {
                                 onOpenPlaylist(playlist.id)
                             } label: {
                                 HStack(spacing: 12) {
-                                    SnoozyPlaylistCollageView(
-                                        artworkPaths: tracks.map(\.artworkPath),
-                                        size: 48,
-                                        cornerRadius: 10,
-                                        theme: theme
-                                    )
+                                    if let art = playlist.artworkPath, !art.isEmpty {
+                                        SnoozyArtworkView(
+                                            artworkPath: art,
+                                            size: 48,
+                                            cornerRadius: 10,
+                                            theme: theme
+                                        )
+                                    } else {
+                                        SnoozyPlaylistCollageView(
+                                            artworkPaths: tracks.map(\.artworkPath),
+                                            size: 48,
+                                            cornerRadius: 10,
+                                            theme: theme
+                                        )
+                                    }
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(playlist.name)
                                             .font(SnoozyTypography.body(16, bold: true))
@@ -1025,10 +1106,15 @@ public struct LibraryScreen: View {
                                 Divider()
 
                                 Button {
-                                    renameText = playlist.name
-                                    renameTarget = playlist
+                                    editPlaylist = playlist
                                 } label: {
-                                    Label("Rename Playlist", systemImage: "pencil")
+                                    Label("Edit Playlist", systemImage: "slider.horizontal.3")
+                                }
+
+                                Button {
+                                    repository.duplicatePlaylist(id: playlist.id)
+                                } label: {
+                                    Label("Duplicate Playlist", systemImage: "plus.square.on.square")
                                 }
 
                                 Button(role: .destructive) {

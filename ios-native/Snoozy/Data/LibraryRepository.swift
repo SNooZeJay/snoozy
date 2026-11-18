@@ -398,6 +398,10 @@ public final class LibraryRepository: ObservableObject {
         tracks.filter { $0.artist.caseInsensitiveCompare(artist) == .orderedSame }
     }
 
+    public func tracks(forAlbum albumKey: String) -> [Track] {
+        tracks.filter { $0.albumKey == albumKey }
+    }
+
     public func albumsForArtist(_ artist: String) -> [Album] {
         albums.filter { $0.artist.caseInsensitiveCompare(artist) == .orderedSame }
     }
@@ -418,6 +422,32 @@ public final class LibraryRepository: ObservableObject {
     public func setAlbumSort(_ sort: AlbumSort) {
         let updated = store.update { $0.albumSort = sort }
         applyPersistedState(updated)
+    }
+
+    /// Library sections in the user's saved order, minus hidden sections.
+    public var librarySections: [LibraryTab] {
+        let defaults = LibraryTab.appleMusicCategories
+        var order = preferences.librarySectionOrder.compactMap { LibraryTab(rawValue: $0) }
+        for tab in defaults where !order.contains(tab) {
+            order.append(tab)
+        }
+        let hidden = Set(preferences.hiddenLibrarySections)
+        return order.filter { !hidden.contains($0.rawValue) }
+    }
+
+    public func artistOverrideArtwork(for artist: String) -> String? {
+        guard let art = artistOverrides.first(where: {
+            $0.key.caseInsensitiveCompare(artist) == .orderedSame
+        })?.value.artworkPath, !art.isEmpty else {
+            return nil
+        }
+        return art
+    }
+
+    public func lyricsOverride(for trackId: String) -> String? {
+        guard let raw = trackOverrides[trackId]?.lyrics else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : raw
     }
 
     public func toggleFavorite(_ trackId: String) {
@@ -497,6 +527,166 @@ public final class LibraryRepository: ObservableObject {
             state.playlists[idx].trackIds = ids
         }
         applyPersistedState(updated)
+    }
+
+    public func updatePlaylist(
+        id: String,
+        name: String,
+        descriptionText: String,
+        artworkPath: String?
+    ) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let trimmedDescription = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let updated = store.update { state in
+            guard let idx = state.playlists.firstIndex(where: { $0.id == id }) else { return }
+            state.playlists[idx].name = trimmed
+            state.playlists[idx].descriptionText = trimmedDescription
+            if let art = artworkPath, !art.isEmpty {
+                state.playlists[idx].artworkPath = art
+            }
+        }
+        applyPersistedState(updated)
+    }
+
+    @discardableResult
+    public func duplicatePlaylist(id: String) -> String? {
+        guard let source = playlists.first(where: { $0.id == id }) else { return nil }
+        let newId = "playlist-\(Int64(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString.prefix(6).lowercased())"
+        let copy = Playlist(
+            id: newId,
+            name: "\(source.name) Copy",
+            trackIds: source.trackIds,
+            createdAt: Int64(Date().timeIntervalSince1970 * 1000),
+            descriptionText: source.descriptionText,
+            artworkPath: source.artworkPath
+        )
+        let updated = store.update { state in
+            guard let idx = state.playlists.firstIndex(where: { $0.id == id }) else { return }
+            state.playlists.insert(copy, at: idx)
+        }
+        applyPersistedState(updated)
+        return newId
+    }
+
+    public func removeTracksFromPlaylist(playlistId: String, trackIds: Set<String>) {
+        guard !trackIds.isEmpty else { return }
+        let updated = store.update { state in
+            guard let idx = state.playlists.firstIndex(where: { $0.id == playlistId }) else { return }
+            state.playlists[idx].trackIds.removeAll { trackIds.contains($0) }
+        }
+        applyPersistedState(updated)
+    }
+
+    public func sortPlaylist(id: String, by sort: PlaylistSort) {
+        let byId = tracksById
+        let updated = store.update { state in
+            guard let idx = state.playlists.firstIndex(where: { $0.id == id }) else { return }
+            let items = state.playlists[idx].trackIds.compactMap { byId[$0] }
+            let sorted: [Track]
+            switch sort {
+            case .title:
+                sorted = items.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+            case .artist:
+                sorted = items.sorted { $0.artist.localizedCaseInsensitiveCompare($1.artist) == .orderedAscending }
+            case .album:
+                sorted = items.sorted { $0.album.localizedCaseInsensitiveCompare($1.album) == .orderedAscending }
+            case .duration:
+                sorted = items.sorted { $0.duration > $1.duration }
+            }
+            state.playlists[idx].trackIds = sorted.map(\.id)
+        }
+        applyPersistedState(updated)
+    }
+
+    public func updateAlbum(
+        album: Album,
+        title: String,
+        artist: String,
+        year: String,
+        genre: String,
+        artworkPath: String?
+    ) -> String? {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return nil }
+        let trimmedArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        let memberIds = tracks.filter { $0.albumKey == album.id }.map(\.id)
+        guard let firstId = memberIds.first,
+              let firstMember = tracks.first(where: { $0.id == firstId }) else { return nil }
+        let fallbackArtist = (firstMember.albumArtist?.isEmpty == false ? firstMember.albumArtist! : firstMember.artist)
+        let effectiveArtist = trimmedArtist.isEmpty ? fallbackArtist : trimmedArtist
+        let newKey = Self.albumKey(title: trimmedTitle, artist: effectiveArtist)
+        let trimmedYear = year.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedGenre = genre.trimmingCharacters(in: .whitespacesAndNewlines)
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+
+        let updated = store.update { state in
+            for id in memberIds {
+                var ov = state.trackOverrides[id] ?? TrackOverride(trackId: id)
+                ov.album = trimmedTitle
+                ov.albumArtist = effectiveArtist
+                if !trimmedYear.isEmpty { ov.year = trimmedYear }
+                if !trimmedGenre.isEmpty { ov.genre = trimmedGenre }
+                if let art = artworkPath, !art.isEmpty { ov.artworkPath = art }
+                ov.updatedAt = now
+                state.trackOverrides[id] = ov
+            }
+            let previous = state.albumOverrides[album.id]
+            state.albumOverrides.removeValue(forKey: album.id)
+            state.albumOverrides[newKey] = AlbumOverride(
+                albumKey: newKey,
+                title: trimmedTitle,
+                artist: effectiveArtist,
+                year: trimmedYear.isEmpty ? previous?.year : trimmedYear,
+                genre: trimmedGenre.isEmpty ? previous?.genre : trimmedGenre,
+                descriptionText: previous?.descriptionText ?? album.descriptionText,
+                artworkPath: (artworkPath?.isEmpty == false ? artworkPath : previous?.artworkPath ?? album.artworkPath),
+                updatedAt: now
+            )
+        }
+        applyPersistedState(updated)
+        return newKey
+    }
+
+    @discardableResult
+    public func updateArtist(name: String, newName: String, artworkPath: String?) -> String? {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let memberIds = tracks.filter { $0.artist.caseInsensitiveCompare(name) == .orderedSame }.map(\.id)
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let updated = store.update { state in
+            for id in memberIds {
+                var ov = state.trackOverrides[id] ?? TrackOverride(trackId: id)
+                ov.artist = trimmed
+                ov.updatedAt = now
+                state.trackOverrides[id] = ov
+            }
+            let existing = state.artistOverrides.first(where: {
+                $0.key.caseInsensitiveCompare(name) == .orderedSame
+            })?.value
+            let staleKeys = state.artistOverrides.keys.filter {
+                $0.caseInsensitiveCompare(name) == .orderedSame
+                    || $0.caseInsensitiveCompare(trimmed) == .orderedSame
+            }
+            for key in staleKeys {
+                state.artistOverrides.removeValue(forKey: key)
+            }
+            state.artistOverrides[trimmed] = ArtistOverride(
+                artistKey: trimmed,
+                name: trimmed,
+                descriptionText: existing?.descriptionText,
+                artworkPath: (artworkPath?.isEmpty == false ? artworkPath : existing?.artworkPath),
+                updatedAt: now
+            )
+        }
+        applyPersistedState(updated)
+        return trimmed
+    }
+
+    public static func albumKey(title: String, artist: String) -> String {
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return "\(normalizedTitle.isEmpty ? "unknown album" : normalizedTitle)::\(normalizedArtist.isEmpty ? "unknown artist" : normalizedArtist)"
     }
 
     public func saveTrackOverride(_ overrideItem: TrackOverride) {
@@ -728,7 +918,7 @@ public final class LibraryRepository: ObservableObject {
                 ? ov!.artist!
                 : (first.albumArtist?.isEmpty == false ? first.albumArtist! : first.artist)
             let artwork = ov?.artworkPath ?? sortedGroup.compactMap(\.artworkPath).first
-            let year = sortedGroup.compactMap(\.year).first
+            let year = ov?.year?.isEmpty == false ? ov!.year! : sortedGroup.compactMap(\.year).first
             let totalDuration = sortedGroup.reduce(0.0) { $0 + $1.duration }
             let addedAt = sortedGroup.map(\.addedAt).max() ?? 0
             built.append(

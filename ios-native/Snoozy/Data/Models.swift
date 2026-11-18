@@ -120,12 +120,24 @@ public struct Playlist: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var name: String
     public var trackIds: [String]
     public var createdAt: Int64
+    // Optional so existing state files keep decoding.
+    public var descriptionText: String?
+    public var artworkPath: String?
 
-    public init(id: String, name: String, trackIds: [String], createdAt: Int64) {
+    public init(
+        id: String,
+        name: String,
+        trackIds: [String],
+        createdAt: Int64,
+        descriptionText: String? = nil,
+        artworkPath: String? = nil
+    ) {
         self.id = id
         self.name = name
         self.trackIds = trackIds
         self.createdAt = createdAt
+        self.descriptionText = descriptionText
+        self.artworkPath = artworkPath
     }
 }
 
@@ -142,6 +154,7 @@ public struct TrackOverride: Codable, Equatable, Sendable {
     public var discNumber: Int?
     public var descriptionText: String?
     public var artworkPath: String?
+    public var lyrics: String?
     public var updatedAt: Int64
 
     public init(
@@ -157,6 +170,7 @@ public struct TrackOverride: Codable, Equatable, Sendable {
         discNumber: Int? = nil,
         descriptionText: String? = nil,
         artworkPath: String? = nil,
+        lyrics: String? = nil,
         updatedAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
     ) {
         self.trackId = trackId
@@ -171,6 +185,7 @@ public struct TrackOverride: Codable, Equatable, Sendable {
         self.discNumber = discNumber
         self.descriptionText = descriptionText
         self.artworkPath = artworkPath
+        self.lyrics = lyrics
         self.updatedAt = updatedAt
     }
 }
@@ -179,9 +194,31 @@ public struct AlbumOverride: Codable, Equatable, Sendable {
     public let albumKey: String
     public var title: String?
     public var artist: String?
+    public var year: String?
+    public var genre: String?
     public var descriptionText: String?
     public var artworkPath: String?
     public var updatedAt: Int64
+
+    public init(
+        albumKey: String,
+        title: String? = nil,
+        artist: String? = nil,
+        year: String? = nil,
+        genre: String? = nil,
+        descriptionText: String? = nil,
+        artworkPath: String? = nil,
+        updatedAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
+    ) {
+        self.albumKey = albumKey
+        self.title = title
+        self.artist = artist
+        self.year = year
+        self.genre = genre
+        self.descriptionText = descriptionText
+        self.artworkPath = artworkPath
+        self.updatedAt = updatedAt
+    }
 }
 
 public struct ArtistOverride: Codable, Equatable, Sendable {
@@ -190,6 +227,20 @@ public struct ArtistOverride: Codable, Equatable, Sendable {
     public var descriptionText: String?
     public var artworkPath: String?
     public var updatedAt: Int64
+
+    public init(
+        artistKey: String,
+        name: String? = nil,
+        descriptionText: String? = nil,
+        artworkPath: String? = nil,
+        updatedAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
+    ) {
+        self.artistKey = artistKey
+        self.name = name
+        self.descriptionText = descriptionText
+        self.artworkPath = artworkPath
+        self.updatedAt = updatedAt
+    }
 }
 
 public struct PlayHistoryEntry: Identifiable, Codable, Equatable, Sendable {
@@ -265,6 +316,34 @@ public enum AlbumSort: String, Codable, CaseIterable, Sendable {
         case .artist: return "Artist"
         case .year: return "Year"
         case .recentlyAdded: return "Recently added"
+        }
+    }
+}
+
+public enum LibraryLayoutMode: String, Codable, CaseIterable, Sendable {
+    case grid
+    case list
+
+    public var label: String {
+        switch self {
+        case .grid: return "Grid"
+        case .list: return "List"
+        }
+    }
+}
+
+public enum PlaylistSort: String, Codable, CaseIterable, Sendable {
+    case title
+    case artist
+    case album
+    case duration
+
+    public var label: String {
+        switch self {
+        case .title: return "Title"
+        case .artist: return "Artist"
+        case .album: return "Album"
+        case .duration: return "Duration"
         }
     }
 }
@@ -369,6 +448,10 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
     public var audioReactiveAuraEnabled: Bool
     public var motionMode: MotionMode
     public var hapticsEnabled: Bool
+    public var albumLayout: LibraryLayoutMode
+    public var playlistLayout: LibraryLayoutMode
+    public var hiddenLibrarySections: [String]
+    public var librarySectionOrder: [String]
 
     public init(
         themeMode: ThemeMode = .dark,
@@ -379,7 +462,11 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
         auraBackdropIntensity: Double = 0.75,
         audioReactiveAuraEnabled: Bool = true,
         motionMode: MotionMode = .full,
-        hapticsEnabled: Bool = true
+        hapticsEnabled: Bool = true,
+        albumLayout: LibraryLayoutMode = .grid,
+        playlistLayout: LibraryLayoutMode = .grid,
+        hiddenLibrarySections: [String] = [],
+        librarySectionOrder: [String] = []
     ) {
         self.themeMode = themeMode
         self.paletteSeed = paletteSeed
@@ -390,6 +477,10 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
         self.audioReactiveAuraEnabled = audioReactiveAuraEnabled
         self.motionMode = motionMode
         self.hapticsEnabled = hapticsEnabled
+        self.albumLayout = albumLayout
+        self.playlistLayout = playlistLayout
+        self.hiddenLibrarySections = hiddenLibrarySections
+        self.librarySectionOrder = librarySectionOrder
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -402,6 +493,10 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
         case audioReactiveAuraEnabled
         case motionMode
         case hapticsEnabled
+        case albumLayout
+        case playlistLayout
+        case hiddenLibrarySections
+        case librarySectionOrder
     }
 
     public init(from decoder: Decoder) throws {
@@ -415,6 +510,10 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
         self.audioReactiveAuraEnabled = try container.decodeIfPresent(Bool.self, forKey: .audioReactiveAuraEnabled) ?? true
         self.motionMode = try container.decodeIfPresent(MotionMode.self, forKey: .motionMode) ?? .full
         self.hapticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? true
+        self.albumLayout = try container.decodeIfPresent(LibraryLayoutMode.self, forKey: .albumLayout) ?? .grid
+        self.playlistLayout = try container.decodeIfPresent(LibraryLayoutMode.self, forKey: .playlistLayout) ?? .grid
+        self.hiddenLibrarySections = try container.decodeIfPresent([String].self, forKey: .hiddenLibrarySections) ?? []
+        self.librarySectionOrder = try container.decodeIfPresent([String].self, forKey: .librarySectionOrder) ?? []
     }
 }
 

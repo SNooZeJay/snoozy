@@ -360,12 +360,21 @@ public struct SearchScreen: View {
                                     onOpenPlaylist(playlist.id)
                                 } label: {
                                     HStack(spacing: 12) {
-                                        SnoozyPlaylistCollageView(
-                                            artworkPaths: pTracks.map(\.artworkPath),
-                                            size: 46,
-                                            cornerRadius: 8,
-                                            theme: theme
-                                        )
+                                        if let art = playlist.artworkPath, !art.isEmpty {
+                                            SnoozyArtworkView(
+                                                artworkPath: art,
+                                                size: 46,
+                                                cornerRadius: 8,
+                                                theme: theme
+                                            )
+                                        } else {
+                                            SnoozyPlaylistCollageView(
+                                                artworkPaths: pTracks.map(\.artworkPath),
+                                                size: 46,
+                                                cornerRadius: 8,
+                                                theme: theme
+                                            )
+                                        }
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(playlist.name)
                                                 .font(SnoozyTypography.body(15, bold: true))

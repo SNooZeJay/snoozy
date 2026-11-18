@@ -480,7 +480,12 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         let artPath = track.artworkPath
         Task {
             let palette = ArtworkPaletteExtractor.extract(from: artPath)
-            let lyrics = await AudioScanner.loadLyrics(for: track, documentsURL: docsURL)
+            let lyrics: ParsedLyrics?
+            if let customLyrics = repository.lyricsOverride(for: track.id) {
+                lyrics = LyricsEngine.parseLrc(customLyrics, sourceLabel: "Snoozy Lyrics")
+            } else {
+                lyrics = await AudioScanner.loadLyrics(for: track, documentsURL: docsURL)
+            }
             await MainActor.run {
                 if self.activeTrack?.id == track.id {
                     self.activePalette = palette

@@ -255,6 +255,85 @@ public struct SettingsScreen: View {
                 .padding(.horizontal, 16)
                 .frame(minHeight: 48)
             }
+
+            SnoozyGroupedCard(theme: theme, preferences: prefs) {
+                ForEach(Array(orderedLibrarySections.enumerated()), id: \.element.id) { index, tab in
+                    VStack(spacing: 0) {
+                        if index > 0 {
+                            rowDivider
+                        }
+                        HStack(spacing: 10) {
+                            Image(systemName: tab.systemImage)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(theme.accent)
+                                .frame(width: 22)
+                            Text(tab.rawValue)
+                                .font(SnoozyTypography.body(15, bold: true))
+                                .foregroundStyle(theme.ink)
+                            Spacer()
+                            Button {
+                                moveLibrarySection(tab, offset: -1)
+                            } label: {
+                                Image(systemName: "chevron.up")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(index == 0 ? theme.inkFaint : theme.accent)
+                                    .frame(width: 30, height: 34)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(index == 0)
+                            Button {
+                                moveLibrarySection(tab, offset: 1)
+                            } label: {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(index == orderedLibrarySections.count - 1 ? theme.inkFaint : theme.accent)
+                                    .frame(width: 30, height: 34)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(index == orderedLibrarySections.count - 1)
+                            Toggle("", isOn: Binding(
+                                get: { !repository.preferences.hiddenLibrarySections.contains(tab.rawValue) },
+                                set: { setLibrarySection(tab, isVisible: $0) }
+                            ))
+                            .labelsHidden()
+                            .tint(theme.accent)
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 48)
+                    }
+                }
+            }
+        }
+    }
+
+    private var orderedLibrarySections: [LibraryTab] {
+        var order = repository.preferences.librarySectionOrder.compactMap { LibraryTab(rawValue: $0) }
+        for tab in LibraryTab.appleMusicCategories where !order.contains(tab) {
+            order.append(tab)
+        }
+        return order
+    }
+
+    private func moveLibrarySection(_ tab: LibraryTab, offset: Int) {
+        var order = orderedLibrarySections
+        guard let index = order.firstIndex(of: tab),
+              order.indices.contains(index + offset) else { return }
+        order.swapAt(index, index + offset)
+        repository.updatePreferences { $0.librarySectionOrder = order.map(\.rawValue) }
+    }
+
+    private func setLibrarySection(_ tab: LibraryTab, isVisible: Bool) {
+        repository.updatePreferences { prefs in
+            var hidden = Set(prefs.hiddenLibrarySections)
+            if isVisible {
+                hidden.remove(tab.rawValue)
+            } else {
+                hidden.insert(tab.rawValue)
+            }
+            prefs.hiddenLibrarySections = Array(hidden)
+            if prefs.librarySectionOrder.isEmpty {
+                prefs.librarySectionOrder = LibraryTab.appleMusicCategories.map(\.rawValue)
+            }
         }
     }
 

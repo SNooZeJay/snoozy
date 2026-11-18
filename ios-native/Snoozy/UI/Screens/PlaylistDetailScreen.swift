@@ -8,9 +8,11 @@ public struct PlaylistDetailScreen: View {
     public var onSelectTrackForMenu: ((Track) -> Void)? = nil
 
     @State private var showAddSongsSheet: Bool = false
-    @State private var showRenameAlert: Bool = false
-    @State private var renameText: String = ""
+    @State private var showEditSheet: Bool = false
     @State private var showDeleteAlert: Bool = false
+    @State private var showBulkRemoveAlert: Bool = false
+    @State private var isSelecting: Bool = false
+    @State private var selectedTrackIds: Set<String> = []
     @Environment(\.dismiss) private var dismiss
     @Environment(\.snoozyLayout) private var layout
 
@@ -57,6 +59,21 @@ public struct PlaylistDetailScreen: View {
                     if let playlist {
                         SnoozyGlassEffectContainer(spacing: 8) {
                             HStack(spacing: 8) {
+                                if !tracks.isEmpty {
+                                    LiquidGlassIconButton(
+                                        systemImage: isSelecting ? "checkmark.circle.fill" : "checkmark.circle",
+                                        accessibilityLabel: isSelecting ? "Done selecting" : "Select songs",
+                                        size: layout.headerButtonSize,
+                                        theme: theme,
+                                        preferences: repository.preferences
+                                    ) {
+                                        withAnimation(.easeInOut(duration: 0.18)) {
+                                            isSelecting.toggle()
+                                            if !isSelecting { selectedTrackIds.removeAll() }
+                                        }
+                                    }
+                                }
+
                                 LiquidGlassIconButton(
                                     systemImage: "plus",
                                     accessibilityLabel: "Add songs",
@@ -68,9 +85,20 @@ public struct PlaylistDetailScreen: View {
                                 }
 
                                 Menu {
-                                    Button("Rename Playlist", systemImage: "pencil") {
-                                        renameText = playlist.name
-                                        showRenameAlert = true
+                                    Button("Edit Playlist", systemImage: "slider.horizontal.3") {
+                                        showEditSheet = true
+                                    }
+                                    if !tracks.isEmpty {
+                                        Menu("Sort Songs") {
+                                            ForEach(PlaylistSort.allCases, id: \.self) { sort in
+                                                Button(sort.label) {
+                                                    repository.sortPlaylist(id: playlist.id, by: sort)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Button("Duplicate Playlist", systemImage: "plus.square.on.square") {
+                                        repository.duplicatePlaylist(id: playlist.id)
                                     }
                                     Button("Delete Playlist", systemImage: "trash", role: .destructive) {
                                         showDeleteAlert = true
@@ -96,14 +124,25 @@ public struct PlaylistDetailScreen: View {
                 .padding(.top, layout.isLandscape ? 8 : 10)
 
                 if let playlist {
-                    SnoozyPlaylistCollageView(
-                        artworkPaths: tracks.map(\.artworkPath),
-                        size: layout.detailHeroArtworkSize,
-                        cornerRadius: 20,
-                        theme: theme
-                    )
-                    .shadow(color: Color.black.opacity(theme.isDark ? 0.45 : 0.18), radius: 22, x: 0, y: 12)
-                    .padding(.top, 2)
+                    if let art = playlist.artworkPath, !art.isEmpty {
+                        SnoozyArtworkView(
+                            artworkPath: art,
+                            size: layout.detailHeroArtworkSize,
+                            cornerRadius: 20,
+                            theme: theme
+                        )
+                        .shadow(color: Color.black.opacity(theme.isDark ? 0.45 : 0.18), radius: 22, x: 0, y: 12)
+                        .padding(.top, 2)
+                    } else {
+                        SnoozyPlaylistCollageView(
+                            artworkPaths: tracks.map(\.artworkPath),
+                            size: layout.detailHeroArtworkSize,
+                            cornerRadius: 20,
+                            theme: theme
+                        )
+                        .shadow(color: Color.black.opacity(theme.isDark ? 0.45 : 0.18), radius: 22, x: 0, y: 12)
+                        .padding(.top, 2)
+                    }
 
                     VStack(spacing: 5) {
                         Text(playlist.name)
@@ -114,6 +153,13 @@ public struct PlaylistDetailScreen: View {
                         Text("Snoozy Local Playlist")
                             .font(SnoozyTypography.body(14, bold: true))
                             .foregroundStyle(theme.accent)
+
+                        if let description = playlist.descriptionText, !description.isEmpty {
+                            Text(description)
+                                .font(SnoozyTypography.footnote(13))
+                                .foregroundStyle(theme.inkMuted)
+                                .multilineTextAlignment(.center)
+                        }
 
                         let totalDuration = tracks.reduce(0.0) { $0 + $1.duration }
                         Text("\(SnoozyFormat.countLabel(tracks.count, "song", "songs")) · \(SnoozyFormat.formatDuration(totalDuration))")
@@ -149,6 +195,36 @@ public struct PlaylistDetailScreen: View {
                         showAddSongsSheet = true
                     }
 
+                    if isSelecting {
+                        HStack(spacing: 12) {
+                            Text("\(selectedTrackIds.count) selected")
+                                .font(SnoozyTypography.body(14, bold: true))
+                                .foregroundStyle(theme.ink)
+
+                            Spacer()
+
+                            Button("Select All") {
+                                selectedTrackIds = Set(tracks.map(\.id))
+                            }
+                            .font(SnoozyTypography.body(14, bold: true))
+                            .foregroundStyle(theme.accent)
+
+                            Button("Remove", role: .destructive) {
+                                showBulkRemoveAlert = true
+                            }
+                            .font(SnoozyTypography.body(14, bold: true))
+                            .disabled(selectedTrackIds.isEmpty)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(height: 46)
+                        .liquidGlassSurface(
+                            cornerRadius: 16,
+                            glassMode: repository.preferences.glassMode,
+                            refractionIntensity: repository.preferences.refractionIntensity,
+                            tintColor: theme.accent
+                        )
+                    }
+
                     if tracks.isEmpty {
                         Text("No songs in this playlist yet. Tap Add Songs to Playlist above.")
                             .font(SnoozyTypography.footnote(13))
@@ -158,44 +234,67 @@ public struct PlaylistDetailScreen: View {
                         SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
                             LazyVStack(spacing: 0) {
                                 ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
-                                    SnoozyTrackRowView(
-                                        track: track,
-                                        subtitle: "\(track.artist) · \(track.album)",
-                                        isActive: playback.activeTrack?.id == track.id,
-                                        isFavorite: repository.isFavorite(track.id),
-                                        showTopSeparator: index > 0,
-                                        isGrouped: true,
-                                        theme: theme,
-                                        preferences: repository.preferences,
-                                        onTap: { playback.playTrack(track, queue: tracks) },
-                                        onMenu: {
-                                            if let onSelectTrackForMenu {
-                                                onSelectTrackForMenu(track)
-                                            }
-                                        },
-                                        onPlayNext: { playback.playNext(track) },
-                                        onAddToQueue: { playback.addToQueue(track) },
-                                        onToggleFavorite: { repository.toggleFavorite(track.id) }
+                                    HStack(spacing: 0) {
+                                        if isSelecting {
+                                            Image(systemName: selectedTrackIds.contains(track.id) ? "checkmark.circle.fill" : "circle")
+                                                .font(.system(size: 22, weight: .semibold))
+                                                .foregroundStyle(selectedTrackIds.contains(track.id) ? theme.accent : theme.inkFaint)
+                                                .padding(.leading, 12)
+                                        }
+                                        SnoozyTrackRowView(
+                                            track: track,
+                                            subtitle: "\(track.artist) · \(track.album)",
+                                            isActive: playback.activeTrack?.id == track.id,
+                                            isFavorite: repository.isFavorite(track.id),
+                                            showTopSeparator: index > 0,
+                                            isGrouped: true,
+                                            theme: theme,
+                                            preferences: repository.preferences,
+                                            onTap: {
+                                                if isSelecting {
+                                                    toggleSelection(track.id)
+                                                } else {
+                                                    playback.playTrack(track, queue: tracks)
+                                                }
+                                            },
+                                            onMenu: {
+                                                if isSelecting {
+                                                    toggleSelection(track.id)
+                                                } else if let onSelectTrackForMenu {
+                                                    onSelectTrackForMenu(track)
+                                                }
+                                            },
+                                            onPlayNext: { playback.playNext(track) },
+                                            onAddToQueue: { playback.addToQueue(track) },
+                                            onToggleFavorite: { repository.toggleFavorite(track.id) }
+                                        )
+                                    }
+                                    .background(
+                                        isSelecting && selectedTrackIds.contains(track.id)
+                                            ? theme.accent.opacity(0.10)
+                                            : Color.clear
                                     )
                                     .contextMenu {
-                                        Button("Play Next", systemImage: "text.insert") {
-                                            playback.playNext(track)
-                                        }
-                                        Button("Add to Queue", systemImage: "text.append") {
-                                            playback.addToQueue(track)
-                                        }
-                                        if index > 0 {
-                                            Button("Move Up", systemImage: "arrow.up") {
-                                                repository.movePlaylistTrack(playlistId: playlist.id, from: index, to: index - 1)
+                                        if !isSelecting {
+                                            Button("Play Next", systemImage: "text.insert") {
+                                                playback.playNext(track)
                                             }
-                                        }
-                                        if index + 1 < tracks.count {
-                                            Button("Move Down", systemImage: "arrow.down") {
-                                                repository.movePlaylistTrack(playlistId: playlist.id, from: index, to: index + 1)
+                                            Button("Add to Queue", systemImage: "text.append") {
+                                                playback.addToQueue(track)
                                             }
-                                        }
-                                        Button("Remove from Playlist", systemImage: "trash", role: .destructive) {
-                                            repository.removeFromPlaylist(playlistId: playlist.id, trackId: track.id)
+                                            if index > 0 {
+                                                Button("Move Up", systemImage: "arrow.up") {
+                                                    repository.movePlaylistTrack(playlistId: playlist.id, from: index, to: index - 1)
+                                                }
+                                            }
+                                            if index + 1 < tracks.count {
+                                                Button("Move Down", systemImage: "arrow.down") {
+                                                    repository.movePlaylistTrack(playlistId: playlist.id, from: index, to: index + 1)
+                                                }
+                                            }
+                                            Button("Remove from Playlist", systemImage: "trash", role: .destructive) {
+                                                repository.removeFromPlaylist(playlistId: playlist.id, trackId: track.id)
+                                            }
                                         }
                                     }
                                 }
@@ -224,11 +323,14 @@ public struct PlaylistDetailScreen: View {
                 preferences: repository.preferences
             )
         }
-        .alert("Rename playlist", isPresented: $showRenameAlert) {
-            TextField("Playlist name", text: $renameText)
-            Button("Cancel", role: .cancel) {}
-            Button("Save") {
-                repository.renamePlaylist(id: playlistId, name: renameText)
+        .sheet(isPresented: $showEditSheet) {
+            if let playlist {
+                PlaylistEditSheetView(
+                    playlist: playlist,
+                    repository: repository,
+                    theme: theme,
+                    preferences: repository.preferences
+                )
             }
         }
         .alert("Delete playlist?", isPresented: $showDeleteAlert) {
@@ -237,6 +339,24 @@ public struct PlaylistDetailScreen: View {
                 repository.deletePlaylist(id: playlistId)
                 dismiss()
             }
+        }
+        .alert("Remove selected songs?", isPresented: $showBulkRemoveAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove", role: .destructive) {
+                repository.removeTracksFromPlaylist(playlistId: playlistId, trackIds: selectedTrackIds)
+                selectedTrackIds.removeAll()
+                isSelecting = false
+            }
+        } message: {
+            Text("\(selectedTrackIds.count) song\(selectedTrackIds.count == 1 ? "" : "s") will be removed from this playlist. The songs stay in your library.")
+        }
+    }
+
+    private func toggleSelection(_ trackId: String) {
+        if selectedTrackIds.contains(trackId) {
+            selectedTrackIds.remove(trackId)
+        } else {
+            selectedTrackIds.insert(trackId)
         }
     }
 }

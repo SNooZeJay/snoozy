@@ -445,13 +445,23 @@ public struct HomeScreen: View {
                                 onOpenPlaylist(playlist.id)
                             } label: {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    SnoozyPlaylistCollageView(
-                                        artworkPaths: tracks.map(\.artworkPath),
-                                        size: layout.shelfItemSize,
-                                        cornerRadius: 14,
-                                        theme: theme
-                                    )
-                                    .shadow(color: Color.black.opacity(0.24), radius: 8, x: 0, y: 4)
+                                    if let art = playlist.artworkPath, !art.isEmpty {
+                                        SnoozyArtworkView(
+                                            artworkPath: art,
+                                            size: layout.shelfItemSize,
+                                            cornerRadius: 14,
+                                            theme: theme
+                                        )
+                                        .shadow(color: Color.black.opacity(0.24), radius: 8, x: 0, y: 4)
+                                    } else {
+                                        SnoozyPlaylistCollageView(
+                                            artworkPaths: tracks.map(\.artworkPath),
+                                            size: layout.shelfItemSize,
+                                            cornerRadius: 14,
+                                            theme: theme
+                                        )
+                                        .shadow(color: Color.black.opacity(0.24), radius: 8, x: 0, y: 4)
+                                    }
 
                                     Text(playlist.name)
                                         .font(SnoozyTypography.body(14, bold: true))
@@ -479,7 +489,7 @@ public struct HomeScreen: View {
             sectionHeader(title: "Browse Your Music", actionTitle: nil, action: nil)
 
             SnoozyGroupedCard(theme: theme, preferences: repository.preferences) {
-                ForEach(Array(LibraryTab.appleMusicCategories.enumerated()), id: \.element.id) { index, category in
+                ForEach(Array(repository.librarySections.enumerated()), id: \.element.id) { index, category in
                     VStack(spacing: 0) {
                         if index > 0 {
                             Rectangle()

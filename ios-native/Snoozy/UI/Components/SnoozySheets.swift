@@ -650,6 +650,8 @@ public struct TrackMetadataEditSheetView: View {
     @State private var trackNumberText: String
     @State private var discNumberText: String
     @State private var descriptionText: String
+    @State private var artworkPath: String?
+    @State private var lyrics: String
     @Environment(\.dismiss) private var dismiss
 
     public init(
@@ -672,6 +674,8 @@ public struct TrackMetadataEditSheetView: View {
         _trackNumberText = State(initialValue: track.trackNumber.map(String.init) ?? "")
         _discNumberText = State(initialValue: track.discNumber.map(String.init) ?? "")
         _descriptionText = State(initialValue: track.descriptionText ?? "")
+        _artworkPath = State(initialValue: repository.trackOverrides[track.id]?.artworkPath)
+        _lyrics = State(initialValue: repository.trackOverrides[track.id]?.lyrics ?? "")
     }
 
     public var body: some View {
@@ -692,6 +696,26 @@ public struct TrackMetadataEditSheetView: View {
                         fieldRow(label: "Year", text: $year)
                     }
                     fieldRow(label: "Notes", text: $descriptionText)
+
+                    SnoozyArtworkPickerRow(
+                        artworkPath: $artworkPath,
+                        cacheDirectory: repository.store.artworkCacheURL,
+                        theme: theme,
+                        preferences: preferences
+                    )
+
+                    SnoozyEditField(
+                        label: "Lyrics (LRC timestamps supported)",
+                        text: $lyrics,
+                        theme: theme,
+                        preferences: preferences,
+                        isMultiline: true
+                    )
+
+                    Text("Saved inside Snoozy. Audio file tags are not modified.")
+                        .font(SnoozyTypography.footnote(12))
+                        .foregroundStyle(theme.inkMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                     Button {
                         repository.resetTrackOverride(trackId: track.id)
@@ -728,7 +752,9 @@ public struct TrackMetadataEditSheetView: View {
                             year: year.trimmingCharacters(in: .whitespacesAndNewlines),
                             trackNumber: parsedTrackNum,
                             discNumber: parsedDiscNum,
-                            descriptionText: descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            descriptionText: descriptionText.trimmingCharacters(in: .whitespacesAndNewlines),
+                            artworkPath: artworkPath,
+                            lyrics: lyrics.trimmingCharacters(in: .whitespacesAndNewlines)
                         )
                         repository.saveTrackOverride(ov)
                         dismiss()

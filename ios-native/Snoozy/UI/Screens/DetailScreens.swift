@@ -7,6 +7,8 @@ public struct AlbumDetailScreen: View {
     public let theme: SnoozyThemeColors
     public var onOpenArtist: ((String) -> Void)? = nil
     public let onSelectTrackForMenu: (Track) -> Void
+    @State private var showEditSheet: Bool = false
+    @State private var currentAlbumKey: String
     @Environment(\.dismiss) private var dismiss
     @Environment(\.snoozyLayout) private var layout
 
@@ -24,10 +26,11 @@ public struct AlbumDetailScreen: View {
         self.theme = theme
         self.onOpenArtist = onOpenArtist
         self.onSelectTrackForMenu = onSelectTrackForMenu
+        _currentAlbumKey = State(initialValue: albumKey)
     }
 
     private var album: Album? {
-        repository.albums.first(where: { $0.id == albumKey })
+        repository.albums.first(where: { $0.id == currentAlbumKey })
     }
 
     private var tracks: [Track] {
@@ -50,6 +53,26 @@ public struct AlbumDetailScreen: View {
                         dismiss()
                     }
                     Spacer()
+                    if album != nil {
+                        Menu {
+                            Button("Edit Album Details", systemImage: "slider.horizontal.3") {
+                                showEditSheet = true
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: max(15, layout.headerButtonSize * 0.42), weight: .semibold))
+                                .foregroundStyle(theme.ink)
+                                .frame(width: layout.headerButtonSize, height: layout.headerButtonSize)
+                                .liquidGlassSurface(
+                                    cornerRadius: layout.headerButtonSize * 0.5,
+                                    glassMode: repository.preferences.glassMode,
+                                    refractionIntensity: repository.preferences.refractionIntensity,
+                                    tintColor: theme.accent,
+                                    variant: .ultraClear
+                                )
+                        }
+                        .accessibilityLabel("Album options")
+                    }
                 }
                 .padding(.top, layout.isLandscape ? 8 : 10)
 
@@ -173,6 +196,17 @@ public struct AlbumDetailScreen: View {
             )
         )
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showEditSheet) {
+            if let album {
+                AlbumEditSheetView(
+                    album: album,
+                    repository: repository,
+                    theme: theme,
+                    preferences: repository.preferences,
+                    onSaved: { currentAlbumKey = $0 }
+                )
+            }
+        }
     }
 }
 
@@ -183,15 +217,34 @@ public struct ArtistDetailScreen: View {
     public let theme: SnoozyThemeColors
     public let onOpenAlbum: (String) -> Void
     public let onSelectTrackForMenu: (Track) -> Void
+    @State private var showEditSheet: Bool = false
+    @State private var currentArtistName: String
     @Environment(\.dismiss) private var dismiss
     @Environment(\.snoozyLayout) private var layout
 
+    public init(
+        artistName: String,
+        repository: LibraryRepository,
+        playback: PlaybackController,
+        theme: SnoozyThemeColors,
+        onOpenAlbum: @escaping (String) -> Void,
+        onSelectTrackForMenu: @escaping (Track) -> Void
+    ) {
+        self.artistName = artistName
+        self.repository = repository
+        self.playback = playback
+        self.theme = theme
+        self.onOpenAlbum = onOpenAlbum
+        self.onSelectTrackForMenu = onSelectTrackForMenu
+        _currentArtistName = State(initialValue: artistName)
+    }
+
     private var tracks: [Track] {
-        repository.tracksForArtist(artistName)
+        repository.tracksForArtist(currentArtistName)
     }
 
     private var albums: [Album] {
-        repository.albumsForArtist(artistName)
+        repository.albumsForArtist(currentArtistName)
     }
 
     public var body: some View {
@@ -208,11 +261,30 @@ public struct ArtistDetailScreen: View {
                         dismiss()
                     }
                     Spacer()
+                    Menu {
+                        Button("Edit Artist", systemImage: "slider.horizontal.3") {
+                            showEditSheet = true
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: max(15, layout.headerButtonSize * 0.42), weight: .semibold))
+                            .foregroundStyle(theme.ink)
+                            .frame(width: layout.headerButtonSize, height: layout.headerButtonSize)
+                            .liquidGlassSurface(
+                                cornerRadius: layout.headerButtonSize * 0.5,
+                                glassMode: repository.preferences.glassMode,
+                                refractionIntensity: repository.preferences.refractionIntensity,
+                                tintColor: theme.accent,
+                                variant: .ultraClear
+                            )
+                    }
+                    .accessibilityLabel("Artist options")
                 }
 
                 HStack(spacing: 16) {
                     SnoozyArtworkView(
-                        artworkPath: tracks.compactMap(\.artworkPath).first,
+                        artworkPath: repository.artistOverrideArtwork(for: currentArtistName)
+                            ?? tracks.compactMap(\.artworkPath).first,
                         size: 76,
                         cornerRadius: 38,
                         theme: theme
@@ -220,7 +292,7 @@ public struct ArtistDetailScreen: View {
                     .shadow(color: Color.black.opacity(0.28), radius: 10, x: 0, y: 5)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(artistName)
+                        Text(currentArtistName)
                             .font(SnoozyTypography.display(26))
                             .foregroundStyle(theme.ink)
                             .lineLimit(2)
@@ -232,8 +304,8 @@ public struct ArtistDetailScreen: View {
                 }
 
                 SnoozyCollectionActionsRow(
-                    playLabel: "Play \(artistName)",
-                    shuffleLabel: "Shuffle \(artistName)",
+                    playLabel: "Play \(currentArtistName)",
+                    shuffleLabel: "Shuffle \(currentArtistName)",
                     isEnabled: !tracks.isEmpty,
                     theme: theme,
                     preferences: repository.preferences,
@@ -322,6 +394,15 @@ public struct ArtistDetailScreen: View {
             )
         )
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showEditSheet) {
+            ArtistEditSheetView(
+                artistName: currentArtistName,
+                repository: repository,
+                theme: theme,
+                preferences: repository.preferences,
+                onSaved: { currentArtistName = $0 }
+            )
+        }
     }
 }
 
