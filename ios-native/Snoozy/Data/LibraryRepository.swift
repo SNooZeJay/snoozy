@@ -13,6 +13,7 @@ public final class LibraryRepository: ObservableObject {
     @Published public private(set) var albums: [Album] = []
     @Published public private(set) var sortedAlbums: [Album] = []
     @Published public private(set) var artistNames: [String] = []
+    @Published public private(set) var sortedArtistNames: [String] = []
     @Published public private(set) var genreNames: [String] = []
     @Published public private(set) var folderNames: [String] = []
     @Published public private(set) var favoriteTracks: [Track] = []
@@ -21,6 +22,7 @@ public final class LibraryRepository: ObservableObject {
     @Published public private(set) var recentlyAddedAlbums: [Album] = []
     @Published public private(set) var mostPlayedTracks: [PlayedTrackSummary] = []
     @Published public private(set) var playlists: [Playlist] = []
+    @Published public private(set) var sortedPlaylists: [Playlist] = []
     @Published public private(set) var recents: [String] = []
     @Published public private(set) var favoriteTrackIds: Set<String> = []
     @Published public private(set) var trackOverrides: [String: TrackOverride] = [:]
@@ -33,6 +35,8 @@ public final class LibraryRepository: ObservableObject {
     @Published public private(set) var lyricsOffsets: [String: Double] = [:]
     @Published public private(set) var songSort: SongSort = .title
     @Published public private(set) var albumSort: AlbumSort = .title
+    @Published public private(set) var artistSort: ArtistSort = .name
+    @Published public private(set) var playlistListSort: PlaylistListSort = .manual
     @Published public private(set) var preferences: SnoozyPreferences = SnoozyPreferences()
     @Published public private(set) var isScanning: Bool = false
     @Published public var bannerMessage: String? = nil
@@ -394,6 +398,58 @@ public final class LibraryRepository: ObservableObject {
         }
     }
 
+    public static func sortArtists(
+        _ names: [String],
+        tracks: [Track],
+        by artistSort: ArtistSort
+    ) -> [String] {
+        let byName = Dictionary(grouping: tracks, by: {
+            $0.artist.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        })
+        func normalized(_ name: String) -> String {
+            name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+        func albumCount(_ name: String) -> Int {
+            Set(byName[normalized(name), default: []].map(\.albumKey)).count
+        }
+        func songCount(_ name: String) -> Int {
+            byName[normalized(name), default: []].count
+        }
+
+        switch artistSort {
+        case .name:
+            return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        case .albumCount:
+            return names.sorted {
+                let a = albumCount($0)
+                let b = albumCount($1)
+                if a != b { return a > b }
+                return $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+            }
+        case .songCount:
+            return names.sorted {
+                let a = songCount($0)
+                let b = songCount($1)
+                if a != b { return a > b }
+                return $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+            }
+        }
+    }
+
+    public static func sortPlaylists(_ playlists: [Playlist], by sort: PlaylistListSort) -> [Playlist] {
+        switch sort {
+        case .manual:
+            return playlists
+        case .name:
+            return playlists.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .songCount:
+            return playlists.sorted {
+                if $0.trackIds.count != $1.trackIds.count { return $0.trackIds.count > $1.trackIds.count }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+        }
+    }
+
     public func tracksForArtist(_ artist: String) -> [Track] {
         tracks.filter { $0.artist.caseInsensitiveCompare(artist) == .orderedSame }
     }
@@ -421,6 +477,16 @@ public final class LibraryRepository: ObservableObject {
 
     public func setAlbumSort(_ sort: AlbumSort) {
         let updated = store.update { $0.albumSort = sort }
+        applyPersistedState(updated)
+    }
+
+    public func setArtistSort(_ sort: ArtistSort) {
+        let updated = store.update { $0.artistSort = sort }
+        applyPersistedState(updated)
+    }
+
+    public func setPlaylistListSort(_ sort: PlaylistListSort) {
+        let updated = store.update { $0.playlistListSort = sort }
         applyPersistedState(updated)
     }
 
@@ -582,7 +648,8 @@ public final class LibraryRepository: ObservableObject {
         let byId = tracksById
         let updated = store.update { state in
             guard let idx = state.playlists.firstIndex(where: { $0.id == id }) else { return }
-            let items = state.playlists[idx].trackIds.compactMap { byId[$0] }
+            let existingIds = state.playlists[idx].trackIds
+            let items = existingIds.compactMap { byId[$0] }
             let sorted: [Track]
             switch sort {
             case .title:
@@ -594,7 +661,10 @@ public final class LibraryRepository: ObservableObject {
             case .duration:
                 sorted = items.sorted { $0.duration > $1.duration }
             }
-            state.playlists[idx].trackIds = sorted.map(\.id)
+            // Keep ids whose files are missing so sorting never drops membership.
+            let sortedIds = Set(sorted.map(\.id))
+            let unresolved = existingIds.filter { !sortedIds.contains($0) }
+            state.playlists[idx].trackIds = sorted.map(\.id) + unresolved
         }
         applyPersistedState(updated)
     }
@@ -652,14 +722,39 @@ public final class LibraryRepository: ObservableObject {
     public func updateArtist(name: String, newName: String, artworkPath: String?) -> String? {
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        let memberIds = tracks.filter { $0.artist.caseInsensitiveCompare(name) == .orderedSame }.map(\.id)
+        let memberTracks = tracks.filter {
+            $0.artist.caseInsensitiveCompare(name) == .orderedSame
+                || ($0.albumArtist ?? "").caseInsensitiveCompare(name) == .orderedSame
+        }
+        let memberById = Dictionary(uniqueKeysWithValues: memberTracks.map { ($0.id, $0) })
+        let albumKeyMap = Dictionary(uniqueKeysWithValues: albums
+            .filter { $0.artist.caseInsensitiveCompare(name) == .orderedSame }
+            .map { ($0.id, Self.albumKey(title: $0.title, artist: trimmed)) })
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let updated = store.update { state in
-            for id in memberIds {
+            for (id, track) in memberById {
                 var ov = state.trackOverrides[id] ?? TrackOverride(trackId: id)
-                ov.artist = trimmed
+                if track.artist.caseInsensitiveCompare(name) == .orderedSame {
+                    ov.artist = trimmed
+                }
+                if (track.albumArtist ?? "").caseInsensitiveCompare(name) == .orderedSame {
+                    ov.albumArtist = trimmed
+                }
                 ov.updatedAt = now
                 state.trackOverrides[id] = ov
+            }
+            for (oldKey, newKey) in albumKeyMap where oldKey != newKey {
+                guard let existing = state.albumOverrides.removeValue(forKey: oldKey) else { continue }
+                state.albumOverrides[newKey] = AlbumOverride(
+                    albumKey: newKey,
+                    title: existing.title,
+                    artist: existing.artist?.caseInsensitiveCompare(name) == .orderedSame ? trimmed : existing.artist,
+                    year: existing.year,
+                    genre: existing.genre,
+                    descriptionText: existing.descriptionText,
+                    artworkPath: existing.artworkPath,
+                    updatedAt: now
+                )
             }
             let existing = state.artistOverrides.first(where: {
                 $0.key.caseInsensitiveCompare(name) == .orderedSame
@@ -823,6 +918,8 @@ public final class LibraryRepository: ObservableObject {
         self.lyricsOffsets = state.lyricsOffsets
         self.songSort = state.songSort
         self.albumSort = state.albumSort
+        self.artistSort = state.artistSort
+        self.playlistListSort = state.playlistListSort
         self.preferences = state.preferences
 
         var resolvedTracks = state.scannedTracks.map { raw -> Track in
@@ -853,6 +950,8 @@ public final class LibraryRepository: ObservableObject {
 
         let artistsSet = Set(resolvedTracks.map { $0.artist.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
         self.artistNames = artistsSet.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        self.sortedArtistNames = Self.sortArtists(self.artistNames, tracks: resolvedTracks, by: state.artistSort)
+        self.sortedPlaylists = Self.sortPlaylists(state.playlists, by: state.playlistListSort)
 
         let genresSet = Set(resolvedTracks.compactMap { $0.genre?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
         self.genreNames = genresSet.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }

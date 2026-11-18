@@ -108,6 +108,39 @@ final class LibraryEditingTests: XCTestCase {
     }
 
     @MainActor
+    func testArtistRenameUpdatesAlbumArtistAndMigratesAlbumOverride() throws {
+        let repository = try makeRepository(tracks: [
+            makeTrack(id: "t1", title: "One", artist: "Track Artist", album: "Shared", albumArtist: "Old Name"),
+            makeTrack(id: "t2", title: "Two", artist: "Other Artist", album: "Shared", albumArtist: "Old Name")
+        ])
+        let album = try XCTUnwrap(repository.albums.first)
+        _ = repository.updateAlbum(
+            album: album,
+            title: "Shared",
+            artist: "Old Name",
+            year: "2001",
+            genre: "Rock",
+            artworkPath: "/tmp/album.jpg"
+        )
+        let oldKey = LibraryRepository.albumKey(title: "Shared", artist: "Old Name")
+        let newKey = LibraryRepository.albumKey(title: "Shared", artist: "New Name")
+
+        repository.updateArtist(name: "Old Name", newName: "New Name", artworkPath: "/tmp/artist.jpg")
+
+        XCTAssertNil(repository.albumOverrides[oldKey])
+        XCTAssertEqual(repository.albumOverrides[newKey]?.year, "2001")
+        XCTAssertEqual(repository.albumOverrides[newKey]?.artworkPath, "/tmp/album.jpg")
+
+        let renamed = try XCTUnwrap(repository.albums.first { $0.id == newKey })
+        XCTAssertEqual(renamed.artist, "New Name")
+        XCTAssertEqual(renamed.artworkPath, "/tmp/album.jpg")
+        XCTAssertTrue(repository.tracks.allSatisfy { $0.albumArtist == "New Name" })
+        XCTAssertEqual(repository.albumsForArtist("New Name").count, 1)
+        XCTAssertEqual(repository.tracksForArtist("Track Artist").count, 1)
+        XCTAssertEqual(repository.tracksForArtist("Other Artist").count, 1)
+    }
+
+    @MainActor
     func testPlaylistDetailsDuplicateSortAndBulkRemove() throws {
         let first = makeTrack(id: "t1", title: "Alpha", artist: "A", album: "First", duration: 90)
         let second = makeTrack(id: "t2", title: "Zulu", artist: "Z", album: "Second", duration: 200)
@@ -159,6 +192,97 @@ final class LibraryEditingTests: XCTestCase {
         XCTAssertFalse(tabs.contains(.artists))
         XCTAssertTrue(tabs.contains(.albums))
         XCTAssertTrue(tabs.contains(.favorites))
+    }
+
+    @MainActor
+    func testPlaylistSortKeepsUnresolvedTrackIds() throws {
+        let first = makeTrack(id: "t1", title: "Alpha")
+        let second = makeTrack(id: "t2", title: "Zulu")
+        let playlist = Playlist(id: "p1", name: "Mix", trackIds: [second.id, "missing-file", first.id], createdAt: 1)
+        let repository = try makeRepository(tracks: [first, second], playlists: [playlist])
+
+        repository.sortPlaylist(id: "p1", by: .title)
+
+        XCTAssertEqual(repository.playlists.first { $0.id == "p1" }?.trackIds, [first.id, second.id, "missing-file"])
+    }
+
+    @MainActor
+    func testArtistSortOptions() throws {
+        let repository = try makeRepository(tracks: [
+            makeTrack(id: "a1", title: "One", artist: "Artist A", album: "A Album"),
+            makeTrack(id: "a2", title: "Two", artist: "Artist A", album: "A Album"),
+            makeTrack(id: "a3", title: "Three", artist: "Artist A", album: "A Album"),
+            makeTrack(id: "b1", title: "Four", artist: "Artist B", album: "B One"),
+            makeTrack(id: "b2", title: "Five", artist: "Artist B", album: "B Two")
+        ])
+
+        repository.setArtistSort(.name)
+        XCTAssertEqual(repository.sortedArtistNames, ["Artist A", "Artist B"])
+
+        repository.setArtistSort(.albumCount)
+        XCTAssertEqual(repository.sortedArtistNames, ["Artist B", "Artist A"])
+
+        repository.setArtistSort(.songCount)
+        XCTAssertEqual(repository.sortedArtistNames, ["Artist A", "Artist B"])
+    }
+
+    @MainActor
+    func testPlaylistListSortPersists() throws {
+        let track = makeTrack(id: "t1", title: "One")
+        let second = makeTrack(id: "t2", title: "Two")
+        let third = makeTrack(id: "t3", title: "Three")
+        let playlists = [
+            Playlist(id: "p1", name: "Zulu", trackIds: [track.id, second.id, third.id], createdAt: 1),
+            Playlist(id: "p2", name: "Alpha", trackIds: [track.id], createdAt: 2),
+            Playlist(id: "p3", name: "Mike", trackIds: [second.id, third.id], createdAt: 3)
+        ]
+        let support = rootURL.appendingPathComponent("Support", isDirectory: true)
+        let documents = rootURL.appendingPathComponent("Documents", isDirectory: true)
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: documents, withIntermediateDirectories: true)
+        let makeStore = {
+            SnoozyStore(fileManager: .default, supportDirectory: support, documentsDirectory: documents)
+        }
+        let store = makeStore()
+        _ = store.update { state in
+            state.scannedTracks = [track, second, third]
+            state.playlists = playlists
+        }
+        let repository = LibraryRepository(store: store)
+
+        XCTAssertEqual(repository.sortedPlaylists.map(\.id), ["p1", "p2", "p3"])
+        repository.setPlaylistListSort(.name)
+        XCTAssertEqual(repository.sortedPlaylists.map(\.id), ["p2", "p3", "p1"])
+        repository.setPlaylistListSort(.songCount)
+        XCTAssertEqual(repository.sortedPlaylists.map(\.id), ["p1", "p3", "p2"])
+
+        repository.setPlaylistListSort(.name)
+        let reopened = LibraryRepository(store: makeStore())
+        XCTAssertEqual(reopened.playlistListSort, .name)
+        XCTAssertEqual(reopened.sortedPlaylists.map(\.id), ["p2", "p3", "p1"])
+        XCTAssertEqual(reopened.tracks.count, 3)
+    }
+
+    func testStateWithoutNewSortKeysKeepsLibraryData() throws {
+        let json = Data(#"""
+        {
+          "playlists": [{"id":"p1","name":"Keep Me","trackIds":["t1"],"createdAt":1}],
+          "favoriteTrackIds": ["t1"],
+          "recents": ["t1"],
+          "songSort": "artist"
+        }
+        """#.utf8)
+
+        let state = try JSONDecoder().decode(PersistedAppState.self, from: json)
+
+        XCTAssertEqual(state.playlists.first?.name, "Keep Me")
+        XCTAssertEqual(state.favoriteTrackIds, ["t1"])
+        XCTAssertEqual(state.recents, ["t1"])
+        XCTAssertEqual(state.songSort, .artist)
+        XCTAssertEqual(state.albumSort, .title)
+        XCTAssertEqual(state.artistSort, .name)
+        XCTAssertEqual(state.playlistListSort, .manual)
+        XCTAssertTrue(state.trackOverrides.isEmpty)
     }
 
     func testLegacyPlaylistAndOverridesDecodeWithMissingOptionalFields() throws {

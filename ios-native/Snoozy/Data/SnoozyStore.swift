@@ -15,6 +15,8 @@ public struct PersistedAppState: Codable, Sendable {
     public var lyricsOffsets: [String: Double]
     public var songSort: SongSort
     public var albumSort: AlbumSort
+    public var artistSort: ArtistSort
+    public var playlistListSort: PlaylistListSort
     public var preferences: SnoozyPreferences
     public var playbackSession: PlaybackSession?
 
@@ -33,6 +35,8 @@ public struct PersistedAppState: Codable, Sendable {
         lyricsOffsets: [String: Double] = [:],
         songSort: SongSort = .title,
         albumSort: AlbumSort = .title,
+        artistSort: ArtistSort = .name,
+        playlistListSort: PlaylistListSort = .manual,
         preferences: SnoozyPreferences = SnoozyPreferences(),
         playbackSession: PlaybackSession? = nil
     ) {
@@ -50,8 +54,54 @@ public struct PersistedAppState: Codable, Sendable {
         self.lyricsOffsets = lyricsOffsets
         self.songSort = songSort
         self.albumSort = albumSort
+        self.artistSort = artistSort
+        self.playlistListSort = playlistListSort
         self.preferences = preferences
         self.playbackSession = playbackSession
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case scannedTracks
+        case playlists
+        case recents
+        case favoriteTrackIds
+        case trackOverrides
+        case albumOverrides
+        case artistOverrides
+        case playHistory
+        case listeningSessions
+        case errorLog
+        case recentSearches
+        case lyricsOffsets
+        case songSort
+        case albumSort
+        case artistSort
+        case playlistListSort
+        case preferences
+        case playbackSession
+    }
+
+    // Every field is decoded optionally so adding a field never quarantines a saved library.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.scannedTracks = try container.decodeIfPresent([Track].self, forKey: .scannedTracks) ?? []
+        self.playlists = try container.decodeIfPresent([Playlist].self, forKey: .playlists) ?? []
+        self.recents = try container.decodeIfPresent([String].self, forKey: .recents) ?? []
+        self.favoriteTrackIds = try container.decodeIfPresent([String].self, forKey: .favoriteTrackIds) ?? []
+        self.trackOverrides = try container.decodeIfPresent([String: TrackOverride].self, forKey: .trackOverrides) ?? [:]
+        self.albumOverrides = try container.decodeIfPresent([String: AlbumOverride].self, forKey: .albumOverrides) ?? [:]
+        self.artistOverrides = try container.decodeIfPresent([String: ArtistOverride].self, forKey: .artistOverrides) ?? [:]
+        self.playHistory = try container.decodeIfPresent([PlayHistoryEntry].self, forKey: .playHistory) ?? []
+        self.listeningSessions = try container.decodeIfPresent([ListeningSession].self, forKey: .listeningSessions) ?? []
+        self.errorLog = try container.decodeIfPresent([ErrorLogEntry].self, forKey: .errorLog) ?? []
+        self.recentSearches = try container.decodeIfPresent([String].self, forKey: .recentSearches) ?? []
+        self.lyricsOffsets = try container.decodeIfPresent([String: Double].self, forKey: .lyricsOffsets) ?? [:]
+        self.songSort = try container.decodeIfPresent(SongSort.self, forKey: .songSort) ?? .title
+        self.albumSort = try container.decodeIfPresent(AlbumSort.self, forKey: .albumSort) ?? .title
+        self.artistSort = try container.decodeIfPresent(ArtistSort.self, forKey: .artistSort) ?? .name
+        self.playlistListSort = try container.decodeIfPresent(PlaylistListSort.self, forKey: .playlistListSort) ?? .manual
+        self.preferences = try container.decodeIfPresent(SnoozyPreferences.self, forKey: .preferences) ?? SnoozyPreferences()
+        self.playbackSession = try container.decodeIfPresent(PlaybackSession.self, forKey: .playbackSession)
     }
 }
 

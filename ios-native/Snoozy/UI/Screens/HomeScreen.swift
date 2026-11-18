@@ -428,7 +428,7 @@ public struct HomeScreen: View {
     // 6. Playlists
     @ViewBuilder
     private var playlistsSection: some View {
-        if !repository.playlists.isEmpty {
+        if !repository.sortedPlaylists.isEmpty {
             let byId = repository.tracksById
             VStack(alignment: .leading, spacing: 12) {
                 sectionHeader(
@@ -439,7 +439,7 @@ public struct HomeScreen: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 14) {
-                        ForEach(repository.playlists.prefix(8)) { playlist in
+                        ForEach(repository.sortedPlaylists.prefix(8)) { playlist in
                             let tracks = playlist.trackIds.compactMap { byId[$0] }
                             Button {
                                 onOpenPlaylist(playlist.id)

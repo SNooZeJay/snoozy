@@ -37,6 +37,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     private var isAppInForeground: Bool = true
     private var cachedNowPlayingArtworkKey: String? = nil
     private var cachedNowPlayingArtwork: MPMediaItemArtwork? = nil
+    private var activeLyricsOverride: String? = nil
     private var notificationTokens: [NSObjectProtocol] = []
     private var cancellables = Set<AnyCancellable>()
 
@@ -478,10 +479,11 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     private func loadAuxiliaryTrackData(for track: Track) {
         let docsURL = repository.store.documentsURL
         let artPath = track.artworkPath
+        let customLyrics = repository.lyricsOverride(for: track.id)
         Task {
             let palette = ArtworkPaletteExtractor.extract(from: artPath)
             let lyrics: ParsedLyrics?
-            if let customLyrics = repository.lyricsOverride(for: track.id) {
+            if let customLyrics {
                 lyrics = LyricsEngine.parseLrc(customLyrics, sourceLabel: "Snoozy Lyrics")
             } else {
                 lyrics = await AudioScanner.loadLyrics(for: track, documentsURL: docsURL)
@@ -490,6 +492,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
                 if self.activeTrack?.id == track.id {
                     self.activePalette = palette
                     self.activeLyrics = lyrics
+                    self.activeLyricsOverride = customLyrics
                     self.cachedNowPlayingArtworkKey = nil
                     self.updateNowPlayingInfo()
                 }
@@ -926,11 +929,12 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
                 guard let current = self.activeTrack else { return }
                 if let refreshed = byId[current.id] {
                     let artworkChanged = (current.artworkPath != refreshed.artworkPath)
+                    let lyricsChanged = self.activeLyricsOverride != self.repository.lyricsOverride(for: refreshed.id)
                     self.activeTrack = refreshed
                     if let newIdx = self.queueTracks.firstIndex(where: { $0.id == refreshed.id }) {
                         self.queueIndex = newIdx
                     }
-                    if artworkChanged {
+                    if artworkChanged || lyricsChanged {
                         self.loadAuxiliaryTrackData(for: refreshed)
                     }
                     self.updateNowPlayingInfo()

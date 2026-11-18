@@ -240,11 +240,11 @@ public struct ArtistDetailScreen: View {
     }
 
     private var tracks: [Track] {
-        repository.tracksForArtist(currentArtistName)
+        LibraryRepository.sortTracks(repository.tracksForArtist(currentArtistName), by: repository.songSort)
     }
 
     private var albums: [Album] {
-        repository.albumsForArtist(currentArtistName)
+        LibraryRepository.sortAlbums(repository.albumsForArtist(currentArtistName), by: repository.albumSort)
     }
 
     public var body: some View {
@@ -416,7 +416,7 @@ public struct GenreDetailScreen: View {
     @Environment(\.snoozyLayout) private var layout
 
     private var tracks: [Track] {
-        repository.tracksForGenre(genreName)
+        LibraryRepository.sortTracks(repository.tracksForGenre(genreName), by: repository.songSort)
     }
 
     public var body: some View {
@@ -523,7 +523,7 @@ public struct FolderDetailScreen: View {
     @Environment(\.snoozyLayout) private var layout
 
     private var tracks: [Track] {
-        repository.tracksForFolder(folderName)
+        LibraryRepository.sortTracks(repository.tracksForFolder(folderName), by: repository.songSort)
     }
 
     public var body: some View {

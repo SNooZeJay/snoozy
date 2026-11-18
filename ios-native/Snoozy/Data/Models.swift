@@ -320,6 +320,34 @@ public enum AlbumSort: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public enum ArtistSort: String, Codable, CaseIterable, Sendable {
+    case name
+    case albumCount
+    case songCount
+
+    public var label: String {
+        switch self {
+        case .name: return "Name"
+        case .albumCount: return "Album count"
+        case .songCount: return "Song count"
+        }
+    }
+}
+
+public enum PlaylistListSort: String, Codable, CaseIterable, Sendable {
+    case manual
+    case name
+    case songCount
+
+    public var label: String {
+        switch self {
+        case .manual: return "Custom order"
+        case .name: return "Name"
+        case .songCount: return "Song count"
+        }
+    }
+}
+
 public enum LibraryLayoutMode: String, Codable, CaseIterable, Sendable {
     case grid
     case list
