@@ -10,6 +10,21 @@ public enum SnoozyMarqueeMath {
         guard contentWidth > 0, speed > 0 else { return nil }
         return Double((contentWidth + gap) / speed)
     }
+
+    /// Horizontal travel after `elapsed` seconds, wrapping cleanly at the loop boundary.
+    public static func loopOffset(
+        elapsed: Double,
+        contentWidth: CGFloat,
+        gap: CGFloat,
+        speed: CGFloat
+    ) -> CGFloat {
+        guard elapsed > 0,
+              let duration = loopDuration(contentWidth: contentWidth, gap: gap, speed: speed),
+              duration > 0 else {
+            return 0
+        }
+        return CGFloat(elapsed.truncatingRemainder(dividingBy: duration) * Double(speed))
+    }
 }
 
 /// One-line text that loops horizontally only when it cannot fit its container.
@@ -49,8 +64,9 @@ private struct MarqueeLine: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var contentWidth: CGFloat = 0
-    @State private var animate = false
-    @State private var delayTask: Task<Void, Never>?
+    @State private var startedAt = Date()
+
+    private static let startDelay: Double = 1.2
 
     var body: some View {
         Group {
@@ -85,38 +101,44 @@ private struct MarqueeLine: View {
             availableWidth: availableWidth
         )
 
+        return Group {
+            if overflows {
+                TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+                    scrollingRow(availableWidth: availableWidth, date: timeline.date)
+                }
+            } else {
+                HStack(spacing: gap) {
+                    label
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(width: availableWidth, alignment: .leading)
+                .clipped()
+            }
+        }
+        .onPreferenceChange(SnoozyMarqueeWidthKey.self) { width in
+            guard abs(width - contentWidth) > 0.5 else { return }
+            contentWidth = width
+            startedAt = Date()
+        }
+    }
+
+    private func scrollingRow(availableWidth: CGFloat, date: Date) -> some View {
+        let elapsed = max(0, date.timeIntervalSince(startedAt) - Self.startDelay)
+        let offset = SnoozyMarqueeMath.loopOffset(
+            elapsed: elapsed,
+            contentWidth: contentWidth,
+            gap: gap,
+            speed: speed
+        )
+
         return HStack(spacing: gap) {
             label
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear.preference(
-                            key: SnoozyMarqueeWidthKey.self,
-                            value: proxy.size.width
-                        )
-                    }
-                )
-
-            if overflows && !reduceMotion {
-                label.accessibilityHidden(true)
-            }
+            label.accessibilityHidden(true)
         }
         .fixedSize(horizontal: true, vertical: false)
         .frame(width: availableWidth, alignment: .leading)
-        .offset(x: animate && overflows && !reduceMotion ? -(contentWidth + gap) : 0)
+        .offset(x: -offset)
         .clipped()
-        .onPreferenceChange(SnoozyMarqueeWidthKey.self) { width in
-            contentWidth = width
-            restart(
-                shouldAnimate: SnoozyMarqueeMath.shouldScroll(
-                    contentWidth: width,
-                    availableWidth: availableWidth
-                ),
-                width: width
-            )
-        }
-        .onDisappear {
-            stop()
-        }
     }
 
     private var label: some View {
@@ -125,33 +147,14 @@ private struct MarqueeLine: View {
             .foregroundStyle(color)
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-    }
-
-    private func restart(shouldAnimate: Bool, width: CGFloat) {
-        stop()
-        guard shouldAnimate,
-              !reduceMotion,
-              let duration = SnoozyMarqueeMath.loopDuration(
-                  contentWidth: width,
-                  gap: gap,
-                  speed: speed
-              ) else {
-            return
-        }
-
-        delayTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            guard !Task.isCancelled else { return }
-            withAnimation(.linear(duration: duration).repeatForever(autoreverses: false)) {
-                animate = true
-            }
-        }
-    }
-
-    private func stop() {
-        delayTask?.cancel()
-        delayTask = nil
-        animate = false
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: SnoozyMarqueeWidthKey.self,
+                        value: proxy.size.width
+                    )
+                }
+            )
     }
 }
 

@@ -5,6 +5,7 @@ public struct SnoozyMiniPlayerView: View {
     public let track: Track
     public let isPlaying: Bool
     public let progress: Double
+    private let liveProgress: (() -> Double)?
     public let theme: SnoozyThemeColors
     public let preferences: SnoozyPreferences
     public let isFavorite: Bool
@@ -20,6 +21,7 @@ public struct SnoozyMiniPlayerView: View {
         track: Track,
         isPlaying: Bool,
         progress: Double,
+        liveProgress: (() -> Double)? = nil,
         theme: SnoozyThemeColors,
         preferences: SnoozyPreferences,
         isFavorite: Bool,
@@ -33,6 +35,7 @@ public struct SnoozyMiniPlayerView: View {
         self.track = track
         self.isPlaying = isPlaying
         self.progress = progress
+        self.liveProgress = liveProgress
         self.theme = theme
         self.preferences = preferences
         self.isFavorite = isFavorite
@@ -124,20 +127,23 @@ public struct SnoozyMiniPlayerView: View {
             .frame(height: pillHeight)
 
             // Subtle integrated playback progress hairline inside the bottom of the container
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(theme.isDark ? 0.10 : 0.16))
-                        .frame(height: 2.0)
-                    Capsule()
-                        .fill(theme.accent)
-                        .frame(
-                            width: max(0, min(proxy.size.width, proxy.size.width * progress)),
-                            height: 2.0
-                        )
+            TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 0.1)) { _ in
+                GeometryReader { proxy in
+                    let value = liveProgress?() ?? progress
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(theme.isDark ? 0.10 : 0.16))
+                            .frame(height: 2.0)
+                        Capsule()
+                            .fill(theme.accent)
+                            .frame(
+                                width: max(0, min(proxy.size.width, proxy.size.width * value)),
+                                height: 2.0
+                            )
+                    }
                 }
+                .frame(height: 2.0)
             }
-            .frame(height: 2.0)
             .padding(.horizontal, pillHeight * 0.48)
             .padding(.bottom, 2.5)
             .allowsHitTesting(false)

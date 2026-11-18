@@ -424,47 +424,56 @@ public struct LiquidAuraBackgroundView: View {
     public let preferences: SnoozyPreferences
     public let isImmersivePlayer: Bool
     public let audioLevels: AudioReactiveLevels
+    private let liveLevels: (() -> AudioReactiveLevels)?
 
     public init(
         theme: SnoozyThemeColors,
         palette: ArtworkPalette,
         preferences: SnoozyPreferences,
         isImmersivePlayer: Bool = false,
-        audioLevels: AudioReactiveLevels = .zero
+        audioLevels: AudioReactiveLevels = .zero,
+        liveLevels: (() -> AudioReactiveLevels)? = nil
     ) {
         self.theme = theme
         self.palette = palette
         self.preferences = preferences
         self.isImmersivePlayer = isImmersivePlayer
         self.audioLevels = audioLevels
+        self.liveLevels = liveLevels
     }
 
     public var body: some View {
         if !preferences.auraBackdropEnabled || preferences.glassMode == .reduceTransparency {
             theme.background.ignoresSafeArea()
         } else {
-            let reactiveActive = preferences.audioReactiveAuraEnabled && preferences.motionMode != .reduced
-            let levels = reactiveActive ? audioLevels : .zero
-
-            let baseIntensity = isImmersivePlayer
-                ? max(0.76, preferences.auraBackdropIntensity)
-                : min(0.26, preferences.auraBackdropIntensity * 0.28)
-            let intensity = isImmersivePlayer
-                ? min(1.0, baseIntensity + levels.overall * 0.24)
-                : min(0.32, baseIntensity + levels.overall * 0.08)
+            // Only the immersive player reacts to live audio. Static surfaces render one calm frame.
+            let reactiveActive = isImmersivePlayer
+                && preferences.audioReactiveAuraEnabled
+                && preferences.motionMode != .reduced
+            let snapshot = reactiveActive ? audioLevels : .zero
 
             if isImmersivePlayer && preferences.motionMode != .reduced {
-                TimelineView(.animation(minimumInterval: 1.0 / 24.0)) { timeline in
+                TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+                    let levels = reactiveActive ? (liveLevels?() ?? snapshot) : .zero
                     auraField(
                         time: timeline.date.timeIntervalSinceReferenceDate - liquidAuraEpoch,
-                        intensity: intensity,
+                        intensity: intensity(for: levels),
                         levels: levels
                     )
                 }
             } else {
-                auraField(time: 0.0, intensity: intensity, levels: levels)
+                auraField(time: 0.0, intensity: intensity(for: snapshot), levels: snapshot)
             }
         }
+    }
+
+    private func intensity(for levels: AudioReactiveLevels) -> Double {
+        let base = isImmersivePlayer
+            ? max(0.76, preferences.auraBackdropIntensity)
+            : min(0.26, preferences.auraBackdropIntensity * 0.28)
+        return isImmersivePlayer
+            ? min(1.0, base + levels.overall * 0.24)
+            : min(0.32, base + levels.overall * 0.08)
     }
 
     private func auraField(time: Double, intensity: Double, levels: AudioReactiveLevels) -> some View {

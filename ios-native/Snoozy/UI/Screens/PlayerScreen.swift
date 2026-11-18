@@ -53,7 +53,8 @@ public struct PlayerScreen: View {
                     palette: playback.activePalette,
                     preferences: repository.preferences,
                     isImmersivePlayer: true,
-                    audioLevels: playback.audioLevels
+                    audioLevels: playback.audioLevels,
+                    liveLevels: { playback.audioLevels }
                 )
 
                 // Subtle dark vignette for Apple Music contrast legibility
@@ -130,8 +131,6 @@ public struct PlayerScreen: View {
     private func nowPlayingLayout(for track: Track, layout: SnoozyResponsiveLayout) -> some View {
         let isFav = repository.isFavorite(track.id)
         let totalDuration = max(1.0, max(playback.durationSeconds, track.duration))
-        let displayPos = isScrubbing ? scrubPosition : min(playback.positionSeconds, totalDuration)
-        let progressFraction = min(1.0, max(0.0, displayPos / totalDuration))
         let vSpacing = layout.nowPlayingSectionSpacing
 
         if layout.isLandscape {
@@ -163,11 +162,9 @@ public struct PlayerScreen: View {
                             Spacer(minLength: 4)
                         }
 
-                        progressSection(
+                        liveProgressSection(
                             for: track,
-                            displayPos: displayPos,
-                            totalDuration: totalDuration,
-                            progressFraction: progressFraction
+                            totalDuration: totalDuration
                         )
 
                         transportControlsRow(layout: layout)
@@ -218,11 +215,9 @@ public struct PlayerScreen: View {
                 Spacer(minLength: layout.isCompactHeight ? 6 : 10)
 
                 // Apple Music Progress Bar + Elapsed / Quality Badge / Remaining Time
-                progressSection(
+                liveProgressSection(
                     for: track,
-                    displayPos: displayPos,
-                    totalDuration: totalDuration,
-                    progressFraction: progressFraction
+                    totalDuration: totalDuration
                 )
                 .padding(.bottom, vSpacing)
 
@@ -251,10 +246,7 @@ public struct PlayerScreen: View {
                 Spacer(minLength: 2)
             }
 
-            // Responsive centered Apple Music artwork with play/pause spring scale and audio-reactive depth shadow
-            let reactiveBass = (repository.preferences.audioReactiveAuraEnabled && playback.isPlaying)
-                ? playback.audioLevels.bass
-                : 0.0
+            // Responsive centered Apple Music artwork with play/pause spring scale and depth shadow
             ZStack {
                 let artView = SnoozyArtworkView(
                     artworkPath: track.artworkPath,
@@ -263,8 +255,8 @@ public struct PlayerScreen: View {
                     theme: theme
                 )
                 .shadow(
-                    color: playback.activePalette.primary.opacity(playback.isPlaying ? min(0.76, 0.46 + reactiveBass * 0.28) : 0.16),
-                    radius: playback.isPlaying ? (26 + CGFloat(reactiveBass * 18.0)) : 10,
+                    color: playback.activePalette.primary.opacity(playback.isPlaying ? 0.62 : 0.16),
+                    radius: playback.isPlaying ? 30 : 10,
                     x: 0,
                     y: playback.isPlaying ? 14 : 6
                 )
@@ -274,7 +266,7 @@ public struct PlayerScreen: View {
                     x: 0,
                     y: playback.isPlaying ? 10 : 4
                 )
-                .scaleEffect(playback.isPlaying ? (1.0 + CGFloat(reactiveBass * 0.025)) : 0.86)
+                .scaleEffect(playback.isPlaying ? 1.015 : 0.86)
                 .animation(.spring(response: 0.44, dampingFraction: 0.74), value: playback.isPlaying)
                 .id(track.id)
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
@@ -507,19 +499,19 @@ public struct PlayerScreen: View {
 
     private func inlineLyricsView(for track: Track) -> some View {
         let offset = repository.lyricsOffset(for: track.id)
-        let activeIdx = playback.activeLyrics.flatMap {
-            LyricsEngine.activeLineIndex(
-                lyrics: $0,
-                positionSeconds: playback.positionSeconds,
-                offsetSeconds: offset
-            )
-        }
 
         return VStack(spacing: 10) {
             lyricsSyncOffsetControls(for: track, offset: offset)
 
             if let lyrics = playback.activeLyrics, !lyrics.lines.isEmpty {
-                lyricsScrollContent(lyrics: lyrics, activeIdx: activeIdx, offset: offset)
+                TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 0.25)) { _ in
+                    let activeIdx = LyricsEngine.activeLineIndex(
+                        lyrics: lyrics,
+                        positionSeconds: playback.positionSeconds,
+                        offsetSeconds: offset
+                    )
+                    lyricsScrollContent(lyrics: lyrics, activeIdx: activeIdx, offset: offset)
+                }
             } else {
                 emptyLyricsView
             }
@@ -814,6 +806,18 @@ public struct PlayerScreen: View {
             }
         }
         .frame(maxHeight: .infinity)
+    }
+
+    private func liveProgressSection(for track: Track, totalDuration: Double) -> some View {
+        TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 0.1)) { _ in
+            let displayPos = isScrubbing ? scrubPosition : min(playback.positionSeconds, totalDuration)
+            progressSection(
+                for: track,
+                displayPos: displayPos,
+                totalDuration: totalDuration,
+                progressFraction: min(1.0, max(0.0, displayPos / totalDuration))
+            )
+        }
     }
 
     private func progressSection(

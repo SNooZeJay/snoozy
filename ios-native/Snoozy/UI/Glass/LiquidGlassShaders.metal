@@ -98,11 +98,11 @@ static float auraFbm(float2 p) {
     float2 p = float2((uv.x - 0.5) * aspect, uv.y - focusY);
 
     // Domain-warped field. The noise reshapes the falloff so the light never reads as a circle.
-    float drift = 0.20 + mid * 0.16;
+    float drift = 0.30 + mid * 0.20;
     float2 q = p * 3.2 + float2(time * drift, -time * drift * 0.7);
     float2 warp = float2(
-        auraFbm(q + float2(0.0, time * 0.05)),
-        auraFbm(q + float2(5.2, 1.7) - float2(time * 0.04, 0.0))
+        auraFbm(q + float2(0.0, time * 0.07)),
+        auraFbm(q + float2(5.2, 1.7) - float2(time * 0.05, 0.0))
     );
     float warpAmp = 3.0 + mid * 1.5;
     float field = auraFbm(q + (warp - 0.5) * warpAmp);

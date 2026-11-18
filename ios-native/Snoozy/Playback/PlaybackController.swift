@@ -13,7 +13,9 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     @Published public private(set) var isPlaying: Bool = false
     @Published public private(set) var queueTracks: [Track] = []
     @Published public private(set) var queueIndex: Int = -1
-    @Published public private(set) var positionSeconds: Double = 0.0
+    // High-frequency transport values stay unpublished so observing screens do not
+    // rebuild at meter rate. Timeline-driven leaf views read them directly.
+    public private(set) var positionSeconds: Double = 0.0
     @Published public private(set) var durationSeconds: Double = 0.0
     @Published public private(set) var repeatMode: RepeatState = .off
     @Published public private(set) var shuffle: Bool = false
@@ -21,7 +23,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     @Published public private(set) var volume: Double = 1.0
     @Published public private(set) var activeLyrics: ParsedLyrics? = nil
     @Published public private(set) var activePalette: ArtworkPalette = .emeraldDefault
-    @Published public private(set) var audioLevels: AudioReactiveLevels = .zero
+    public private(set) var audioLevels: AudioReactiveLevels = .zero
     @Published public var playbackError: String? = nil
 
     private var audioPlayer: AVAudioPlayer? = nil
@@ -510,7 +512,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         guard let player = audioPlayer else { return }
         let pos = max(0.0, player.currentTime)
         positionSeconds = pos
-        if player.duration > 0 {
+        if player.duration > 0, abs(durationSeconds - player.duration) > 0.01 {
             durationSeconds = player.duration
         }
         let posMs = Int64(pos * 1000.0)

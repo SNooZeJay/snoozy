@@ -370,6 +370,11 @@ public struct RootScaffoldView: View {
                             track: active,
                             isPlaying: playback.isPlaying,
                             progress: progress,
+                            liveProgress: {
+                                playback.durationSeconds > 0
+                                    ? min(1.0, max(0.0, playback.positionSeconds / playback.durationSeconds))
+                                    : 0.0
+                            },
                             theme: theme,
                             preferences: repository.preferences,
                             isFavorite: repository.isFavorite(active.id),
@@ -392,6 +397,11 @@ public struct RootScaffoldView: View {
                             track: active,
                             isPlaying: playback.isPlaying,
                             progress: progress,
+                            liveProgress: {
+                                playback.durationSeconds > 0
+                                    ? min(1.0, max(0.0, playback.positionSeconds / playback.durationSeconds))
+                                    : 0.0
+                            },
                             theme: theme,
                             preferences: repository.preferences,
                             isFavorite: repository.isFavorite(active.id),

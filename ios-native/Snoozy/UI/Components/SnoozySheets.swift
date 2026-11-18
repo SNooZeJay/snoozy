@@ -507,13 +507,6 @@ public struct LyricsSheetView: View {
 
     public var body: some View {
         let offset = repository.lyricsOffset(for: track.id)
-        let activeIdx = playback.activeLyrics.flatMap {
-            LyricsEngine.activeLineIndex(
-                lyrics: $0,
-                positionSeconds: playback.positionSeconds,
-                offsetSeconds: offset
-            )
-        }
 
         NavigationStack {
             VStack(spacing: 12) {
@@ -569,34 +562,41 @@ public struct LyricsSheetView: View {
                 .padding(.top, 8)
 
                 if let lyrics = playback.activeLyrics, !lyrics.lines.isEmpty {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 14) {
-                                ForEach(lyrics.lines) { line in
-                                    let isCurrent = (activeIdx == line.id)
-                                    Button {
-                                        if let t = line.timeSeconds {
-                                            playback.seek(to: max(0.0, t + offset))
+                    TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 0.25)) { _ in
+                        let activeIdx = LyricsEngine.activeLineIndex(
+                            lyrics: lyrics,
+                            positionSeconds: playback.positionSeconds,
+                            offsetSeconds: offset
+                        )
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                LazyVStack(alignment: .leading, spacing: 14) {
+                                    ForEach(lyrics.lines) { line in
+                                        let isCurrent = (activeIdx == line.id)
+                                        Button {
+                                            if let t = line.timeSeconds {
+                                                playback.seek(to: max(0.0, t + offset))
+                                            }
+                                        } label: {
+                                            Text(line.text)
+                                                .font(SnoozyTypography.title(isCurrent ? 22 : 17))
+                                                .foregroundStyle(isCurrent ? theme.accent : theme.inkMuted)
+                                                .multilineTextAlignment(.leading)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .padding(.vertical, 4)
                                         }
-                                    } label: {
-                                        Text(line.text)
-                                            .font(SnoozyTypography.title(isCurrent ? 22 : 17))
-                                            .foregroundStyle(isCurrent ? theme.accent : theme.inkMuted)
-                                            .multilineTextAlignment(.leading)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .padding(.vertical, 4)
+                                        .buttonStyle(.plain)
+                                        .id(line.id)
                                     }
-                                    .buttonStyle(.plain)
-                                    .id(line.id)
                                 }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 16)
-                        }
-                        .onChange(of: activeIdx) { _, newIdx in
-                            if let newIdx {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                                    proxy.scrollTo(newIdx, anchor: .center)
+                            .onChange(of: activeIdx) { _, newIdx in
+                                if let newIdx {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                        proxy.scrollTo(newIdx, anchor: .center)
+                                    }
                                 }
                             }
                         }
