@@ -25,7 +25,7 @@ final class LibraryEditingTests: XCTestCase {
             supportDirectory: support,
             documentsDirectory: documents
         )
-        store.update { state in
+        _ = store.update { state in
             state.scannedTracks = tracks
             state.playlists = playlists
         }
@@ -37,6 +37,7 @@ final class LibraryEditingTests: XCTestCase {
         title: String,
         artist: String = "Artist",
         album: String = "Album",
+        albumArtist: String? = nil,
         trackNumber: Int = 1,
         duration: Double = 100
     ) -> Track {
@@ -45,6 +46,7 @@ final class LibraryEditingTests: XCTestCase {
             title: title,
             artist: artist,
             album: album,
+            albumArtist: albumArtist,
             trackNumber: trackNumber,
             duration: duration,
             relativePath: "\(title).mp3",
@@ -55,12 +57,12 @@ final class LibraryEditingTests: XCTestCase {
     @MainActor
     func testAlbumEditPropagatesToEveryTrackAndRegroupsAlbum() throws {
         let repository = try makeRepository(tracks: [
-            makeTrack(id: "t1", title: "One", artist: "Artist A", trackNumber: 1),
-            makeTrack(id: "t2", title: "Two", artist: "Artist B", trackNumber: 2)
+            makeTrack(id: "t1", title: "One", artist: "Artist A", albumArtist: "Various Artists", trackNumber: 1),
+            makeTrack(id: "t2", title: "Two", artist: "Artist B", albumArtist: "Various Artists", trackNumber: 2)
         ])
         let album = try XCTUnwrap(repository.albums.first)
 
-        repository.updateAlbum(
+        _ = repository.updateAlbum(
             album: album,
             title: "Renamed Album",
             artist: "Various Artists",
@@ -148,8 +150,8 @@ final class LibraryEditingTests: XCTestCase {
         let repository = try makeRepository(tracks: [makeTrack(id: "t1", title: "One")])
 
         repository.updatePreferences { prefs in
-            prefs.librarySectionOrder = ["genres", "songs", "playlists"]
-            prefs.hiddenLibrarySections = ["artists"]
+            prefs.librarySectionOrder = ["Genres", "Songs", "Playlists"]
+            prefs.hiddenLibrarySections = ["Artists"]
         }
 
         let tabs = repository.librarySections
