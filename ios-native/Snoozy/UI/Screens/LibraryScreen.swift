@@ -808,11 +808,11 @@ public struct LibraryScreen: View {
                                 .buttonStyle(.plain)
 
                                 libraryEllipsisMenu(accessibilityLabel: "Options for \(album.title)") {
-                                    albumActions(album, tracks: repository.tracks(forAlbum: album.id))
+                                    albumActions(album: album, tracks: repository.tracks(forAlbum: album.id))
                                 }
                             }
                             .contextMenu {
-                                albumActions(album, tracks: repository.tracks(forAlbum: album.id))
+                                albumActions(album: album, tracks: repository.tracks(forAlbum: album.id))
                             }
                         }
                     }
@@ -855,7 +855,7 @@ public struct LibraryScreen: View {
                     .buttonStyle(.plain)
 
                     Menu {
-                        albumActions(album, tracks: albumTracks)
+                        albumActions(album: album, tracks: albumTracks)
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 14, weight: .bold))
@@ -870,7 +870,7 @@ public struct LibraryScreen: View {
                     .accessibilityLabel("Options for \(album.title)")
                 }
                 .contextMenu {
-                    albumActions(album, tracks: albumTracks)
+                    albumActions(album: album, tracks: albumTracks)
                 }
             }
         }
