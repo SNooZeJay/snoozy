@@ -40,6 +40,9 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p build
+          # The runner shell uses -e, so a failing pipeline would abort before
+          # the annotations below. Capture the status instead.
+          status=0
           xcodebuild \
             -project Snoozy.xcodeproj \
             -scheme Snoozy \
@@ -47,11 +50,16 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -derivedDataPath build/TestDerivedData \
             CODE_SIGNING_ALLOWED=NO \
-            test 2>&1 | tee build/xcodebuild-test.log
-          status=${PIPESTATUS[0]}
+            test 2>&1 | tee build/xcodebuild-test.log || status=$?
           if [ "$status" -ne 0 ]; then
             echo "=== XCODEBUILD ERRORS ==="
-            grep -E "error:|fatal error:|Testing failed:" build/xcodebuild-test.log | head -n 60 | while IFS= read -r line; do
+            matches=$(grep -E "error:|fatal error:|Testing failed:" build/xcodebuild-test.log || true)
+            if [ -z "$matches" ]; then
+              matches=$(tail -n 15 build/xcodebuild-test.log || true)
+            fi
+            printf '%s\n' "$matches" | head -n 10 | while IFS= read -r line; do
+              line="${line//'%'/'%25'}"
+              line="${line//$'\r'/}"
               echo "::error::$line"
             done
           fi
