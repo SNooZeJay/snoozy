@@ -1,4 +1,5 @@
 import AVFoundation
+import AudioToolbox
 import Foundation
 
 public struct AudioMeterReadings: Equatable, Sendable {
@@ -111,7 +112,15 @@ public final class SnoozyAudioEngine {
     private let playerB = AVAudioPlayerNode()
     private let equalizer = AVAudioUnitEQ(numberOfBands: EqualizerBands.count)
     private let varispeed = AVAudioUnitVarispeed()
-    private let limiter = AVAudioUnitDynamicsProcessor()
+    // AVFoundation has no limiter wrapper; the Apple Peak Limiter AU is the
+    // in-box guard against an overshooting crossfade or EQ boost.
+    private let limiter = AVAudioUnitEffect(audioComponentDescription: AudioComponentDescription(
+        componentType: kAudioUnitType_Effect,
+        componentSubType: kAudioUnitSubType_PeakLimiter,
+        componentManufacturer: kAudioUnitManufacturer_Apple,
+        componentFlags: 0,
+        componentFlagsMask: 0
+    ))
     private let meterStore = AudioMeterStore()
 
     private var activePlayer: AVAudioPlayerNode
@@ -402,14 +411,6 @@ public final class SnoozyAudioEngine {
             band.gain = 0.0
             band.bypass = false
         }
-
-        limiter.threshold = -3.0
-        limiter.headRoom = 3.0
-        limiter.expansionRatio = 1.0
-        limiter.expansionThreshold = -60.0
-        limiter.attackTime = 0.001
-        limiter.releaseTime = 0.05
-        limiter.masterGain = 0.0
 
         mixer.installTap(onBus: 0, bufferSize: 4_096, format: nil) { [meterStore] buffer, _ in
             AudioMeterStore.measure(buffer, into: meterStore)
