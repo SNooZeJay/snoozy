@@ -697,7 +697,9 @@ public final class PlaybackController: NSObject, ObservableObject {
         automixTimer = nil
         isAutomixTransitioning = true
         do {
-            try audioEngine.startTransition(overlapSeconds: plan.overlapSeconds) { [weak self] in
+            // The plan is in source time; the fade runs in wall time.
+            let fadeSeconds = plan.overlapSeconds / max(0.5, playbackRate)
+            try audioEngine.startTransition(overlapSeconds: fadeSeconds) { [weak self] in
                 guard let self else { return }
                 self.isAutomixTransitioning = false
                 self.refreshAutomixPreparation()
