@@ -504,6 +504,159 @@ public struct LiquidAuraBackgroundView: View {
     }
 }
 
+/// Ambient light that radiates from behind the now-playing artwork.
+/// Colors come from the artwork palette and motion comes from the smoothed
+/// playback levels, so no published state is created per frame.
+public struct ArtworkAuraView: View {
+    public let size: CGFloat
+    public let palette: ArtworkPalette
+    public let isPlaying: Bool
+    public let isEnabled: Bool
+    public let reduceMotion: Bool
+    public let intensity: Double
+    private let liveLevels: () -> AudioReactiveLevels
+
+    public init(
+        size: CGFloat,
+        palette: ArtworkPalette,
+        isPlaying: Bool,
+        isEnabled: Bool,
+        reduceMotion: Bool,
+        intensity: Double,
+        liveLevels: @escaping () -> AudioReactiveLevels
+    ) {
+        self.size = size
+        self.palette = palette
+        self.isPlaying = isPlaying
+        self.isEnabled = isEnabled
+        self.reduceMotion = reduceMotion
+        self.intensity = intensity
+        self.liveLevels = liveLevels
+    }
+
+    public var body: some View {
+        TimelineView(
+            .animation(
+                minimumInterval: 1.0 / 30.0,
+                paused: !isEnabled || !isPlaying || reduceMotion
+            )
+        ) { timeline in
+            if isEnabled {
+                ZStack {
+                    aura(
+                        time: timeline.date.timeIntervalSinceReferenceDate - liquidAuraEpoch,
+                        levels: isPlaying && !reduceMotion ? liveLevels() : .zero
+                    )
+                    .id(palette)
+                    .transition(.opacity)
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .animation(.easeInOut(duration: 1.1), value: palette)
+        .animation(.easeInOut(duration: 1.1), value: isPlaying)
+    }
+
+    private func aura(time: Double, levels: AudioReactiveLevels) -> some View {
+        let bass = levels.bass
+        let mid = levels.mid
+        let high = levels.high
+        let energy = levels.overall
+        let peak = max(0.0, energy - 0.58) / 0.42
+        let breath = (sin(time * 0.52) + 1.0) * 0.5
+        let driftX = sin(time * 0.21) * size * 0.020
+        let driftY = cos(time * 0.17) * size * 0.016
+        let shimmer = sin(time * 1.85)
+        let liveScale = 1.0 + bass * 0.055 + mid * 0.012 + energy * 0.018 + peak * 0.028 + breath * 0.014
+        let stateScale: CGFloat = isPlaying ? 1.015 : 0.88
+        let baseAlpha = min(1.0, max(0.0, intensity))
+        let liveAlpha = (isPlaying ? 1.0 : 0.62) * (0.86 + energy * 0.18 + peak * 0.10 + breath * 0.04)
+
+        return ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        stops: [
+                            .init(color: palette.primary.opacity(0.52), location: 0.0),
+                            .init(color: palette.primary.opacity(0.36), location: 0.40),
+                            .init(color: palette.primary.opacity(0.14), location: 0.68),
+                            .init(color: .clear, location: 0.92)
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: size * 0.86
+                    )
+                )
+                .frame(width: size * 1.72, height: size * 1.72)
+                .offset(x: driftX, y: driftY)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        stops: [
+                            .init(color: palette.secondary.opacity(0.44), location: 0.0),
+                            .init(color: palette.secondary.opacity(0.24), location: 0.46),
+                            .init(color: .clear, location: 0.88)
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: size * 0.62
+                    )
+                )
+                .frame(width: size * 1.24, height: size * 1.24)
+                .offset(
+                    x: -size * 0.13 + driftX * 0.7 - driftY * 0.35,
+                    y: -size * 0.10 + driftY * 0.7 + driftX * 0.25
+                )
+                .scaleEffect(1.0 + mid * 0.03)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        stops: [
+                            .init(color: palette.tertiary.opacity(0.38), location: 0.0),
+                            .init(color: palette.tertiary.opacity(0.18), location: 0.52),
+                            .init(color: .clear, location: 0.90)
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: size * 0.68
+                    )
+                )
+                .frame(width: size * 1.34, height: size * 1.34)
+                .offset(
+                    x: size * 0.14 - driftX * 0.6 + shimmer * high * size * 0.010,
+                    y: size * 0.11 - driftY * 0.6 - shimmer * high * size * 0.008
+                )
+                .scaleEffect(1.0 + high * 0.025)
+                .opacity(0.92 + high * 0.10 + shimmer * high * 0.04)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        stops: [
+                            .init(color: palette.primary.opacity(0.22), location: 0.0),
+                            .init(color: palette.secondary.opacity(0.10), location: 0.58),
+                            .init(color: .clear, location: 0.94)
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: size * 0.54
+                    )
+                )
+                .frame(width: size * 1.06, height: size * 1.06)
+                .scaleEffect(1.0 + peak * 0.04)
+        }
+        .compositingGroup()
+        .blur(radius: size * 0.14)
+        .scaleEffect(stateScale * liveScale)
+        .opacity(baseAlpha * liveAlpha)
+        .blendMode(.plusLighter)
+    }
+}
+
 public struct LiquidGlassButton: View {
     public let title: String
     public let systemImage: String?

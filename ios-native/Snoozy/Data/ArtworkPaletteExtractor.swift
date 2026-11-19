@@ -3,7 +3,7 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 import UIKit
 
-public struct ArtworkPalette: Equatable, Sendable {
+public struct ArtworkPalette: Equatable, Hashable, Sendable {
     public let primary: Color
     public let secondary: Color
     public let tertiary: Color

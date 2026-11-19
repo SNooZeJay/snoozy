@@ -48,14 +48,9 @@ public struct PlayerScreen: View {
         GeometryReader { proxy in
             let layout = SnoozyResponsiveLayout(width: proxy.size.width, height: proxy.size.height)
             ZStack {
-                LiquidAuraBackgroundView(
-                    theme: theme,
-                    palette: playback.activePalette,
-                    preferences: repository.preferences,
-                    isImmersivePlayer: true,
-                    audioLevels: playback.audioLevels,
-                    liveLevels: { playback.audioLevels }
-                )
+                // Now Playing keeps a dark stage so the white controls stay legible in every theme.
+                (theme.isDark ? theme.background : Color(red: 0.024, green: 0.039, blue: 0.055))
+                    .ignoresSafeArea()
 
                 // Subtle dark vignette for Apple Music contrast legibility
                 LinearGradient(
@@ -246,8 +241,19 @@ public struct PlayerScreen: View {
                 Spacer(minLength: 2)
             }
 
-            // Responsive centered Apple Music artwork with play/pause spring scale and depth shadow
+            // Responsive centered Apple Music artwork with a palette aura behind it
             ZStack {
+                ArtworkAuraView(
+                    size: artSize,
+                    palette: playback.activePalette,
+                    isPlaying: playback.isPlaying,
+                    isEnabled: repository.preferences.auraBackdropEnabled
+                        && repository.preferences.glassMode != .reduceTransparency,
+                    reduceMotion: repository.preferences.motionMode == .reduced,
+                    intensity: repository.preferences.auraBackdropIntensity,
+                    liveLevels: { playback.audioLevels }
+                )
+
                 let artView = SnoozyArtworkView(
                     artworkPath: track.artworkPath,
                     size: artSize,
@@ -255,10 +261,10 @@ public struct PlayerScreen: View {
                     theme: theme
                 )
                 .shadow(
-                    color: playback.activePalette.primary.opacity(playback.isPlaying ? 0.62 : 0.16),
-                    radius: playback.isPlaying ? 30 : 10,
+                    color: playback.activePalette.primary.opacity(playback.isPlaying ? 0.28 : 0.12),
+                    radius: playback.isPlaying ? 16 : 8,
                     x: 0,
-                    y: playback.isPlaying ? 14 : 6
+                    y: playback.isPlaying ? 10 : 5
                 )
                 .shadow(
                     color: Color.black.opacity(playback.isPlaying ? 0.50 : 0.26),
