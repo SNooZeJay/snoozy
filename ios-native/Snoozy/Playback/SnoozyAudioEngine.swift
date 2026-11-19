@@ -393,15 +393,7 @@ public final class SnoozyAudioEngine {
 
         engine.connect(playerA, to: mixer, format: nil)
         engine.connect(playerB, to: mixer, format: nil)
-
-        // The chain after the mixer uses the hardware input format so the
-        // engine never negotiates a mismatched output connection at start.
-        let hardware = engine.outputNode.inputFormat(forBus: 0)
-        let chainFormat: AVAudioFormat? = hardware.sampleRate > 0 && hardware.channelCount > 0 ? hardware : nil
-        engine.connect(mixer, to: equalizer, format: chainFormat)
-        engine.connect(equalizer, to: varispeed, format: chainFormat)
-        engine.connect(varispeed, to: limiter, format: chainFormat)
-        engine.connect(limiter, to: engine.outputNode, format: chainFormat)
+        connectProcessingChain()
 
         for (index, frequency) in EqualizerBands.frequencies.enumerated() {
             let band = equalizer.bands[index]
@@ -431,10 +423,32 @@ public final class SnoozyAudioEngine {
         engine.connect(player, to: mixer, format: format)
     }
 
+    /// The chain after the mixer uses the hardware input format so the engine
+    /// never negotiates a mismatched output connection at start. A route change
+    /// can alter that format, so recovery reconnects the whole chain.
+    private func connectProcessingChain() {
+        let hardware = engine.outputNode.inputFormat(forBus: 0)
+        let chainFormat: AVAudioFormat? = hardware.sampleRate > 0 && hardware.channelCount > 0 ? hardware : nil
+        for node in [mixer, equalizer, varispeed, limiter] as [AVAudioNode] {
+            engine.disconnectNodeOutput(node)
+        }
+        engine.connect(mixer, to: equalizer, format: chainFormat)
+        engine.connect(equalizer, to: varispeed, format: chainFormat)
+        engine.connect(varispeed, to: limiter, format: chainFormat)
+        engine.connect(limiter, to: engine.outputNode, format: chainFormat)
+    }
+
     private func handleConfigurationChange() {
         let position = currentTime()
         let wasPlaying = isPlayingNode
         let rate = varispeed.rate
+
+        fadeTimer?.invalidate()
+        fadeTimer = nil
+        fadeStartedAt = nil
+        isTransitioning = false
+        let finished = transitionFinished
+        transitionFinished = nil
 
         playerA.stop()
         playerB.stop()
@@ -444,14 +458,24 @@ public final class SnoozyAudioEngine {
         idleDuration = 0
         idlePlayer.volume = 0.0
 
-        do {
-            try startEngineIfNeeded()
-        } catch {
+        connectProcessingChain()
+
+        guard let file = activeFile, activeDuration > 0 else {
             isPlayingNode = false
+            finished?()
             return
         }
 
-        guard let file = activeFile, activeDuration > 0 else { return }
+        if wasPlaying {
+            do {
+                try startEngineIfNeeded()
+            } catch {
+                isPlayingNode = false
+                finished?()
+                return
+            }
+        }
+
         activePlayer = playerA
         idlePlayer = playerB
         let target = min(max(0.0, position), max(0.0, activeDuration - 0.05))
@@ -467,6 +491,7 @@ public final class SnoozyAudioEngine {
         } else {
             isPlayingNode = false
         }
+        finished?()
     }
 
     // MARK: - Scheduling
