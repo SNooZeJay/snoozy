@@ -480,6 +480,13 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
     public var playlistLayout: LibraryLayoutMode
     public var hiddenLibrarySections: [String]
     public var librarySectionOrder: [String]
+    public var automixEnabled: Bool
+    public var automixCrossfadeSeconds: Double
+    public var automixGaplessEnabled: Bool
+    public var equalizerEnabled: Bool
+    public var equalizerBandGains: [Double]
+    public var equalizerPreampDb: Double
+    public var equalizerCustomPresets: [EqualizerPreset]
 
     public init(
         themeMode: ThemeMode = .dark,
@@ -494,7 +501,14 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
         albumLayout: LibraryLayoutMode = .grid,
         playlistLayout: LibraryLayoutMode = .grid,
         hiddenLibrarySections: [String] = [],
-        librarySectionOrder: [String] = []
+        librarySectionOrder: [String] = [],
+        automixEnabled: Bool = true,
+        automixCrossfadeSeconds: Double = 4.0,
+        automixGaplessEnabled: Bool = false,
+        equalizerEnabled: Bool = false,
+        equalizerBandGains: [Double] = Array(repeating: 0.0, count: EqualizerBands.count),
+        equalizerPreampDb: Double = 0.0,
+        equalizerCustomPresets: [EqualizerPreset] = []
     ) {
         self.themeMode = themeMode
         self.paletteSeed = paletteSeed
@@ -509,6 +523,13 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
         self.playlistLayout = playlistLayout
         self.hiddenLibrarySections = hiddenLibrarySections
         self.librarySectionOrder = librarySectionOrder
+        self.automixEnabled = automixEnabled
+        self.automixCrossfadeSeconds = AutomixLogic.clampedCrossfade(automixCrossfadeSeconds)
+        self.automixGaplessEnabled = automixGaplessEnabled
+        self.equalizerEnabled = equalizerEnabled
+        self.equalizerBandGains = EqualizerLogic.sanitizedGains(equalizerBandGains)
+        self.equalizerPreampDb = EqualizerLogic.sanitizedPreamp(equalizerPreampDb)
+        self.equalizerCustomPresets = equalizerCustomPresets
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -525,6 +546,13 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
         case playlistLayout
         case hiddenLibrarySections
         case librarySectionOrder
+        case automixEnabled
+        case automixCrossfadeSeconds
+        case automixGaplessEnabled
+        case equalizerEnabled
+        case equalizerBandGains
+        case equalizerPreampDb
+        case equalizerCustomPresets
     }
 
     public init(from decoder: Decoder) throws {
@@ -542,6 +570,22 @@ public struct SnoozyPreferences: Codable, Equatable, Sendable {
         self.playlistLayout = try container.decodeIfPresent(LibraryLayoutMode.self, forKey: .playlistLayout) ?? .grid
         self.hiddenLibrarySections = try container.decodeIfPresent([String].self, forKey: .hiddenLibrarySections) ?? []
         self.librarySectionOrder = try container.decodeIfPresent([String].self, forKey: .librarySectionOrder) ?? []
+        self.automixEnabled = try container.decodeIfPresent(Bool.self, forKey: .automixEnabled) ?? true
+        self.automixCrossfadeSeconds = AutomixLogic.clampedCrossfade(
+            try container.decodeIfPresent(Double.self, forKey: .automixCrossfadeSeconds) ?? 4.0
+        )
+        self.automixGaplessEnabled = try container.decodeIfPresent(Bool.self, forKey: .automixGaplessEnabled) ?? false
+        self.equalizerEnabled = try container.decodeIfPresent(Bool.self, forKey: .equalizerEnabled) ?? false
+        self.equalizerBandGains = EqualizerLogic.sanitizedGains(
+            try container.decodeIfPresent([Double].self, forKey: .equalizerBandGains) ?? []
+        )
+        self.equalizerPreampDb = EqualizerLogic.sanitizedPreamp(
+            try container.decodeIfPresent(Double.self, forKey: .equalizerPreampDb) ?? 0.0
+        )
+        self.equalizerCustomPresets = try container.decodeIfPresent(
+            [EqualizerPreset].self,
+            forKey: .equalizerCustomPresets
+        ) ?? []
     }
 }
 

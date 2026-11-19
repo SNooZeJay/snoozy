@@ -23,6 +23,7 @@ public struct PlayerScreen: View {
     @State private var showAddToPlaylistSheet: Bool = false
     @State private var showMetadataSheet: Bool = false
     @State private var showTrackInfoSheet: Bool = false
+    @State private var showEqualizerSheet: Bool = false
 
     private static let speedChoices: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
@@ -112,6 +113,13 @@ public struct PlayerScreen: View {
                                         showMetadataSheet = true
                                     }
                                 }
+                            )
+                        }
+                        .sheet(isPresented: $showEqualizerSheet) {
+                            EqualizerScreen(
+                                repository: repository,
+                                playback: playback,
+                                theme: theme
                             )
                         }
                 } else {
@@ -1048,7 +1056,21 @@ public struct PlayerScreen: View {
 
                 Spacer()
 
-                // 4. Queue Toggle (with active badge when shuffle/repeat is on)
+                // 4. Equalizer Quick Access
+                Button {
+                    showEqualizerSheet = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(repository.preferences.equalizerEnabled ? theme.accent : Color.white.opacity(0.78))
+                        .frame(width: 44, height: 36)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Equalizer")
+
+                Spacer()
+
+                // 5. Queue Toggle (with active badge when shuffle/repeat is on)
                 Button {
                     withAnimation(.spring(response: 0.36, dampingFraction: 0.80)) {
                         mode = (mode == .queue) ? .artwork : .queue

@@ -9,6 +9,8 @@ public struct SettingsScreen: View {
 
     @State private var showClearHistoryAlert: Bool = false
     @State private var showErrorLogSheet: Bool = false
+    @State private var showEqualizerSheet: Bool = false
+    @State private var crossfadeDraft: Double? = nil
     @Environment(\.snoozyLayout) private var layout
 
     private static let speedChoices: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -52,6 +54,13 @@ public struct SettingsScreen: View {
                 repository: repository,
                 theme: theme,
                 preferences: prefs
+            )
+        }
+        .sheet(isPresented: $showEqualizerSheet) {
+            EqualizerScreen(
+                repository: repository,
+                playback: playback,
+                theme: theme
             )
         }
     }
@@ -132,6 +141,85 @@ public struct SettingsScreen: View {
                 }
                 .padding(.horizontal, 16)
                 .frame(minHeight: 48)
+
+                rowDivider
+
+                Toggle(
+                    isOn: Binding(
+                        get: { prefs.automixEnabled },
+                        set: { enabled in repository.updatePreferences { $0.automixEnabled = enabled } }
+                    )
+                ) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Automix")
+                            .font(SnoozyTypography.body(15, bold: true))
+                            .foregroundStyle(theme.ink)
+                        Text("Overlaps the end of a track with the next one.")
+                            .font(SnoozyTypography.caption(11))
+                            .foregroundStyle(theme.inkMuted)
+                    }
+                }
+                .tint(theme.accent)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 58)
+
+                if prefs.automixEnabled {
+                    rowDivider
+
+                    VStack(spacing: 6) {
+                        HStack {
+                            Text("Crossfade")
+                                .font(SnoozyTypography.body(14, bold: true))
+                                .foregroundStyle(theme.ink)
+                            Spacer()
+                            Text(crossfadeLabel(prefs: prefs))
+                                .font(SnoozyTypography.caption(12, bold: true))
+                                .foregroundStyle(theme.accent)
+                                .monospacedDigit()
+                        }
+                        Slider(
+                            value: Binding(
+                                get: { crossfadeDraft ?? prefs.automixCrossfadeSeconds },
+                                set: { crossfadeDraft = $0 }
+                            ),
+                            in: 0...AutomixLogic.maxCrossfadeSeconds,
+                            step: 0.5,
+                            onEditingChanged: { editing in
+                                guard !editing, let draft = crossfadeDraft else { return }
+                                repository.updatePreferences {
+                                    $0.automixCrossfadeSeconds = AutomixLogic.clampedCrossfade(draft)
+                                }
+                                crossfadeDraft = nil
+                            }
+                        )
+                        .tint(theme.accent)
+                        .disabled(prefs.automixGaplessEnabled)
+                        .opacity(prefs.automixGaplessEnabled ? 0.45 : 1.0)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+
+                    rowDivider
+
+                    Toggle(
+                        isOn: Binding(
+                            get: { prefs.automixGaplessEnabled },
+                            set: { enabled in repository.updatePreferences { $0.automixGaplessEnabled = enabled } }
+                        )
+                    ) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Gapless Handoff")
+                                .font(SnoozyTypography.body(15, bold: true))
+                                .foregroundStyle(theme.ink)
+                            Text("Uses a very short overlap instead of the crossfade length.")
+                                .font(SnoozyTypography.caption(11))
+                                .foregroundStyle(theme.inkMuted)
+                        }
+                    }
+                    .tint(theme.accent)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 58)
+                }
 
                 rowDivider
 
@@ -436,6 +524,29 @@ public struct SettingsScreen: View {
             sectionTitle("Audio & Effects", icon: "waveform")
 
             SnoozyGroupedCard(theme: theme, preferences: prefs) {
+                Button {
+                    showEqualizerSheet = true
+                } label: {
+                    HStack {
+                        Text("Equalizer")
+                            .font(SnoozyTypography.body(15, bold: true))
+                            .foregroundStyle(theme.ink)
+                        Spacer()
+                        Text(prefs.equalizerEnabled ? "On" : "Off")
+                            .font(SnoozyTypography.body(14, bold: true))
+                            .foregroundStyle(prefs.equalizerEnabled ? theme.accent : theme.inkMuted)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(theme.inkFaint)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                rowDivider
+
                 Toggle(
                     isOn: Binding(
                         get: { prefs.auraBackdropEnabled },
@@ -606,6 +717,11 @@ public struct SettingsScreen: View {
             .padding(.horizontal, 16)
             .frame(minHeight: 46)
         }
+    }
+
+    private func crossfadeLabel(prefs: SnoozyPreferences) -> String {
+        let value = crossfadeDraft ?? prefs.automixCrossfadeSeconds
+        return String(format: "%.1f s", value)
     }
 
     private func shortGlassLabel(_ mode: GlassMode) -> String {

@@ -6,7 +6,7 @@ import SwiftUI
 import UIKit
 
 @MainActor
-public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayerDelegate {
+public final class PlaybackController: NSObject, ObservableObject {
     private let repository: LibraryRepository
 
     @Published public private(set) var activeTrack: Track? = nil
@@ -26,8 +26,11 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     public private(set) var audioLevels: AudioReactiveLevels = .zero
     @Published public var playbackError: String? = nil
 
-    private var audioPlayer: AVAudioPlayer? = nil
+    private let audioEngine: SnoozyAudioEngine
     private var progressTimer: Timer? = nil
+    private var automixTimer: Timer? = nil
+    private var isAutomixTransitioning: Bool = false
+    private var preloadedNextTrackId: String? = nil
     private var ticksSinceSave: Int = 0
     private var coldStartRestored: Bool = false
     private var interruptionState = PlaybackInterruptionState()
@@ -43,11 +46,16 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
 
     public init(repository: LibraryRepository) {
         self.repository = repository
+        self.audioEngine = SnoozyAudioEngine()
         super.init()
+        audioEngine.onTrackFinished = { [weak self] in
+            self?.handleTrackFinished()
+        }
         configureAudioSession()
         configureRemoteCommands()
         observeAudioNotifications()
         observeLibraryChanges()
+        observePreferences()
     }
 
     deinit {
@@ -152,23 +160,23 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             return
         }
 
-        if audioPlayer == nil, let active = activeTrack {
+        if !audioEngine.hasScheduledTrack, let active = activeTrack {
             preparePlayer(for: active, seekTo: positionSeconds, autoPlay: true)
             return
         }
 
-        if audioPlayer == nil, let first = repository.sortedSongs.first {
+        if !audioEngine.hasScheduledTrack, let first = repository.sortedSongs.first {
             playTrack(first, queue: repository.sortedSongs)
             return
         }
 
         do {
             try AVAudioSession.sharedInstance().setActive(true)
-            audioPlayer?.rate = Float(playbackRate)
-            audioPlayer?.play()
+            try audioEngine.play()
             isPlaying = true
             sessionStartedAtMs = Int64(Date().timeIntervalSince1970 * 1000)
             startProgressTimer()
+            refreshAutomixPreparation()
             updateNowPlayingInfo()
         } catch {
             playbackError = error.localizedDescription
@@ -177,9 +185,11 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     }
 
     public func pause() {
-        audioPlayer?.pause()
+        audioEngine.pause()
         isPlaying = false
         audioLevels = .zero
+        automixTimer?.invalidate()
+        automixTimer = nil
         stopProgressTimer()
         finishActiveListeningSession()
         persistSession()
@@ -203,7 +213,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     public func previous() {
         triggerHaptic(.light)
         guard !queueTracks.isEmpty else { return }
-        let currentPos = audioPlayer?.currentTime ?? positionSeconds
+        let currentPos = audioEngine.currentTime()
         if PlaybackQueueOps.shouldRestartOnPrevious(positionSeconds: currentPos) {
             seek(to: 0.0)
             return
@@ -215,9 +225,14 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
 
     public func seek(to seconds: Double) {
         let clamped = max(0.0, min(seconds, max(durationSeconds, 0.0)))
-        audioPlayer?.currentTime = clamped
+        do {
+            try audioEngine.seek(to: clamped)
+        } catch {
+            repository.logError(category: "Playback", message: error.localizedDescription, trackId: activeTrack?.id)
+        }
         positionSeconds = clamped
         listeningTracker.reposition(toMs: Int64(clamped * 1000.0))
+        refreshAutomixPreparation()
         persistSession()
         updateNowPlayingInfo()
     }
@@ -247,6 +262,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         }
         repository.bannerMessage = "Playing \"\(track.title)\" next."
         persistSession()
+        refreshAutomixPreparation()
     }
 
     public func addToQueue(_ track: Track) {
@@ -262,6 +278,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         queueTracks.append(track)
         repository.bannerMessage = "Added \"\(track.title)\" to queue."
         persistSession()
+        refreshAutomixPreparation()
     }
 
     public func playQueueItem(at index: Int) {
@@ -284,6 +301,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             queueIndex = newIdx
         }
         persistSession()
+        refreshAutomixPreparation()
     }
 
     public func removeQueueItem(at index: Int) {
@@ -300,6 +318,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         } else if let active = activeTrack, let newIdx = queueTracks.firstIndex(where: { $0.id == active.id }) {
             queueIndex = newIdx
             persistSession()
+            refreshAutomixPreparation()
         }
     }
 
@@ -307,8 +326,11 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         flushCurrentPlayHistoryIfQualified()
         finishActiveListeningSession()
         stopProgressTimer()
-        audioPlayer?.stop()
-        audioPlayer = nil
+        automixTimer?.invalidate()
+        automixTimer = nil
+        isAutomixTransitioning = false
+        preloadedNextTrackId = nil
+        audioEngine.stop()
         activeTrack = nil
         isPlaying = false
         queueTracks = []
@@ -324,6 +346,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         triggerHaptic(.selection)
         repeatMode = repeatMode.next()
         persistSession()
+        refreshAutomixPreparation()
     }
 
     public func toggleShuffle() {
@@ -331,6 +354,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         shuffle.toggle()
         guard let active = activeTrack, queueTracks.count > 1 else {
             persistSession()
+            refreshAutomixPreparation()
             return
         }
         if shuffle {
@@ -352,28 +376,27 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             }
         }
         persistSession()
+        refreshAutomixPreparation()
     }
 
     public func setSpeed(_ speed: Double) {
         triggerHaptic(.selection)
         let clamped = PlaybackQueueOps.clampPlaybackSpeed(speed)
         playbackRate = clamped
-        audioPlayer?.enableRate = true
-        audioPlayer?.rate = Float(clamped)
+        audioEngine.setRate(clamped)
         persistSession()
+        refreshAutomixPreparation()
         updateNowPlayingInfo()
     }
 
     public func setVolume(_ newVolume: Double) {
         let clamped = min(1.0, max(0.0, newVolume))
         volume = clamped
-        audioPlayer?.volume = Float(clamped)
+        audioEngine.setVolume(clamped)
     }
 
-    nonisolated public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        Task { @MainActor in
-            self.handleTrackFinished()
-        }
+    public func previewEqualizer(enabled: Bool, gainsDb: [Double], preampDb: Double) {
+        audioEngine.applyEqualizer(enabled: enabled, gainsDb: gainsDb, preampDb: preampDb)
     }
 
     private func handleTrackFinished() {
@@ -393,7 +416,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             } else {
                 isPlaying = false
                 positionSeconds = 0.0
-                audioPlayer?.currentTime = 0.0
+                try? audioEngine.seek(to: 0.0)
                 stopProgressTimer()
                 finishActiveListeningSession()
                 persistSession()
@@ -421,8 +444,11 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     private func preparePlayer(for track: Track, seekTo seconds: Double, autoPlay: Bool) {
         finishActiveListeningSession()
         stopProgressTimer()
-        audioPlayer?.stop()
-        audioPlayer = nil
+        automixTimer?.invalidate()
+        automixTimer = nil
+        isAutomixTransitioning = false
+        preloadedNextTrackId = nil
+        audioLevels = .zero
 
         let url = repository.fileURL(for: track)
         guard FileManager.default.fileExists(atPath: url.path) else {
@@ -438,41 +464,32 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             if autoPlay {
                 try AVAudioSession.sharedInstance().setActive(true)
             }
-            let player = try AVAudioPlayer(contentsOf: url)
-            player.delegate = self
-            player.enableRate = true
-            player.isMeteringEnabled = true
-            player.rate = Float(playbackRate)
-            player.volume = Float(volume)
-            player.prepareToPlay()
-            if player.duration > 0 {
-                durationSeconds = player.duration
-            }
-            if seconds > 0, seconds < player.duration {
-                player.currentTime = seconds
-                positionSeconds = seconds
-            } else {
-                positionSeconds = 0.0
-            }
-            self.audioPlayer = player
+            let duration = try audioEngine.load(
+                url: url,
+                startAt: seconds,
+                rate: playbackRate,
+                volume: volume
+            )
+            durationSeconds = duration > 0 ? duration : track.duration
+            positionSeconds = (seconds > 0 && seconds < durationSeconds) ? seconds : 0.0
             listeningTracker.reposition(toMs: Int64(positionSeconds * 1000.0))
 
             if autoPlay {
-                player.play()
+                try audioEngine.play()
                 isPlaying = true
                 sessionStartedAtMs = Int64(Date().timeIntervalSince1970 * 1000)
                 startProgressTimer()
             } else {
                 isPlaying = false
-                audioLevels = .zero
             }
+            refreshAutomixPreparation()
             updateNowPlayingInfo()
         } catch {
             let msg = "Unable to play \"\(track.title)\": \(error.localizedDescription)"
             playbackError = msg
             isPlaying = false
             audioLevels = .zero
-            repository.logError(category: "AudioPlayer", message: msg, trackId: track.id)
+            repository.logError(category: "AudioEngine", message: msg, trackId: track.id)
         }
     }
 
@@ -504,11 +521,13 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         stopProgressTimer()
         ticksSinceSave = 0
         let interval: TimeInterval = isAppInForeground ? 0.08 : 0.50
-        progressTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.sampleProgress()
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        progressTimer = timer
     }
 
     private func stopProgressTimer() {
@@ -517,11 +536,11 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
     }
 
     private func sampleProgress() {
-        guard let player = audioPlayer else { return }
-        let pos = max(0.0, player.currentTime)
+        guard audioEngine.hasScheduledTrack else { return }
+        let pos = max(0.0, audioEngine.currentTime())
         positionSeconds = pos
-        if player.duration > 0, abs(durationSeconds - player.duration) > 0.01 {
-            durationSeconds = player.duration
+        if audioEngine.duration > 0, abs(durationSeconds - audioEngine.duration) > 0.01 {
+            durationSeconds = audioEngine.duration
         }
         let posMs = Int64(pos * 1000.0)
         listeningTracker.tick(positionMs: posMs, isPlaying: isPlaying)
@@ -529,21 +548,20 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
         // Real-time lightweight audio-reactive level sampling (foreground only)
         let prefs = repository.preferences
         if isPlaying && isAppInForeground && prefs.auraBackdropEnabled && prefs.audioReactiveAuraEnabled && prefs.motionMode != .reduced {
-            player.updateMeters()
-            let channels = max(1, player.numberOfChannels)
-            let avgL = player.averagePower(forChannel: 0)
-            let avgR = channels > 1 ? player.averagePower(forChannel: 1) : avgL
-            let peakL = player.peakPower(forChannel: 0)
-            let peakR = channels > 1 ? player.peakPower(forChannel: 1) : peakL
+            let meters = audioEngine.latestMeterReadings()
             audioLevels = AudioReactiveAnalyzer.computeLevels(
-                averagePowerLeftDb: avgL,
-                averagePowerRightDb: avgR,
-                peakPowerLeftDb: peakL,
-                peakPowerRightDb: peakR,
+                averagePowerLeftDb: meters.averageLeftDb,
+                averagePowerRightDb: meters.averageRightDb,
+                peakPowerLeftDb: meters.peakLeftDb,
+                peakPowerRightDb: meters.peakRightDb,
                 previous: audioLevels
             )
         } else if audioLevels != .zero {
             audioLevels = AudioReactiveAnalyzer.decayToZero(from: audioLevels)
+        }
+
+        if isPlaying {
+            beginAutomixIfDue()
         }
 
         ticksSinceSave += 1
@@ -553,6 +571,157 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
             persistSession()
             updateNowPlayingInfo()
         }
+    }
+
+    // MARK: - Automix
+
+    private func observePreferences() {
+        repository.$preferences
+            .receive(on: RunLoop.main)
+            .sink { [weak self] prefs in
+                guard let self else { return }
+                self.audioEngine.applyEqualizer(
+                    enabled: prefs.equalizerEnabled,
+                    gainsDb: prefs.equalizerBandGains,
+                    preampDb: prefs.equalizerPreampDb
+                )
+                self.refreshAutomixPreparation()
+            }
+            .store(in: &cancellables)
+    }
+
+    private var currentAutomixPlan: AutomixPlan? {
+        let prefs = repository.preferences
+        guard prefs.automixEnabled,
+              !queueTracks.isEmpty,
+              queueTracks.indices.contains(queueIndex)
+        else { return nil }
+
+        let nextInsertIndex = queueIndex + 1
+        let nextDuration: Double
+        if nextInsertIndex < queueTracks.count {
+            nextDuration = queueTracks[nextInsertIndex].duration
+        } else if repeatMode == .all, let first = queueTracks.first {
+            nextDuration = first.duration
+        } else {
+            nextDuration = 0.0
+        }
+
+        return AutomixLogic.plan(
+            repeatMode: repeatMode,
+            queueCount: queueTracks.count,
+            currentIndex: queueIndex,
+            currentDuration: audioEngine.duration > 0 ? audioEngine.duration : (activeTrack?.duration ?? 0),
+            nextDuration: nextDuration,
+            crossfadeSeconds: prefs.automixCrossfadeSeconds,
+            gaplessEnabled: prefs.automixGaplessEnabled
+        )
+    }
+
+    private func refreshAutomixPreparation() {
+        automixTimer?.invalidate()
+        automixTimer = nil
+
+        guard isPlaying,
+              !isAutomixTransitioning,
+              let plan = currentAutomixPlan,
+              queueTracks.indices.contains(plan.nextIndex)
+        else {
+            if !isAutomixTransitioning {
+                audioEngine.cancelPreload()
+                preloadedNextTrackId = nil
+            }
+            return
+        }
+
+        let nextTrack = queueTracks[plan.nextIndex]
+        if preloadedNextTrackId != nextTrack.id || !audioEngine.hasPreparedNextTrack {
+            let url = repository.fileURL(for: nextTrack)
+            guard FileManager.default.fileExists(atPath: url.path),
+                  (try? audioEngine.preloadNext(url: url)) != nil
+            else {
+                audioEngine.cancelPreload()
+                preloadedNextTrackId = nil
+                return
+            }
+            preloadedNextTrackId = nextTrack.id
+        }
+        armAutomixTrigger(plan: plan)
+    }
+
+    private func armAutomixTrigger(plan: AutomixPlan) {
+        automixTimer?.invalidate()
+        let remainingSourceSeconds = durationSeconds - plan.overlapSeconds - audioEngine.currentTime()
+        let delay = max(0.05, remainingSourceSeconds / max(0.5, playbackRate))
+        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.beginAutomixIfDue()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        automixTimer = timer
+    }
+
+    private func beginAutomixIfDue() {
+        guard isPlaying,
+              !isAutomixTransitioning,
+              let plan = currentAutomixPlan
+        else { return }
+
+        let threshold = durationSeconds - plan.overlapSeconds
+        if audioEngine.currentTime() + 0.05 < threshold {
+            armAutomixTrigger(plan: plan)
+            return
+        }
+        performAutomix(plan: plan)
+    }
+
+    private func performAutomix(plan: AutomixPlan) {
+        guard queueTracks.indices.contains(plan.nextIndex) else { return }
+        let nextTrack = queueTracks[plan.nextIndex]
+        let nextURL = repository.fileURL(for: nextTrack)
+        guard FileManager.default.fileExists(atPath: nextURL.path) else {
+            jumpToQueueIndex(plan.nextIndex, autoPlay: true)
+            return
+        }
+
+        if !audioEngine.hasPreparedNextTrack || preloadedNextTrackId != nextTrack.id {
+            guard (try? audioEngine.preloadNext(url: nextURL)) != nil else {
+                jumpToQueueIndex(plan.nextIndex, autoPlay: true)
+                return
+            }
+            preloadedNextTrackId = nextTrack.id
+        }
+
+        automixTimer?.invalidate()
+        automixTimer = nil
+        isAutomixTransitioning = true
+        do {
+            try audioEngine.startTransition(overlapSeconds: plan.overlapSeconds) { [weak self] in
+                guard let self else { return }
+                self.isAutomixTransitioning = false
+                self.refreshAutomixPreparation()
+            }
+        } catch {
+            isAutomixTransitioning = false
+            jumpToQueueIndex(plan.nextIndex, autoPlay: true)
+            return
+        }
+
+        finishActiveListeningSession()
+        flushCurrentPlayHistoryIfQualified()
+
+        queueIndex = plan.nextIndex
+        activeTrack = nextTrack
+        positionSeconds = 0.0
+        durationSeconds = audioEngine.duration
+        listeningTracker.start(atMs: 0)
+        sessionStartedAtMs = Int64(Date().timeIntervalSince1970 * 1000)
+        repository.recordRecent(nextTrack.id)
+        preloadedNextTrackId = nil
+        loadAuxiliaryTrackData(for: nextTrack)
+        persistSession()
+        updateNowPlayingInfo()
     }
 
     private func flushCurrentPlayHistoryIfQualified() {
@@ -938,6 +1107,7 @@ public final class PlaybackController: NSObject, ObservableObject, AVAudioPlayer
                         self.loadAuxiliaryTrackData(for: refreshed)
                     }
                     self.updateNowPlayingInfo()
+                    self.refreshAutomixPreparation()
                 } else {
                     // The active track was deleted or removed from the library
                     if self.queueTracks.isEmpty {
