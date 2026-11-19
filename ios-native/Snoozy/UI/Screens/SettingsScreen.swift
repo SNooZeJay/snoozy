@@ -195,6 +195,8 @@ public struct SettingsScreen: View {
                         .tint(theme.accent)
                         .disabled(prefs.automixGaplessEnabled)
                         .opacity(prefs.automixGaplessEnabled ? 0.45 : 1.0)
+                        .accessibilityLabel("Crossfade duration")
+                        .accessibilityValue(crossfadeLabel(prefs: prefs))
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)

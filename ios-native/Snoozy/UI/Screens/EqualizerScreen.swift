@@ -156,6 +156,7 @@ public struct EqualizerScreen: View {
                                 }
                             ),
                             theme: theme,
+                            label: EqualizerBands.labels[index],
                             isEnabled: enabled,
                             onEditingEnded: { persist() }
                         )
@@ -202,6 +203,8 @@ public struct EqualizerScreen: View {
                     }
                 )
                 .tint(theme.accent)
+                .accessibilityLabel("Preamp")
+                .accessibilityValue(preampText)
 
                 HStack {
                     Text("Band boosts are offset automatically; the limiter catches peaks.")
@@ -412,6 +415,7 @@ public struct EqualizerScreen: View {
 private struct EqualizerBandSlider: View {
     @Binding var gain: Double
     let theme: SnoozyThemeColors
+    let label: String
     let isEnabled: Bool
     let onEditingEnded: () -> Void
 
@@ -455,7 +459,7 @@ private struct EqualizerBandSlider: View {
         }
         .frame(width: 30, height: 150)
         .accessibilityElement()
-        .accessibilityLabel("Band gain")
+        .accessibilityLabel("\(label) hertz band gain")
         .accessibilityValue(Text(String(format: "%+.1f decibels", gain)))
         .accessibilityAdjustableAction { direction in
             switch direction {
