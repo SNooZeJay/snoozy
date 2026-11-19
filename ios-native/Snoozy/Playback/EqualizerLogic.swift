@@ -89,14 +89,14 @@ public enum EqualizerLogic {
         return min(EqualizerBands.maxPreampDb, max(EqualizerBands.minPreampDb, db))
     }
 
-    /// Static clip guard: a band boost is offset by the preamp so the summed
-    /// response never exceeds unity. With no boosts the preamp passes through
-    /// and the limiter downstream catches transient peaks.
+    /// Static clip guard: the preamp is lowered by the loudest band boost so a
+    /// strong preset cannot clip on its own. The user preamp still adds or cuts
+    /// on top, and the limiter downstream catches transient peaks.
     public static func effectivePreampDb(userPreampDb: Double, gainsDb: [Double]) -> Double {
         let preamp = sanitizedPreamp(userPreampDb)
         let maxBoost = max(0.0, sanitizedGains(gainsDb).max() ?? 0.0)
-        guard maxBoost > 0 else { return preamp }
-        return max(EqualizerBands.minEffectiveGainDb, min(preamp, -maxBoost))
+        let compensated = preamp - maxBoost
+        return min(EqualizerBands.maxPreampDb, max(EqualizerBands.minEffectiveGainDb, compensated))
     }
 
     public static func preset(

@@ -25,7 +25,7 @@ final class EqualizerLogicTests: XCTestCase {
         XCTAssertEqual(result[5], 0)
     }
 
-    func testPreampClipGuardLimitsMaxBoostToUnity() {
+    func testPreampOffsetsLoudestBandBoost() {
         let gains: [Double] = [6, 5, 4, 3, 2, 1, 0, 0, 0, 0]
         XCTAssertEqual(
             EqualizerLogic.effectivePreampDb(userPreampDb: 0, gainsDb: gains),
@@ -34,12 +34,17 @@ final class EqualizerLogicTests: XCTestCase {
         )
         XCTAssertEqual(
             EqualizerLogic.effectivePreampDb(userPreampDb: 3, gainsDb: gains),
-            -6,
+            -3,
             accuracy: 0.0001
         )
         XCTAssertEqual(
             EqualizerLogic.effectivePreampDb(userPreampDb: -8, gainsDb: gains),
-            -8,
+            -14,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            EqualizerLogic.effectivePreampDb(userPreampDb: 9, gainsDb: gains),
+            3,
             accuracy: 0.0001
         )
     }

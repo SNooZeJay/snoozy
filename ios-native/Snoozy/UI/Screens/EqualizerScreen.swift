@@ -204,7 +204,7 @@ public struct EqualizerScreen: View {
                 .tint(theme.accent)
 
                 HStack {
-                    Text("Automatic headroom keeps the loudest band at or below unity.")
+                    Text("Band boosts are offset automatically; the limiter catches peaks.")
                         .font(SnoozyTypography.caption(11))
                         .foregroundStyle(theme.inkMuted)
                     Spacer()
